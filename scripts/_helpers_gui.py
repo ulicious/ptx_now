@@ -578,6 +578,8 @@ class SettingWindow:
         else:
             self.radiobutton_variable.set(self.base_settings.loc['chosen_setting'].values[0])
 
+            print('blabla')
+
         tk.Radiobutton(radiobutton_frame, text='New project', variable=self.radiobutton_variable,
                        value='new', command=self.radiobutton_command).grid(row=0, column=0, sticky='ew')
 

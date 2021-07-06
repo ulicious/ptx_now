@@ -541,7 +541,7 @@ class SettingWindow:
             self.base_settings.loc['chosen_setting'] = self.radiobutton_variable.get()
             self.base_settings.loc['path_optimize'] = self.folder_optimize
 
-            self.base_settings.to_excel(os.getcwd() + '\\base_settings.xlsx', index=True)
+            self.base_settings.to_excel(os.getcwd() + '/base_settings.xlsx', index=True)
 
             self.go_on = True
             self.window.destroy()
@@ -557,7 +557,8 @@ class SettingWindow:
         self.frame.pack()
         self.go_on = False
 
-        self.base_settings = pd.read_excel(os.getcwd() + '\\base_settings.xlsx', index_col=0)
+        path_base_setting = os.getcwd() + '/base_settings.xlsx'
+        self.base_settings = pd.read_excel(path_base_setting, index_col=0)
 
         self.path_data = self.base_settings.loc['path_data'].values[0]
         self.path_result = self.base_settings.loc['path_result'].values[0]

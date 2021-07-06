@@ -385,7 +385,7 @@ class Result:
             streams_and_costs.loc[nice_name, 'Production Costs per Unit'] = \
                 self.production_cost_stream_per_unit[stream]
 
-        streams_and_costs.to_excel(self.new_result_folder + '\\streams.xlsx')
+        streams_and_costs.to_excel(self.new_result_folder + '/streams.xlsx')
 
     def analyze_components(self):
 
@@ -438,7 +438,7 @@ class Result:
             capacity_df.loc[nice_name, 'Overhead'] = overhead
             capacity_df.loc[nice_name, 'Working Capital'] = working_capital
 
-        capacity_df.to_excel(self.new_result_folder + '\\components.xlsx')
+        capacity_df.to_excel(self.new_result_folder + '/components.xlsx')
 
     def analyze_generation(self):
 
@@ -463,7 +463,7 @@ class Result:
                                                     + generation_df.loc[generator, 'overhead']
                                                     + generation_df.loc[generator, 'personnel_cost']) / generation
 
-        generation_df.to_excel(self.new_result_folder + '\\generation.xlsx')
+        generation_df.to_excel(self.new_result_folder + '/generation.xlsx')
 
     def analyze_total_costs(self):
         # Total costs: annuity, maintenance, buying and selling, taxes and insurance, etc.
@@ -514,7 +514,7 @@ class Result:
 
         cost_distribution.loc[:, '%'] = cost_distribution.loc[:, 'Total'] / cost_distribution.loc['Total', 'Total']
 
-        cost_distribution.to_excel(self.new_result_folder + '\\cost_distribution.xlsx')
+        cost_distribution.to_excel(self.new_result_folder + '/cost_distribution.xlsx')
 
     def check_integer_variables(self):
 
@@ -536,7 +536,7 @@ class Result:
                     plt.xlabel('Hours')
                     plt.title(variable_name)
 
-                    plt.savefig(self.new_result_folder + '\\' + variable_name + " " + c + '.png')
+                    plt.savefig(self.new_result_folder + '/' + variable_name + " " + c + '.png')
                     plt.close()
 
     def create_and_print_vector(self):
@@ -591,7 +591,7 @@ class Result:
                         plt.title(variable_nice_names[variable_name] + ' '
                                   + self.pm_object.get_nice_name(stream))
 
-                        plt.savefig(self.new_result_folder + '\\' + variable_nice_names[variable_name] + ' '
+                        plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
                                     + self.pm_object.get_nice_name(stream) + '.png')
                         plt.close()
 
@@ -626,7 +626,7 @@ class Result:
                                       + self.pm_object.get_nice_name(stream) + ' '
                                       + self.pm_object.get_nice_name(c))
 
-                            plt.savefig(self.new_result_folder + '\\' + variable_nice_names[variable_name] + ' '
+                            plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
                                         + self.pm_object.get_nice_name(stream) + ' '
                                         + self.pm_object.get_nice_name(c) + '.png')
                             plt.close()
@@ -649,7 +649,7 @@ class Result:
             for i, elem in enumerate(time_depending_variables[key]):
                 time_depending_variables_df.loc[key, i] = elem
 
-        time_depending_variables_df.to_excel(self.new_result_folder + '\\time_series_streams.xlsx')
+        time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_streams.xlsx')
 
     def build_sankey_diagram(self, only_energy=False, specific_stream='Hydrogen', average_streams=True,
                              specific_period=0):

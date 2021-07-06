@@ -571,7 +571,12 @@ class SettingWindow:
         radiobutton_frame.grid_columnconfigure(2, weight=1)
 
         self.radiobutton_variable = StringVar()
-        self.radiobutton_variable.set(self.base_settings.loc['chosen_setting'].values[0])
+
+        if (type(self.base_settings.loc['chosen_setting'].values[0]) != str) \
+                | (self.base_settings.loc['chosen_setting'].values[0] == ''):
+            self.radiobutton_variable.set('new')
+        else:
+            self.radiobutton_variable.set(self.base_settings.loc['chosen_setting'].values[0])
 
         tk.Radiobutton(radiobutton_frame, text='New project', variable=self.radiobutton_variable,
                        value='new', command=self.radiobutton_command).grid(row=0, column=0, sticky='ew')

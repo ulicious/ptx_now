@@ -9,9 +9,9 @@ setting_window = SettingWindow()
 
 if setting_window.go_on:
 
-    path_data = setting_window.path_data.replace('/', '\\')
-    path_result = setting_window.path_result.replace('/', '\\')
-    path_settings = setting_window.path_settings.replace('/', '\\')
+    path_data = setting_window.folder_data.replace('/', '\\')
+    path_result = setting_window.folder_result.replace('/', '\\')
+    path_settings = setting_window.folder_settings.replace('/', '\\')
 
     if setting_window.radiobutton_variable.get() == 'new':
 
@@ -27,7 +27,7 @@ if setting_window.go_on:
 
     elif setting_window.radiobutton_variable.get() == 'optimize_only':
 
-        path_to_settings = setting_window.path_optimize.replace('/', '\\')
+        path_to_settings = setting_window.folder_optimize.replace('/', '\\')
 
         # Get path of every object in folder
         _, _, filenames = next(walk(path_to_settings))

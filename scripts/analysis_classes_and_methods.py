@@ -109,283 +109,309 @@ class Result:
                           'mass_energy_storage_in_streams', 'mass_energy_sell_stream', 'mass_energy_emitted',
                           'nominal_cap', 'mass_energy_generation']
 
-        for stream in self.model.ME_STREAMS:
-            self.purchased_stream.update({stream: 0})
-            self.purchase_costs.update({stream: 0})
-            self.sold_stream.update({stream: 0})
-            self.selling_revenue.update({stream: 0})
-            self.generated_stream.update({stream: 0})
-            self.available_stream.update({stream: 0})
-            self.emitted_stream.update({stream: 0})
-            self.stored_stream.update({stream: 0})
-            self.conversed_stream.update({stream: 0})
+        if True:
 
-        for variable_name in [*self.all_variables_dict]:
-
-            if variable_name in self.variable_two_index:
-
-                if variable_name in variable_names:
-                    for stream in [*self.all_variables_dict[variable_name]]:
-
-                        list_values = self.all_variables_dict[variable_name][stream]
-                        sum_values = sum(self.all_variables_dict[variable_name][stream])
-
-                        if variable_name == "mass_energy_available":
-                            self.available_stream[stream] = self.available_stream[stream] + sum_values
-
-                        if variable_name == 'mass_energy_emitted':
-                            if stream in self.model.EMITTED_STREAMS:
-                                self.emitted_stream[stream] = self.emitted_stream[stream] + sum_values
-
-                        if variable_name == 'mass_energy_purchase_stream':  # Calculate costs of purchase
-                            if stream in self.model.PURCHASABLE_STREAMS:
-                                self.purchased_stream[stream] = self.purchased_stream[stream] + sum_values
-                                self.purchase_costs[stream] = self.purchase_costs[stream] + \
-                                                              sum(list_values[t] * self.model.purchase_price[stream, t]
-                                                                  for t in self.model.TIME)
-
-                        if variable_name == 'mass_energy_sell_stream':  # Calculate costs of purchase
-                            if stream in self.model.SALEABLE_STREAMS:
-                                self.sold_stream[stream] = self.sold_stream[stream] + sum_values
-                                self.selling_revenue[stream] = self.selling_revenue[stream] + \
-                                                               sum(list_values[t] * self.model.selling_price[stream, t]
-                                                                   for t in self.model.TIME)
-
-                        if variable_name == 'mass_energy_total_generation':
-                            if stream in self.model.GENERATED_STREAMS:
-                                self.generated_stream[stream] = self.generated_stream[stream] + sum_values
-
-                        if variable_name == 'mass_energy_storage_in_streams':
-                            if stream in self.model.STORAGES:
-                                self.stored_stream[stream] = self.stored_stream[stream] + sum_values
-
-            elif variable_name in self.variable_three_index:
-
-                if variable_name in variable_names:
-
-                    for c in [*self.all_variables_dict[variable_name]]:
-
-                        for stream in [*self.all_variables_dict[variable_name][c]]:
-
-                            sum_values = sum(self.all_variables_dict[variable_name][c][stream])
-
-                            if variable_name == 'mass_energy_component_out_streams':
-                                self.conversed_stream[stream] = self.conversed_stream[stream] + sum_values
-
-        # Calculate total stream availability
-        for stream in self.model.ME_STREAMS:
-            self.total_availability[stream] = (self.purchased_stream[stream] + self.generated_stream[stream]
-                                               + self.conversed_stream[stream])
-
-        not_used_streams = []
-        for key in [*self.total_availability]:
-            if self.total_availability[key] == 0:
-                not_used_streams.append(key)
-
-        # Calculate the total cost of conversion. Important: conversion costs only occur for stream, where
-        # output is main stream (E.g., electrolysis produces hydrogen and oxygen -> oxygen will not have conversion cost
-
-        for stream in self.model.ME_STREAMS:
-            self.conversion_component_costs.update({stream: 0})
-            self.storage_costs.update({stream: 0})
-            self.storage_costs_per_unit.update({stream: 0})
-            self.generation_costs.update({stream: 0})
-            self.generation_costs_per_unit.update({stream: 0})
-            self.maintenance.update({stream: 0})
-
-        # Get fix costs for each stream
-        main_conversions = self.pm_object.get_all_main_conversion()
-        for i in main_conversions.index:
-            out_stream = main_conversions.loc[i, 'output_me']
-            c = main_conversions.loc[i, 'component']
-            self.conversion_component_costs[out_stream] = (self.conversion_component_costs[out_stream]
-                                                           + self.all_variables_dict['annuity'][c]
-                                                           + self.all_variables_dict['maintenance_costs'][c]
-                                                           + self.all_variables_dict['taxes_and_insurance_costs'][c]
-                                                           + self.all_variables_dict['personnel_costs'][c]
-                                                           + self.all_variables_dict['overhead_costs'][c]
-                                                           + self.all_variables_dict['working_capital_costs'][c])
-
-        # Get annuity of storage units
-        for stream in self.model.STORAGES:
-            self.storage_costs[stream] = (self.storage_costs[stream]
-                                            + self.all_variables_dict['annuity'][stream]
-                                            + self.all_variables_dict['maintenance_costs'][stream]
-                                            + self.all_variables_dict['taxes_and_insurance_costs'][stream]
-                                            + self.all_variables_dict['personnel_costs'][stream]
-                                            + self.all_variables_dict['overhead_costs'][stream]
-                                            + self.all_variables_dict['working_capital_costs'][stream])
-
-        # Get annuity of generation units
-        for generator in self.model.GENERATORS:
-            generated_stream = self.pm_object.get_component(generator).get_generated_stream()
-            self.generation_costs[generated_stream] = (self.generation_costs[generated_stream]
-                                                       + self.all_variables_dict['annuity'][generator]
-                                                       + self.all_variables_dict['maintenance_costs'][generator]
-                                                       + self.all_variables_dict['taxes_and_insurance_costs'][generator]
-                                                       + self.all_variables_dict['personnel_costs'][generator]
-                                                       + self.all_variables_dict['overhead_costs'][generator]
-                                                       + self.all_variables_dict['working_capital_costs'][generator])
-
-        # Calculate total cost from purchase, storing, generation and conversion
-        for stream in self.model.ME_STREAMS:
-            self.total_fix_costs.update({stream: (self.conversion_component_costs[stream] + self.storage_costs[stream]
-                                                  + self.generation_costs[stream])})
-
-        for stream in self.model.ME_STREAMS:
-            self.total_market_costs.update({stream: self.purchase_costs[stream] - self.selling_revenue[stream]})
-
-        for stream in self.model.ME_STREAMS:
-            self.total_costs.update({stream: self.total_fix_costs[stream] + self.total_market_costs[stream]})
-
-        # Calculation of costs per stream
-        costs_per_unit = {}
-        for key in [*self.total_costs]:
-            if key not in not_used_streams:
-                costs_per_unit.update({key: self.total_costs[key] / self.total_availability[key]})
-            else:
-                costs_per_unit.update({key: 0})
-
-        # Calculate final costs per unit based on input of other streams. Important: These has to be done upstream
-        stream_position = {}
-        stream_equations = {}
-        stream_equations_constant = {}
-        i = 0
-        for stream in self.model.ME_STREAMS:  # Give each stream index
-            stream_position.update({stream: i})
-            i += 1
-
-        # Calculate how much input one outstream got from instream
-        for out_stream in self.model.ME_STREAMS:
-            outstream_instream_coefficient_dict = {}
-            stream_equation_list = []
-
-            # First, main conversion from main input to main output
-            main_conversions = self.pm_object.get_all_main_conversion()
-            index_stream_main_conversions = main_conversions[main_conversions['output_me'] == out_stream].index
-            components_for_outstream_production = main_conversions.loc[index_stream_main_conversions, 'component'].tolist()
-            if len(index_stream_main_conversions) > 0:
-                for i in index_stream_main_conversions:
-                    outstream_instream_coefficient_dict.update(
-                        {main_conversions.loc[i, 'input_me']: main_conversions.loc[i, 'coefficient']})
-
-                # Second, side conversions from side input to main output
-                side_conversions = self.pm_object.get_all_side_conversions()
-                index_stream_side_conversions = side_conversions[side_conversions['output_me'] == out_stream].index
-                if len(index_stream_side_conversions) > 0:
-                    for i in index_stream_side_conversions:
-                        outstream_instream_coefficient_dict.update(
-                            {side_conversions.loc[i, 'input_me']: side_conversions.loc[i, 'coefficient']})
-
-                # Third, side conversions from side output to main output
-                # From side output to main input to main output
-                index_stream_side_conversions = side_conversions[(side_conversions['output_me'] != out_stream)
-                                                                 & side_conversions['component'].isin(components_for_outstream_production)].index
-                if len(index_stream_side_conversions) > 0:
-                    for i in index_stream_side_conversions:
-                        output = side_conversions.loc[i, 'output_me']
-                        coefficient_1 = side_conversions.loc[i, 'coefficient']
-                        input_me = side_conversions.loc[i, 'input_me']
-                        ind = main_conversions[(main_conversions['output_me'] == out_stream)
-                                               & (main_conversions['input_me'] == input_me)].index
-                        coefficient_2 = main_conversions.loc[ind, 'coefficient'].values[0]
-                        coefficient = coefficient_1 / coefficient_2
-
-                        outstream_instream_coefficient_dict.update({output: coefficient})
-
-            i = 0
             for stream in self.model.ME_STREAMS:
-                if stream_position[stream] == i:
-                    if costs_per_unit[out_stream] == 0:
-                        if stream != out_stream:
-                            stream_equation_list.append(0)
-                        else:
-                            stream_equation_list.append(-1)
-                    else:
-                        if stream in [*outstream_instream_coefficient_dict]:
-                            stream_equation_list.append(1 / outstream_instream_coefficient_dict[stream])
-                        else:
+                self.purchased_stream.update({stream: 0})
+                self.purchase_costs.update({stream: 0})
+                self.sold_stream.update({stream: 0})
+                self.selling_revenue.update({stream: 0})
+                self.generated_stream.update({stream: 0})
+                self.available_stream.update({stream: 0})
+                self.emitted_stream.update({stream: 0})
+                self.stored_stream.update({stream: 0})
+                self.conversed_stream.update({stream: 0})
+
+            for variable_name in [*self.all_variables_dict]:
+
+                if variable_name in self.variable_two_index:
+
+                    if variable_name in variable_names:
+                        for stream in [*self.all_variables_dict[variable_name]]:
+
+                            list_values = self.all_variables_dict[variable_name][stream]
+                            sum_values = sum(self.all_variables_dict[variable_name][stream])
+
+                            if variable_name == "mass_energy_available":
+                                self.available_stream[stream] = self.available_stream[stream] + sum_values
+
+                            if variable_name == 'mass_energy_emitted':
+                                if stream in self.model.EMITTED_STREAMS:
+                                    self.emitted_stream[stream] = self.emitted_stream[stream] + sum_values
+
+                            if variable_name == 'mass_energy_purchase_stream':  # Calculate costs of purchase
+                                if stream in self.model.PURCHASABLE_STREAMS:
+                                    self.purchased_stream[stream] = self.purchased_stream[stream] + sum_values
+                                    self.purchase_costs[stream] = self.purchase_costs[stream] + \
+                                                                  sum(list_values[t] * self.model.purchase_price[stream, t]
+                                                                      for t in self.model.TIME)
+
+                            if variable_name == 'mass_energy_sell_stream':  # Calculate costs of purchase
+                                if stream in self.model.SALEABLE_STREAMS:
+                                    self.sold_stream[stream] = self.sold_stream[stream] + sum_values
+                                    self.selling_revenue[stream] = self.selling_revenue[stream] + \
+                                                                   sum(list_values[t] * self.model.selling_price[stream, t]
+                                                                       for t in self.model.TIME)
+
+                            if variable_name == 'mass_energy_total_generation':
+                                if stream in self.model.GENERATED_STREAMS:
+                                    self.generated_stream[stream] = self.generated_stream[stream] + sum_values
+
+                            if variable_name == 'mass_energy_storage_in_streams':
+                                if stream in self.model.STORAGES:
+                                    self.stored_stream[stream] = self.stored_stream[stream] + sum_values
+
+                elif variable_name in self.variable_three_index:
+
+                    if variable_name in variable_names:
+
+                        for c in [*self.all_variables_dict[variable_name]]:
+
+                            self.conversed_stream_per_component[c] = {}
+
+                            for stream in [*self.all_variables_dict[variable_name][c]]:
+
+                                sum_values = sum(self.all_variables_dict[variable_name][c][stream])
+
+                                if variable_name == 'mass_energy_component_out_streams':
+                                    self.conversed_stream[stream] = self.conversed_stream[stream] + sum_values
+                                    self.conversed_stream_per_component[c][stream] = sum_values
+
+            # Calculate total stream availability
+            for stream in self.model.ME_STREAMS:
+                self.total_availability[stream] = (self.purchased_stream[stream] + self.generated_stream[stream]
+                                                   + self.conversed_stream[stream])
+
+            not_used_streams = []
+            for key in [*self.total_availability]:
+                if self.total_availability[key] == 0:
+                    not_used_streams.append(key)
+
+            # Calculate the total cost of conversion. Important: conversion costs only occur for stream, where
+            # output is main stream (E.g., electrolysis produces hydrogen and oxygen -> oxygen will not have conversion cost
+
+            for stream in self.model.ME_STREAMS:
+                self.conversion_component_costs.update({stream: 0})
+                self.storage_costs.update({stream: 0})
+                self.storage_costs_per_unit.update({stream: 0})
+                self.generation_costs.update({stream: 0})
+                self.generation_costs_per_unit.update({stream: 0})
+                self.maintenance.update({stream: 0})
+
+            # Get fix costs for each stream
+            main_conversions = self.pm_object.get_all_main_conversion()
+            for i in main_conversions.index:
+                out_stream = main_conversions.loc[i, 'output_me']
+                c = main_conversions.loc[i, 'component']
+                self.conversion_component_costs[out_stream] = (self.conversion_component_costs[out_stream]
+                                                               + self.all_variables_dict['annuity'][c]
+                                                               + self.all_variables_dict['maintenance_costs'][c]
+                                                               + self.all_variables_dict['taxes_and_insurance_costs'][c]
+                                                               + self.all_variables_dict['personnel_costs'][c]
+                                                               + self.all_variables_dict['overhead_costs'][c]
+                                                               + self.all_variables_dict['working_capital_costs'][c])
+
+            # Get annuity of storage units
+            for stream in self.model.STORAGES:
+                self.storage_costs[stream] = (self.storage_costs[stream]
+                                                + self.all_variables_dict['annuity'][stream]
+                                                + self.all_variables_dict['maintenance_costs'][stream]
+                                                + self.all_variables_dict['taxes_and_insurance_costs'][stream]
+                                                + self.all_variables_dict['personnel_costs'][stream]
+                                                + self.all_variables_dict['overhead_costs'][stream]
+                                                + self.all_variables_dict['working_capital_costs'][stream])
+
+            # Get annuity of generation units
+            for generator in self.model.GENERATORS:
+                generated_stream = self.pm_object.get_component(generator).get_generated_stream()
+                self.generation_costs[generated_stream] = (self.generation_costs[generated_stream]
+                                                           + self.all_variables_dict['annuity'][generator]
+                                                           + self.all_variables_dict['maintenance_costs'][generator]
+                                                           + self.all_variables_dict['taxes_and_insurance_costs'][generator]
+                                                           + self.all_variables_dict['personnel_costs'][generator]
+                                                           + self.all_variables_dict['overhead_costs'][generator]
+                                                           + self.all_variables_dict['working_capital_costs'][generator])
+
+            # Calculate total cost from purchase, storing, generation and conversion
+            for stream in self.model.ME_STREAMS:
+                self.total_fix_costs.update({stream: (self.conversion_component_costs[stream] + self.storage_costs[stream]
+                                                      + self.generation_costs[stream])})
+
+            for stream in self.model.ME_STREAMS:
+                self.total_market_costs.update({stream: self.purchase_costs[stream] - self.selling_revenue[stream]})
+
+            for stream in self.model.ME_STREAMS:
+                self.total_costs.update({stream: self.total_fix_costs[stream] + self.total_market_costs[stream]})
+
+            # Calculation of costs per stream
+            costs_per_unit = {}
+            for key in [*self.total_costs]:
+                if key not in not_used_streams:
+                    costs_per_unit.update({key: self.total_costs[key] / self.total_availability[key]})
+                else:
+                    costs_per_unit.update({key: 0})
+
+            # Calculate final costs per unit based on input of other streams. Important: These has to be done upstream
+            stream_position = {}
+            stream_equations = {}
+            stream_equations_constant = {}
+            i = 0
+            for stream in self.model.ME_STREAMS:  # Give each stream index
+                stream_position.update({stream: i})
+                i += 1
+
+            # Calculate how much input one outstream got from instream
+            # Important: The coefficients have to be weighted regarding the amount of stream which is actually produced
+            # by the component
+            for out_stream in self.model.ME_STREAMS:
+                outstream_instream_coefficient_dict = {}
+                stream_equation_list = []
+
+                # First, main conversion from main input to main output
+                main_conversions = self.pm_object.get_all_main_conversion()
+                index_stream_main_conversions = main_conversions[main_conversions['output_me'] == out_stream].index
+                components_for_outstream_production = main_conversions.loc[index_stream_main_conversions, 'component'].tolist()
+                if len(index_stream_main_conversions) > 0:
+                    for i in index_stream_main_conversions:
+                        c = main_conversions.loc[i, 'component']
+                        in_stream = main_conversions.loc[i, 'input_me']
+                        coefficient = main_conversions.loc[i, 'coefficient'] * self.conversed_stream_per_component[c][out_stream]
+                        outstream_instream_coefficient_dict.update({in_stream: coefficient / self.conversed_stream[out_stream]})
+
+                    # Second, side conversions from side input to main output
+                    side_conversions = self.pm_object.get_all_side_conversions()
+                    index_stream_side_conversions = side_conversions[side_conversions['output_me'] == out_stream].index
+                    if len(index_stream_side_conversions) > 0:
+                        for i in index_stream_side_conversions:
+                            c = side_conversions.loc[i, 'component']
+                            in_stream = side_conversions.loc[i, 'input_me']
+                            coefficient = side_conversions.loc[i, 'coefficient']
+                            outstream_instream_coefficient_dict.update(
+                                {in_stream: coefficient
+                                            * self.conversed_stream_per_component[c][out_stream]
+                                            / self.conversed_stream[out_stream]})
+
+                    # Third, side conversions from side output to main output
+                    # From side output to main input to main output
+                    index_stream_side_conversions = side_conversions[(side_conversions['output_me'] != out_stream)
+                                                                     & side_conversions['component'].isin(components_for_outstream_production)].index
+                    if len(index_stream_side_conversions) > 0:
+                        for i in index_stream_side_conversions:
+                            c = side_conversions.loc[i, 'component']
+                            output = side_conversions.loc[i, 'output_me']
+                            coefficient_1 = side_conversions.loc[i, 'coefficient']
+                            input_me = side_conversions.loc[i, 'input_me']
+                            ind = main_conversions[(main_conversions['output_me'] == out_stream)
+                                                   & (main_conversions['input_me'] == input_me)].index
+                            coefficient_2 = main_conversions.loc[ind, 'coefficient'].values[0]
+                            coefficient = (1 / coefficient_1 / coefficient_2
+                                           * self.conversed_stream_per_component[c][output]
+                                           / self.conversed_stream[output])
+
+                            outstream_instream_coefficient_dict.update({output: coefficient})
+
+                i = 0
+                for stream in self.model.ME_STREAMS:
+                    if stream_position[stream] == i:
+                        if costs_per_unit[out_stream] == 0:
                             if stream != out_stream:
                                 stream_equation_list.append(0)
                             else:
                                 stream_equation_list.append(-1)
-                    i += 1
+                        else:
+                            if stream in [*outstream_instream_coefficient_dict]:
+                                if outstream_instream_coefficient_dict[stream] != 0:
+                                    stream_equation_list.append(1 / outstream_instream_coefficient_dict[stream])
+                                else:
+                                    stream_equation_list.append(0)
+                            else:
+                                if stream != out_stream:
+                                    stream_equation_list.append(0)
+                                else:
+                                    stream_equation_list.append(-1)
+                        i += 1
 
-            stream_equations.update({out_stream: stream_equation_list})
-            stream_equations_constant.update({out_stream: -costs_per_unit[out_stream]})
+                stream_equations.update({out_stream: stream_equation_list})
+                stream_equations_constant.update({out_stream: -costs_per_unit[out_stream]})
 
-        values_equations = stream_equations.values()
-        A = np.array(list(values_equations))
-        values_constant = stream_equations_constant.values()
-        B = np.array(list(values_constant))
-        X = np.linalg.solve(A, B)
+            pd.DataFrame().from_dict(stream_equations).to_excel(self.new_result_folder + '/equations.xlsx')
 
-        for stream in [*stream_position]:
-            self.production_cost_stream_per_unit.update({stream: X[stream_position[stream]]})
+            values_equations = stream_equations.values()
+            A = np.array(list(values_equations))
+            values_constant = stream_equations_constant.values()
+            B = np.array(list(values_constant))
+            X = np.linalg.solve(A, B)
 
-        streams_and_costs = pd.DataFrame()
+            for stream in [*stream_position]:
+                self.production_cost_stream_per_unit.update({stream: X[stream_position[stream]]})
 
-        for stream in self.model.ME_STREAMS:
-            stream_object = self.pm_object.get_stream(stream)
-            nice_name = stream_object.get_nice_name()
-            streams_and_costs.loc[nice_name, 'unit'] = stream_object.get_unit()
+            streams_and_costs = pd.DataFrame()
 
-            streams_and_costs.loc[nice_name, 'Available Stream'] = self.available_stream[stream]
-            streams_and_costs.loc[nice_name, 'Emitted Stream'] = self.emitted_stream[stream]
-            streams_and_costs.loc[nice_name, 'Purchased Stream'] = self.purchased_stream[stream]
-            streams_and_costs.loc[nice_name, 'Sold Stream'] = self.sold_stream[stream]
-            streams_and_costs.loc[nice_name, 'Generated Stream'] = self.generated_stream[stream]
-            streams_and_costs.loc[nice_name, 'Stored Stream'] = self.stored_stream[stream]
-            streams_and_costs.loc[nice_name, 'Conversed Stream'] = self.conversed_stream[stream]
-            streams_and_costs.loc[nice_name, 'Total Stream'] = self.total_availability[stream]
+            for stream in self.model.ME_STREAMS:
+                stream_object = self.pm_object.get_stream(stream)
+                nice_name = stream_object.get_nice_name()
+                streams_and_costs.loc[nice_name, 'unit'] = stream_object.get_unit()
 
-            streams_and_costs.loc[nice_name, 'Total Purchase Costs'] = self.purchase_costs[stream]
-            if self.purchased_stream[stream] > 0:
-                streams_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = self.purchase_costs[stream] \
-                                                                           / self.purchased_stream[stream]
-            else:
-                streams_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = 0
+                streams_and_costs.loc[nice_name, 'Available Stream'] = self.available_stream[stream]
+                streams_and_costs.loc[nice_name, 'Emitted Stream'] = self.emitted_stream[stream]
+                streams_and_costs.loc[nice_name, 'Purchased Stream'] = self.purchased_stream[stream]
+                streams_and_costs.loc[nice_name, 'Sold Stream'] = self.sold_stream[stream]
+                streams_and_costs.loc[nice_name, 'Generated Stream'] = self.generated_stream[stream]
+                streams_and_costs.loc[nice_name, 'Stored Stream'] = self.stored_stream[stream]
+                streams_and_costs.loc[nice_name, 'Conversed Stream'] = self.conversed_stream[stream]
+                streams_and_costs.loc[nice_name, 'Total Stream'] = self.total_availability[stream]
 
-            streams_and_costs.loc[nice_name, 'Total Selling Revenue/Disposal Costs'] = self.selling_revenue[stream]
-            if self.sold_stream[stream] > 0:
-                streams_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] = self.selling_revenue[stream] \
-                                                                            / self.sold_stream[stream]
-            else:
-                streams_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] = 0
+                streams_and_costs.loc[nice_name, 'Total Purchase Costs'] = self.purchase_costs[stream]
+                if self.purchased_stream[stream] > 0:
+                    streams_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = self.purchase_costs[stream] \
+                                                                               / self.purchased_stream[stream]
+                else:
+                    streams_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = 0
 
-            streams_and_costs.loc[nice_name, 'Total Market Costs'] = self.total_market_costs[stream]
+                streams_and_costs.loc[nice_name, 'Total Selling Revenue/Disposal Costs'] = self.selling_revenue[stream]
+                if self.sold_stream[stream] > 0:
+                    streams_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] = self.selling_revenue[stream] \
+                                                                                / self.sold_stream[stream]
+                else:
+                    streams_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] = 0
 
-            streams_and_costs.loc[nice_name, 'Total Generation Fix Costs'] = self.generation_costs[stream]
-            if self.generated_stream[stream] > 0:
-                streams_and_costs.loc[nice_name, 'Total Generation Fix Costs per generated Unit'] = self.generation_costs[stream] \
-                                                                             / self.generated_stream[stream]
-            else:
-                streams_and_costs.loc[nice_name, 'Total Generation Fix Costs per generated Unit'] = 0
+                streams_and_costs.loc[nice_name, 'Total Market Costs'] = self.total_market_costs[stream]
 
-            streams_and_costs.loc[nice_name, 'Total Storage Fix Costs'] = self.storage_costs[stream]
-            if self.stored_stream[stream] > 0:
-                streams_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = self.storage_costs[stream] \
-                                                                          / self.stored_stream[stream]
-            else:
-                streams_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = 0
+                streams_and_costs.loc[nice_name, 'Total Generation Fix Costs'] = self.generation_costs[stream]
+                if self.generated_stream[stream] > 0:
+                    streams_and_costs.loc[nice_name, 'Total Generation Fix Costs per generated Unit'] = self.generation_costs[stream] \
+                                                                                 / self.generated_stream[stream]
+                else:
+                    streams_and_costs.loc[nice_name, 'Total Generation Fix Costs per generated Unit'] = 0
 
-            streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs'] = self.conversion_component_costs[stream]
-            if self.conversed_stream[stream] > 0:
-                streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = (self.conversion_component_costs[stream]
-                                                                                 / self.conversed_stream[stream])
-            else:
-                streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = 0
+                streams_and_costs.loc[nice_name, 'Total Storage Fix Costs'] = self.storage_costs[stream]
+                if self.stored_stream[stream] > 0:
+                    streams_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = self.storage_costs[stream] \
+                                                                              / self.stored_stream[stream]
+                else:
+                    streams_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = 0
 
-            streams_and_costs.loc[nice_name, 'Total Fix Costs'] = self.total_fix_costs[stream]
-            streams_and_costs.loc[nice_name, 'Total Costs'] = self.total_costs[stream]
-            streams_and_costs.loc[nice_name, 'Total Costs per Unit'] = costs_per_unit[stream]
+                streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs'] = self.conversion_component_costs[stream]
+                if self.conversed_stream[stream] > 0:
+                    streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = (self.conversion_component_costs[stream]
+                                                                                     / self.conversed_stream[stream])
+                else:
+                    streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = 0
 
-            streams_and_costs.loc[nice_name, 'Total Variable Costs per Unit'] = \
-                self.production_cost_stream_per_unit[stream] - costs_per_unit[stream]
-            streams_and_costs.loc[nice_name, 'Production Costs per Unit'] = \
-                self.production_cost_stream_per_unit[stream]
+                streams_and_costs.loc[nice_name, 'Total Fix Costs'] = self.total_fix_costs[stream]
+                streams_and_costs.loc[nice_name, 'Total Costs'] = self.total_costs[stream]
+                streams_and_costs.loc[nice_name, 'Total Costs per Unit'] = costs_per_unit[stream]
 
-        streams_and_costs.to_excel(self.new_result_folder + '/streams.xlsx')
+                if self.total_availability[stream] != 0:
+                    streams_and_costs.loc[nice_name, 'Total Variable Costs per Unit'] = \
+                        (self.total_costs[stream] - self.total_fix_costs[stream]) / self.total_availability[stream]
+                else:
+                    streams_and_costs.loc[nice_name, 'Total Variable Costs per Unit'] = 0
+
+                streams_and_costs.loc[nice_name, 'Production Costs per Unit'] = \
+                    self.production_cost_stream_per_unit[stream]
+
+            streams_and_costs.to_excel(self.new_result_folder + '/streams.xlsx')
 
     def analyze_components(self):
 
@@ -496,16 +522,19 @@ class Result:
 
         for stream in self.model.ME_STREAMS:
             if self.purchase_costs[stream] != 0:
-                cost_distribution.loc['Purchase Costs ' + stream, 'Total'] = self.purchase_costs[stream]
+                cost_distribution.loc['Purchase Costs ' + self.pm_object.get_nice_name(stream), 'Total'] \
+                    = self.purchase_costs[stream]
                 total_costs += self.purchase_costs[stream]
 
         for stream in self.model.ME_STREAMS:
             if self.selling_revenue[stream] < 0:
-                cost_distribution.loc['Disposal ' + stream, 'Total'] = self.selling_revenue[stream] * (-1)
+                cost_distribution.loc['Disposal ' + self.pm_object.get_nice_name(stream), 'Total'] \
+                    = self.selling_revenue[stream] * (-1)
                 total_costs += self.selling_revenue[stream] * (-1)  # todo: Turn around caluclation of disposal etc?
 
             if self.selling_revenue[stream] > 0:
-                cost_distribution.loc['Revenue ' + stream, 'Total'] = self.selling_revenue[stream] * (-1)
+                cost_distribution.loc['Revenue ' + self.pm_object.get_nice_name(stream), 'Total'] \
+                    = self.selling_revenue[stream] * (-1)
                 total_costs += self.selling_revenue[stream] * (-1)  # todo: Turn around caluclation of disposal etc?
 
         cost_distribution.loc['Total', 'Total'] = total_costs
@@ -894,6 +923,7 @@ class Result:
         self.available_stream = {}
         self.emitted_stream = {}
         self.conversed_stream = {}
+        self.conversed_stream_per_component = {}
         self.purchased_stream = {}
         self.purchase_costs = {}
         self.sold_stream = {}

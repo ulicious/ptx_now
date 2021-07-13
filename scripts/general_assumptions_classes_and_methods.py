@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import *
-from tkinter import filedialog
 
 
 class GeneralAssumptionsFrame:
@@ -68,6 +67,61 @@ class GeneralAssumptionsFrame:
 
         newWindow.mainloop()
 
+    def set_applied_general_parameters(self):
+        newWindow = Toplevel(self.root)
+
+        def get_values_and_kill_window():
+            for comp in self.pm_object.get_specific_components('final'):
+                for g in self.pm_object.get_general_parameters():
+                    if g in exclude:
+                        continue
+                    self.pm_object.set_applied_parameter_for_component(g, comp.get_name(),
+                                                                       general_parameter_var[(g,
+                                                                                              comp.get_name())].get())
+
+            newWindow.destroy()
+
+        def kill_window():
+            newWindow.destroy()
+
+        general_parameter_var = {}
+
+        exclude = ['wacc', 'covered_period']
+
+        i = 0
+        for c in self.pm_object.get_specific_components('final'):
+            c_name = c.get_name()
+
+            ttk.Label(newWindow, text=c.get_nice_name()).grid(row=i, column=0, sticky='w')
+
+            k = 0
+            for gp in self.pm_object.get_general_parameters():
+
+                if gp in exclude:
+                    continue
+
+                general_parameter_var[(gp, c_name)] = BooleanVar()
+                general_parameter_var[(gp, c_name)].set(bool(self.pm_object.get_applied_parameter_for_component(gp, c_name)))
+                tk.Checkbutton(newWindow, text=self.pm_object.get_nice_name(gp),
+                               variable=general_parameter_var[(gp, c_name)]).grid(row=i, column=k+1, sticky='w')
+
+                k += 1
+
+            i += 1
+
+            ttk.Separator(newWindow).grid(row=i, columnspan=5, sticky='ew')
+
+            i += 1
+
+        buttons = ttk.Frame(newWindow)
+        buttons.grid_columnconfigure(0, weight=1)
+        buttons.grid_columnconfigure(1, weight=1)
+
+        ttk.Button(buttons, text='Ok', command=get_values_and_kill_window).grid(row=0, column=0, sticky='ew')
+        ttk.Button(buttons, text='Cancel', command=kill_window).grid(row=0, column=1, sticky='ew')
+
+        buttons.grid(row=i, columnspan=5, sticky='ew')
+
     def initiate_frame(self):
 
         self.ga_label_parameter = ttk.Label(self.frame, text='Parameter', font='Helvetica 10 bold').grid(column=0,
@@ -94,14 +148,19 @@ class GeneralAssumptionsFrame:
 
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
+        button_frame.grid_columnconfigure(2, weight=1)
 
         self.adjust_values_button = ttk.Button(button_frame, text='Adjust parameters',
                                                command=self.adjust_component_value)
-        self.adjust_values_button.grid(column=0, row=0, sticky='ew')
+        self.adjust_values_button.grid(row=0, column=0, sticky='ew')
+
+        self.adjust_values_button = ttk.Button(button_frame, text='Choose applied components',
+                                               command=self.set_applied_general_parameters)
+        self.adjust_values_button.grid(row=0, column=1, sticky='ew')
 
         self.default_values_ga_button = ttk.Button(button_frame, text='Reset parameters',
                                                    command=self.parent.set_general_assumptions_to_default)
-        self.default_values_ga_button.grid(column=1, row=0, sticky='ew')
+        self.default_values_ga_button.grid(row=0, column=2, sticky='ew')
 
         button_frame.grid(row=i, column=0, columnspan=2, sticky='ew')
 

@@ -75,7 +75,7 @@ class GeneratorFrame:
 
         generated_stream_cb = ttk.Combobox(window, values=streams)
         generated_stream_cb.grid(row=3, column=1, sticky='ew')
-        generated_stream_cb.set(self.generated_stream.get())
+        generated_stream_cb.set(self.generated_stream_var.get())
 
         ttk.Button(window, text='Adjust values', command=get_values_and_kill_window).grid(row=4, columnspan=2,
                                                                                           sticky='ew')
@@ -105,56 +105,36 @@ class GeneratorFrame:
 
     def set_generator_settings_to_default(self):
 
-        self.pm_object.remove_component_entirely(self.generator)
+        if self.generator in self.pm_object_original.get_specific_components('final', 'generator'):
+            self.pm_object.remove_component_entirely(self.generator)
 
-        generator_original = self.pm_object_original.get_component(self.generator)
-        self.pm_object.add_component(self.generator, generator_original.__copy__())
+            generator_original = self.pm_object_original.get_component(self.generator)
+            self.pm_object.add_component(self.generator, generator_original.__copy__())
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
 
-    def __init__(self, parent, root, generator, pm_object, pm_object_original):
+    def initialize_generator_frame(self):
 
-        self.parent = parent
-        self.root = root
-        self.pm_object = pm_object
-        self.pm_object_original = pm_object_original
-        self.generator = generator
-
-        self.frame = tk.Frame(self.parent.sub_frame)
-        self.frame.grid_columnconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(1, weight=1)
-
-        generator_object = self.pm_object.get_component(self.generator)
-        generated_stream = self.pm_object.get_nice_name(generator_object.get_generated_stream())
-        stream_unit = self.pm_object.get_stream(generator_object.get_generated_stream()).get_unit()
-
-        if stream_unit == 'MWh':
-            stream_unit = 'MW'
+        if self.stream_unit == 'MWh':
+            self.stream_unit = 'MW'
         else:
-            stream_unit = stream_unit * ' / h'
+            self.stream_unit = self.stream_unit * ' / h'
 
         tk.Label(self.frame, text='Parameter', font='Helvetica 10 bold').grid(row=1, column=0, sticky='w')
         tk.Label(self.frame, text='Value', font='Helvetica 10 bold').grid(row=1, column=1, sticky='w')
-        tk.Label(self.frame, text='CAPEX [€/' + stream_unit + ']').grid(row=2, column=0, sticky='w')
+        tk.Label(self.frame, text='CAPEX [€/' + self.stream_unit + ']').grid(row=2, column=0, sticky='w')
         tk.Label(self.frame, text='Lifetime [Years]').grid(row=3, column=0, sticky='w')
         tk.Label(self.frame, text='Maintenance [%]').grid(row=4, column=0, sticky='w')
         tk.Label(self.frame, text='Generated stream').grid(row=5, column=0, sticky='w')
         tk.Label(self.frame, text='Profile file').grid(row=6, column=0, sticky='w')
 
-        self.textvar_profile = StringVar()
-        self.checkbox_var = BooleanVar()
+        self.capex.set(self.generator_object.get_capex())
+        self.lifetime.set(self.generator_object.get_lifetime())
+        self.maintenance.set(round(float(self.generator_object.get_maintenance()) * 100, 2))
+        self.generated_stream_var.set(self.generated_stream)
 
-        self.capex = StringVar()
-        self.capex.set(generator_object.get_capex())
-        self.lifetime = StringVar()
-        self.lifetime.set(generator_object.get_lifetime())
-        self.maintenance = StringVar()
-        self.maintenance.set(round(float(generator_object.get_maintenance()) * 100, 2))
-        self.generated_stream = StringVar()
-        self.generated_stream.set(generated_stream)
-
-        if generator_object in self.pm_object.get_specific_components('final', 'generator'):
+        if self.generator_object in self.pm_object.get_specific_components('final', 'generator'):
             state = NORMAL
             self.checkbox_var.set(True)
         else:
@@ -174,11 +154,11 @@ class GeneratorFrame:
         self.maintenance_label = tk.Label(self.frame, text=self.maintenance.get(), state=state)
         self.maintenance_label.grid(row=4, column=1, sticky='w')
 
-        self.generated_stream_label = ttk.Label(self.frame, text=self.generated_stream.get(), state=state)
+        self.generated_stream_label = ttk.Label(self.frame, text=self.generated_stream_var.get(), state=state)
         self.generated_stream_label.grid(row=5, column=1, sticky='w')
 
         try:
-            path = generator_object.get_generation_data()
+            path = self.generator_object.get_generation_data()
             file_name = path.split('/')[-1]
             self.textvar_profile.set(file_name)
         except:
@@ -193,7 +173,6 @@ class GeneratorFrame:
         button_frame.grid_columnconfigure(2, weight=1)
 
         if True:
-
             self.adjust_values_button = ttk.Button(button_frame, text='Adjust values', command=self.adjust_values,
                                                    state=state)
             self.adjust_values_button.grid(row=0, column=0, sticky='ew')
@@ -203,7 +182,33 @@ class GeneratorFrame:
             self.set_profile_button.grid(row=0, column=1, sticky='ew')
 
             self.default_generators_button = ttk.Button(button_frame, text='Default values',
-                                                   command=self.set_generator_settings_to_default)
+                                                        command=self.set_generator_settings_to_default)
             self.default_generators_button.grid(row=0, column=2, sticky='ew')
 
         button_frame.grid(row=7, columnspan=2, sticky='ew')
+
+    def __init__(self, parent, root, generator, pm_object, pm_object_original):
+
+        self.parent = parent
+        self.root = root
+        self.pm_object = pm_object
+        self.pm_object_original = pm_object_original
+        self.generator = generator
+
+        self.frame = tk.Frame(self.parent.sub_frame)
+        self.frame.grid_columnconfigure(0, weight=1)
+        self.frame.grid_columnconfigure(1, weight=1)
+
+        self.generator_object = self.pm_object.get_component(self.generator)
+        self.generated_stream = self.pm_object.get_nice_name(self.generator_object.get_generated_stream())
+        self.stream_unit = self.pm_object.get_stream(self.generator_object.get_generated_stream()).get_unit()
+
+        self.textvar_profile = StringVar()
+        self.checkbox_var = BooleanVar()
+
+        self.capex = StringVar()
+        self.lifetime = StringVar()
+        self.maintenance = StringVar()
+        self.generated_stream_var = StringVar()
+
+        self.initialize_generator_frame()

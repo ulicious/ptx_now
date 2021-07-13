@@ -126,13 +126,14 @@ class StorageFrame:
 
     def set_storage_settings_to_default(self):
 
-        self.pm_object.remove_component_entirely(self.stream)
+        if self.stream in self.pm_object_original.get_specific_components('final', 'storage'):
+            self.pm_object.remove_component_entirely(self.stream)
 
-        storage_original = self.pm_object_original.get_component(self.stream)
-        self.pm_object.add_component(self.stream, storage_original.__copy__())
+            storage_original = self.pm_object_original.get_component(self.stream)
+            self.pm_object.add_component(self.stream, storage_original.__copy__())
 
-        self.parent.pm_object_copy = self.pm_object
-        self.parent.update_widgets()
+        self.parent.parent.pm_object_copy = self.pm_object
+        self.parent.parent.update_widgets()
 
     def initialize_storage_frame(self):
 

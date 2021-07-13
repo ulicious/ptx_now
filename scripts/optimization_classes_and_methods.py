@@ -35,6 +35,14 @@ class OptimizationProblem:
                     component_copy.set_nice_name(parallel_unit_component_nice_name)
                     pm_object_copy.add_component(parallel_unit_component_name, component_copy)
 
+                    exclude = ['wacc', 'covered_period']
+                    for p in self.pm_object.get_general_parameters():
+                        if p in exclude:
+                            continue
+                        pm_object_copy.set_applied_parameter_for_component(p,
+                                                                           parallel_unit_component_name,
+                                                                           self.pm_object.get_applied_parameter_for_component(p, component_name))
+
         return pm_object_copy
 
     def initialize_problem(self):
@@ -934,7 +942,10 @@ class OptimizationProblem:
 
         def taxes_and_insurance_cost_rule(model, c):
             # Calculate taxes and insurance
-            return model.taxes_and_insurance_costs[c] == model.investment[c] * model.taxes_and_insurance
+            if self.pm_object.get_applied_parameter_for_component('taxes_and_insurance', c):
+                return model.taxes_and_insurance_costs[c] == model.investment[c] * model.taxes_and_insurance
+            else:
+                return model.taxes_and_insurance_costs[c] == 0
         self.model.taxes_and_insurance_cost_con = Constraint(self.model.COMPONENTS, rule=taxes_and_insurance_cost_rule)
 
         def total_taxes_and_insurance_cost_rule(model):
@@ -944,7 +955,10 @@ class OptimizationProblem:
 
         def overhead_costs_rule(model, c):
             # Calculate total overhead costs
-            return model.overhead_costs[c] == self.model.investment[c] * model.overhead
+            if self.pm_object.get_applied_parameter_for_component('overhead', c):
+                return model.overhead_costs[c] == self.model.investment[c] * model.overhead
+            else:
+                return model.overhead_costs[c] == 0
         self.model.overhead_costs_con = Constraint(self.model.COMPONENTS, rule=overhead_costs_rule)
 
         def total_overhead_costs_rule(model):
@@ -954,7 +968,10 @@ class OptimizationProblem:
 
         def personnel_costs_rule(model, c):
             # Calculate total personal costs
-            return model.personnel_costs[c] == self.model.investment[c] * model.personnel_cost
+            if self.pm_object.get_applied_parameter_for_component('personnel_costs', c):
+                return model.personnel_costs[c] == self.model.investment[c] * model.personnel_cost
+            else:
+                return model.personnel_costs[c] == 0
         self.model.personnel_costs_con = Constraint(self.model.COMPONENTS, rule=personnel_costs_rule)
 
         def total_personnel_costs_rule(model):
@@ -964,9 +981,12 @@ class OptimizationProblem:
 
         def working_capital_rule(model, c):
             # calculate total working capital
-            return model.working_capital_costs[c] == (self.model.investment[c]
-                                                      / (1 - model.working_capital)
-                                                      * model.working_capital) * model.wacc
+            if self.pm_object.get_applied_parameter_for_component('working_capital', c):
+                return model.working_capital_costs[c] == (self.model.investment[c]
+                                                          / (1 - model.working_capital)
+                                                          * model.working_capital) * model.wacc
+            else:
+                return model.working_capital_costs[c] == 0
         self.model.working_capital_con = Constraint(self.model.COMPONENTS, rule=working_capital_rule)
 
         def total_working_capital_rule(model):

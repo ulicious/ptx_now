@@ -296,7 +296,7 @@ class ConversionComponent(Component):
                                    min_p=self.min_p, max_p=self.max_p, final_unit=self.final_unit,
                                    default_unit=self.default_unit, custom_unit=self.custom_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., capex_unit='€/MWh', scalable=False,
+    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., capex_unit='€/MWh Electricity', scalable=False,
                  base_investment=0., base_capacity=0., economies_of_scale=0.,
                  max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1., shut_down_ability=False,
                  shut_down_time=0., start_up_time=0., number_parallel_units=1,
@@ -755,9 +755,16 @@ class ParameterObject:
 
     def set_general_parameter(self, parameter):  # checked
         self.general_parameters.append(parameter)
+        self.applied_parameter_for_component[parameter] = {}
 
     def get_general_parameters(self):  # checked
         return self.general_parameters
+
+    def set_applied_parameter_for_component(self, general_parameter, component, status):
+        self.applied_parameter_for_component[general_parameter][component] = status
+
+    def get_applied_parameter_for_component(self, general_parameter, component):
+        return self.applied_parameter_for_component[general_parameter][component]
 
     # Components
     def add_component(self, abbreviation, component):  # checked
@@ -988,15 +995,18 @@ class ParameterObject:
         conversion_component = ConversionComponent(name='dummy', nice_name='Dummy', final_unit=True)
         self.add_component('dummy', conversion_component)
 
-        component = 'dummy'
-        in_stream = 'electricity'
-        out_stream = 'electricity'
-        coefficient = 1
+        for g in self.get_general_parameters():
+            self.set_applied_parameter_for_component(g, 'dummy', True)
 
-        self.get_component(component).set_main_conversion(in_stream, out_stream, coefficient)
+        c = 'dummy'
+        input_stream = 'electricity'
+        output_stream = 'electricity'
+        coeff = 1
 
-        stream = Stream('electricity', 'Electricity', 'MWh', final_stream=True)
-        self.add_stream('electricity', stream)
+        self.get_component(c).set_main_conversion(input_stream, output_stream, coeff)
+
+        s = Stream('electricity', 'Electricity', 'MWh', final_stream=True)
+        self.add_stream('electricity', s)
 
         self.set_nice_name('electricity', 'Electricity')
         self.set_abbreviation('Electricity', 'electricity')
@@ -1008,9 +1018,9 @@ class ParameterObject:
         """ Set general parameters """
         general_parameter_df = case_data[case_data['type'] == 'general_parameter']
 
-        for index in general_parameter_df.index:
-            parameter = general_parameter_df.loc[index, 'parameter']
-            value = general_parameter_df.loc[index, 'value']
+        for i in general_parameter_df.index:
+            parameter = general_parameter_df.loc[i, 'parameter']
+            value = general_parameter_df.loc[i, 'value']
 
             self.set_general_parameter_value(parameter, value)
             self.set_general_parameter(parameter)
@@ -1018,30 +1028,30 @@ class ParameterObject:
         """Allocate components and parameters"""
         component_df = case_data[case_data['type'] == 'component']
 
-        for index in component_df.index:
-            name = component_df.loc[index, 'name']
-            nice_name = component_df.loc[index, 'nice_name']
-            capex = component_df.loc[index, 'capex']
-            capex_unit = component_df.loc[index, 'capex_unit']
-            lifetime = component_df.loc[index, 'lifetime']
-            maintenance = component_df.loc[index, 'maintenance']
-            final_unit = component_df.loc[index, 'final']
+        for i in component_df.index:
+            name = component_df.loc[i, 'name']
+            nice_name = component_df.loc[i, 'nice_name']
+            capex = component_df.loc[i, 'capex']
+            capex_unit = component_df.loc[i, 'capex_unit']
+            lifetime = component_df.loc[i, 'lifetime']
+            maintenance = component_df.loc[i, 'maintenance']
+            final_unit = component_df.loc[i, 'final']
 
-            if component_df.loc[index, 'component_type'] == 'conversion':
+            if component_df.loc[i, 'component_type'] == 'conversion':
 
-                min_p = component_df.loc[index, 'min_p']
-                max_p = component_df.loc[index, 'max_p']
-                scalable = component_df.loc[index, 'scalable']
-                base_investment = component_df.loc[index, 'base_investment']
-                base_capacity = component_df.loc[index, 'base_capacity']
-                economies_of_scale = component_df.loc[index, 'economies_of_scale']
-                max_capacity_economies_of_scale = component_df.loc[index, 'max_capacity_economies_of_scale']
-                number_parallel_units = case_data.loc[index, 'number_parallel_units']
-                ramp_up = case_data.loc[index, 'ramp_up']
-                ramp_down = case_data.loc[index, 'ramp_down']
-                shut_down_ability = case_data.loc[index, 'shut_down_ability']
-                shut_down_time = case_data.loc[index, 'shut_down_time']
-                start_up_time = case_data.loc[index, 'start_up_time']
+                min_p = component_df.loc[i, 'min_p']
+                max_p = component_df.loc[i, 'max_p']
+                scalable = component_df.loc[i, 'scalable']
+                base_investment = component_df.loc[i, 'base_investment']
+                base_capacity = component_df.loc[i, 'base_capacity']
+                economies_of_scale = component_df.loc[i, 'economies_of_scale']
+                max_capacity_economies_of_scale = component_df.loc[i, 'max_capacity_economies_of_scale']
+                number_parallel_units = case_data.loc[i, 'number_parallel_units']
+                ramp_up = case_data.loc[i, 'ramp_up']
+                ramp_down = case_data.loc[i, 'ramp_down']
+                shut_down_ability = case_data.loc[i, 'shut_down_ability']
+                shut_down_time = case_data.loc[i, 'shut_down_time']
+                start_up_time = case_data.loc[i, 'start_up_time']
 
                 conversion_component = ConversionComponent(name=name, nice_name=nice_name, lifetime=lifetime,
                                                            maintenance=maintenance, base_investment=base_investment,
@@ -1058,18 +1068,21 @@ class ParameterObject:
 
                 self.add_component(name, conversion_component)
 
-            elif component_df.loc[index, 'component_type'] == 'storage':
+                for g in self.get_general_parameters():
+                    self.set_applied_parameter_for_component(g, 'dummy', True)
 
-                min_soc = case_data.loc[index, 'min_soc']
-                max_soc = case_data.loc[index, 'max_soc']
-                initial_soc = case_data.loc[index, 'initial_soc']
-                charging_efficiency = case_data.loc[index, 'charging_efficiency']
-                discharging_efficiency = case_data.loc[index, 'discharging_efficiency']
-                leakage = case_data.loc[index, 'leakage']
-                ratio_capacity_p = case_data.loc[index, 'ratio_capacity_p']
-                limited = case_data.loc[index, 'limited_storage']
-                storage_limiting_component = case_data.loc[index, 'storage_limiting_component']
-                storage_limiting_component_ratio = case_data.loc[index, 'storage_limiting_component_ratio']
+            elif component_df.loc[i, 'component_type'] == 'storage':
+
+                min_soc = case_data.loc[i, 'min_soc']
+                max_soc = case_data.loc[i, 'max_soc']
+                initial_soc = case_data.loc[i, 'initial_soc']
+                charging_efficiency = case_data.loc[i, 'charging_efficiency']
+                discharging_efficiency = case_data.loc[i, 'discharging_efficiency']
+                leakage = case_data.loc[i, 'leakage']
+                ratio_capacity_p = case_data.loc[i, 'ratio_capacity_p']
+                limited = case_data.loc[i, 'limited_storage']
+                storage_limiting_component = case_data.loc[i, 'storage_limiting_component']
+                storage_limiting_component_ratio = case_data.loc[i, 'storage_limiting_component_ratio']
 
                 storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
                                                      charging_efficiency, discharging_efficiency, min_soc, max_soc,
@@ -1079,59 +1092,73 @@ class ParameterObject:
                                                      final_unit=final_unit, default_unit=True, limited_storage=limited)
                 self.add_component(name, storage_component)
 
-            elif component_df.loc[index, 'component_type'] == 'generator':
-                generated_stream = case_data.loc[index, 'generated_stream']
-                generation_data = case_data.loc[index, 'generation_data']
+            elif component_df.loc[i, 'component_type'] == 'generator':
+                generated_stream = case_data.loc[i, 'generated_stream']
+                generation_data = case_data.loc[i, 'generation_data']
 
                 generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
                                                 generated_stream=generated_stream, generation_data=generation_data,
                                                 final_unit=final_unit, default_unit=True)
                 self.add_component(name, generator)
 
+            try:
+                self.set_applied_parameter_for_component('taxes_and_insurance', name,
+                                                         bool(case_data.loc[i, 'taxes_and_insurance']))
+                self.set_applied_parameter_for_component('personnel_costs', name,
+                                                         bool(case_data.loc[i, 'personnel_costs']))
+                self.set_applied_parameter_for_component('overhead', name,
+                                                         bool(case_data.loc[i, 'overhead']))
+                self.set_applied_parameter_for_component('working_capital', name,
+                                                         bool(case_data.loc[i, 'working_capital']))
+
+            except:
+                for p in self.get_general_parameters():
+                    self.set_applied_parameter_for_component(p, name, True)
+
         """ Conversions """
         main_conversions = case_data[case_data['type'] == 'main_conversion']
-        for index in main_conversions.index:
-            component = main_conversions.loc[index, 'component']
-            in_stream = main_conversions.loc[index, 'input_stream']
-            out_stream = main_conversions.loc[index, 'output_stream']
-            coefficient = float(main_conversions.loc[index, 'coefficient'])
+        for i in main_conversions.index:
+            component = main_conversions.loc[i, 'component']
+            in_stream = main_conversions.loc[i, 'input_stream']
+            out_stream = main_conversions.loc[i, 'output_stream']
+            coefficient = float(main_conversions.loc[i, 'coefficient'])
 
             self.get_component(component).set_main_conversion(in_stream, out_stream, coefficient)
 
         side_conversions = case_data[case_data['type'] == 'side_conversion']
-        for index in side_conversions.index:
-            component = side_conversions.loc[index, 'component']
-            in_stream = side_conversions.loc[index, 'input_stream']
-            out_stream = side_conversions.loc[index, 'output_stream']
-            coefficient = float(side_conversions.loc[index, 'coefficient'])
+        for i in side_conversions.index:
+            component = side_conversions.loc[i, 'component']
+            in_stream = side_conversions.loc[i, 'input_stream']
+            out_stream = side_conversions.loc[i, 'output_stream']
+            coefficient = float(side_conversions.loc[i, 'coefficient'])
 
             self.get_component(component).add_side_conversion(in_stream, out_stream, coefficient)
 
         """ Streams """
         streams = case_data[case_data['type'] == 'stream']
-        for index in streams.index:
-            abbreviation = case_data.loc[index, 'name']
-            nice_name = case_data.loc[index, 'nice_name']
-            stream_unit = case_data.loc[index, 'unit']
+        for i in streams.index:
+            abbreviation = case_data.loc[i, 'name']
+            nice_name = case_data.loc[i, 'nice_name']
+            stream_unit = case_data.loc[i, 'unit']
 
-            available = case_data.loc[index, 'available']
-            emittable = case_data.loc[index, 'emitted']
-            purchasable = case_data.loc[index, 'purchasable']
-            saleable = case_data.loc[index, 'saleable']
-            demanded = case_data.loc[index, 'demanded']
-            total_demand = case_data.loc[index, 'total_demand']
-            final_stream = case_data.loc[index, 'final']
+            available = case_data.loc[i, 'available']
+            emittable = case_data.loc[i, 'emitted']
+            purchasable = case_data.loc[i, 'purchasable']
+            saleable = case_data.loc[i, 'saleable']
+            demanded = case_data.loc[i, 'demanded']
+            total_demand = case_data.loc[i, 'total_demand']
+            final_stream = case_data.loc[i, 'final']
 
             # Purchasable streams
-            purchase_price_type = case_data.loc[index, 'purchase_price_type']
-            purchase_price = case_data.loc[index, 'purchase_price']
+            purchase_price_type = case_data.loc[i, 'purchase_price_type']
+            purchase_price = case_data.loc[i, 'purchase_price']
 
             # Saleable streams
-            selling_price_type = case_data.loc[index, 'selling_price_type']
-            selling_price = case_data.loc[index, 'selling_price']
+            selling_price_type = case_data.loc[i, 'selling_price_type']
+            selling_price = case_data.loc[i, 'selling_price']
 
             # Demand
-            demand = case_data.loc[index, 'demand']
+            demand = case_data.loc[i, 'demand']
 
             stream = Stream(abbreviation, nice_name, stream_unit, final_stream=final_stream,
                             available=available, purchasable=purchasable, saleable=saleable, emittable=emittable,
@@ -1143,9 +1170,9 @@ class ParameterObject:
         """ Set nice names and abbreviations """
         name_df = case_data[case_data['type'] == 'names']
 
-        for index in name_df.index:
-            nice_name = name_df.loc[index, 'nice_name']
-            abbreviation = name_df.loc[index, 'abbreviation']
+        for i in name_df.index:
+            nice_name = name_df.loc[i, 'nice_name']
+            abbreviation = name_df.loc[i, 'abbreviation']
 
             self.set_nice_name(abbreviation, nice_name)
             self.set_abbreviation(nice_name, abbreviation)
@@ -1182,6 +1209,7 @@ class ParameterObject:
 
             self.general_parameters = []
             self.general_parameter_values = {}
+            self.applied_parameter_for_component = {}
             self.nice_names = {}
             self.abbreviations_dict = {}
 
@@ -1198,6 +1226,11 @@ class ParameterObject:
 
             self.general_parameters = general_parameters
             self.general_parameter_values = general_parameter_values
+
+            self.applied_parameter_for_component = {}
+            for g in self.get_general_parameters():
+                self.applied_parameter_for_component[g] = {}
+
             self.nice_names = nice_names
             self.abbreviations_dict = abbreviations_dict
 

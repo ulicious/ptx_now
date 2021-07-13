@@ -587,6 +587,9 @@ class AdjustStreamWindow:
                                            final_unit=True)
                 self.pm_object.add_component(self.stream_object.get_name(), storage)
 
+                for p in self.pm_object.get_general_parameters():
+                    self.pm_object.set_applied_parameter_for_component(p, self.stream_object.get_name(), True)
+
         else:
             self.stream_object.set_storable(False)
             if exists:

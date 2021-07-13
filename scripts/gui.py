@@ -376,6 +376,15 @@ class Interface:
                 case_data.loc[k, 'storage_limiting_component'] = component.get_storage_limiting_component()
                 case_data.loc[k, 'storage_limiting_component_ratio'] = component.get_storage_limiting_component_ratio()
 
+            case_data.loc[k, 'taxes_and_insurance'] = self.pm_object_copy\
+                .get_applied_parameter_for_component('taxes_and_insurance', component.get_name())
+            case_data.loc[k, 'personnel_costs'] = self.pm_object_copy\
+                .get_applied_parameter_for_component('personnel_costs', component.get_name())
+            case_data.loc[k, 'overhead'] = self.pm_object_copy\
+                .get_applied_parameter_for_component('overhead', component.get_name())
+            case_data.loc[k, 'working_capital'] = self.pm_object_copy\
+                .get_applied_parameter_for_component('working_capital', component.get_name())
+
             k += 1
 
         for component in self.pm_object_copy.get_specific_components('final', 'conversion'):

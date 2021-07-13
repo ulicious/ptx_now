@@ -143,6 +143,10 @@ class ComponentParametersFrame:
         entry_capex_var = ttk.Entry(newWindow, text=self.label_capex_value_str, state=status_no_scale)
         entry_capex_var.grid(row=1, column=1, sticky='w')
 
+        unit = self.label_capex_unit_str.get().split('/')[-1]
+        if unit == 'MWh':
+            unit = 'MW'
+
         label_base_investment = ttk.Label(newWindow,
                                           text='Base investment [' + self.label_capex_unit_str.get() + ']')
         label_base_investment.grid(column=0, row=2, sticky='w')
@@ -151,7 +155,7 @@ class ComponentParametersFrame:
                                                 state=status_scale)
         label_base_investment_value.grid(column=1, row=2, sticky='w')
 
-        label_base_capacity = ttk.Label(newWindow, text='Base capacity [' + self.label_capex_unit_str.get() + ']')
+        label_base_capacity = ttk.Label(newWindow, text='Base capacity [' + unit + ']')
         label_base_capacity.grid(column=0, row=3, sticky='w')
         label_base_capacity_value = ttk.Entry(newWindow, text=self.label_base_capacity_value_str, state=status_scale)
         label_base_capacity_value.grid(column=1, row=3, sticky='w')
@@ -163,7 +167,7 @@ class ComponentParametersFrame:
                                                state=status_scale)
         label_scaling_factor_value.grid(column=1, row=4, sticky='w')
 
-        label_max_capacity_eoc = ttk.Label(newWindow, text='Max capacity')
+        label_max_capacity_eoc = ttk.Label(newWindow, text='Max capacity [' + unit + ']')
         label_max_capacity_eoc.grid(column=0, row=5, sticky='w')
         label_max_capacity_eoc_value = ttk.Entry(newWindow,
                                                  text=self.label_max_capacity_eoc_value_str,
@@ -225,6 +229,9 @@ class ComponentParametersFrame:
 
     def set_component_parameters_to_default(self):
 
+        # Important: Not only delete component and get copy of pm_object_original
+        # because conversions should not be deleted
+
         component_original = self.pm_object_original.get_component(self.component)
         component_copy = self.pm_object.get_component(self.component)
 
@@ -246,6 +253,8 @@ class ComponentParametersFrame:
         component_copy.set_shut_down_ability(component_original.get_shut_down_ability())
         component_copy.set_shut_down_time(component_original.get_shut_down_time())
         component_copy.set_start_up_time(component_original.get_start_up_time())
+
+        self.pm_object.applied_parameter_for_component = self.pm_object_original.applied_parameter_for_component
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
@@ -362,7 +371,11 @@ class ComponentParametersFrame:
                                                              text=self.label_base_investment_value_str.get())
                 self.label_base_investment_value.grid(column=1, row=1, sticky='w')
 
-                self.label_base_capacity = ttk.Label(self.frame, text='Base capacity [' + self.label_capex_unit_str.get() + ']')
+                unit = self.label_capex_unit_str.get().split('/')[-1]
+                if unit == 'MWh':
+                    unit = 'MW'
+
+                self.label_base_capacity = ttk.Label(self.frame, text='Base capacity [' + unit + ']')
                 self.label_base_capacity.grid(column=0, row=2, sticky='w')
                 self.label_base_capacity_value = ttk.Label(self.frame, text=self.label_base_capacity_value_str.get())
                 self.label_base_capacity_value.grid(column=1, row=2, sticky='w')
@@ -373,7 +386,7 @@ class ComponentParametersFrame:
                                                             text=self.label_scaling_factor_value_str.get())
                 self.label_scaling_factor_value.grid(column=1, row=3, sticky='w')
 
-                self.label_max_capacity_eoc = ttk.Label(self.frame, text='Max capacity')
+                self.label_max_capacity_eoc = ttk.Label(self.frame, text='Max capacity [' + unit + ']')
                 self.label_max_capacity_eoc.grid(column=0, row=4, sticky='w')
                 self.label_max_capacity_eoc_value = ttk.Label(self.frame,
                                                               text=self.label_max_capacity_eoc_value_str.get())
@@ -468,6 +481,9 @@ class AddNewComponentWindow:
 
         self.pm_object.get_stream(random_main_conversion.loc['input_me']).set_final(True)
         self.pm_object.get_stream(random_main_conversion.loc['output_me']).set_final(True)
+
+        for gp in self.pm_object.get_general_parameters():
+            self.pm_object.set_applied_parameter_for_component(gp, self.name.get(), True)
 
         self.parent.pm_object_copy = self.pm_object
         self.parent.update_widgets()
@@ -896,6 +912,12 @@ class ConversionWindow:
         else:
             self.pm_object.get_component(self.component).set_main_conversion(input_stream_abbreviation,
                                                                              output_stream_abbreviation, coefficient)
+            # Change capex unit
+            unit = self.pm_object.get_stream(input_stream_abbreviation).get_unit()
+            if unit == 'MWh':
+                unit = 'MW'
+            self.pm_object.get_component(self.component).set_capex_unit('€/' + unit + ' '
+                                                                        + self.pm_object.get_nice_name(input_stream_abbreviation))
 
         for stream in self.pm_object.get_specific_streams('final'):
             self.pm_object.remove_stream(stream.get_name())

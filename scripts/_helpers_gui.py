@@ -342,8 +342,20 @@ class ToggledFrame(tk.Frame):
     def set_general_assumptions_to_default(self):
         # Set general assumption parameters to default
 
+        exclude = ['wacc', 'covered_period']
+
         for p in self.pm_object_copy.get_general_parameters():
             self.pm_object_copy.set_general_parameter_value(p, self.pm_object_original.get_general_parameter_value(p))
+
+            if p in exclude:
+                continue
+
+            for c in self.pm_object_copy.get_specific_components('final'):
+                self.pm_object_copy.set_applied_parameter_for_component(p,
+                                                                        c.get_name(),
+                                                                        self.pm_object_original
+                                                                        .get_applied_parameter_for_component(p,
+                                                                                                             c.get_name()))
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
@@ -369,6 +381,9 @@ class ToggledFrame(tk.Frame):
 
             generator = GenerationComponent(abbreviation, nice_name, final_unit=True)
             self.pm_object_copy.add_component(abbreviation, generator)
+
+            for p in self.pm_object_copy.get_general_parameters():
+                self.pm_object_copy.set_applied_parameter_for_component(p, abbreviation, True)
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()

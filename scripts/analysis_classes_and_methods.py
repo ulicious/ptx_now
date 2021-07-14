@@ -482,6 +482,7 @@ class Result:
             generation_df.loc[generator, 'personnel_cost'] = self.all_variables_dict['personnel_costs'][generator]
 
             generation = sum(self.all_variables_dict['mass_energy_generation'][generator][generated_stream])
+            generation_df.loc[generator, 'generation'] = generation
 
             generation_df.loc[generator, 'LCOE'] = (generation_df.loc[generator, 'annuity']
                                                     + generation_df.loc[generator, 'maintenance_cost']

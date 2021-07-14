@@ -60,7 +60,7 @@ class OptimizationProblem:
         self.model.personnel_cost = Param(initialize=general_parameters['personnel_costs'])
 
         # Time range
-        self.model.TIME = RangeSet(0, general_parameters['covered_period'])
+        self.model.TIME = RangeSet(0, general_parameters['covered_period'] - 1)
 
         # -------------------------------------
         # Components
@@ -478,6 +478,8 @@ class OptimizationProblem:
         # Set normalized generation profiles
         for generator in self.pm_object.get_specific_components('final', 'generator'):
             generator_name = generator.get_name()
+            print(self.path_data)
+            print(generator.get_generation_data())
             generation_profile = pd.read_excel(self.path_data + generator.get_generation_data(), index_col=0)
             for t in self.model.TIME:
                 generation_profiles_dict.update({(generator_name, t): float(generation_profile.loc[t, 'value'])})

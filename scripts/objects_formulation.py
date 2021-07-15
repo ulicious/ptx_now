@@ -1148,6 +1148,7 @@ class ParameterObject:
             demanded = case_data.loc[i, 'demanded']
             total_demand = case_data.loc[i, 'total_demand']
             final_stream = case_data.loc[i, 'final']
+            storable_stream = case_data.loc[i, 'storable']
 
             # Purchasable streams
             purchase_price_type = case_data.loc[i, 'purchase_price_type']
@@ -1164,7 +1165,8 @@ class ParameterObject:
                             available=available, purchasable=purchasable, saleable=saleable, emittable=emittable,
                             demanded=demanded, total_demand=total_demand,
                             purchase_price=purchase_price, purchase_price_type=purchase_price_type,
-                            sale_price=selling_price, sale_price_type=selling_price_type, demand=demand)
+                            sale_price=selling_price, sale_price_type=selling_price_type, demand=demand,
+                            storable=storable_stream)
             self.add_stream(abbreviation, stream)
 
         """ Set nice names and abbreviations """

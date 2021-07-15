@@ -12,18 +12,19 @@ if setting_window.go_on:
     path_data = setting_window.folder_data
     path_result = setting_window.folder_result
     path_settings = setting_window.folder_settings
+    solver = setting_window.solver
 
     if setting_window.radiobutton_variable.get() == 'new':
 
         interface = Interface(path_data=path_data, path_result=path_result,
-                              path_settings=path_settings)
+                              path_settings=path_settings, solver=solver)
 
     elif setting_window.radiobutton_variable.get() == 'custom':
 
         path_custom = setting_window.selected_custom
         interface = Interface(path_data=path_data, path_result=path_result,
                               path_settings=path_settings,
-                              path_custom=path_custom)
+                              path_custom=path_custom, solver=solver)
 
     elif setting_window.radiobutton_variable.get() == 'optimize_only':
 
@@ -39,7 +40,7 @@ if setting_window.go_on:
 
             pm_object = ParameterObject('parameter2', path_custom=path, integer_steps=10)
 
-            optimization_problem = OptimizationProblem(pm_object, path_data=path_data)
+            optimization_problem = OptimizationProblem(pm_object, path_data=path_data, solver=solver)
             result = Result(optimization_problem, path_result, file_without_ending)
 
 

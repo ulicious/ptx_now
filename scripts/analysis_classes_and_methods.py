@@ -531,12 +531,12 @@ class Result:
             if self.selling_revenue[stream] < 0:
                 cost_distribution.loc['Disposal ' + self.pm_object.get_nice_name(stream), 'Total'] \
                     = self.selling_revenue[stream] * (-1)
-                total_costs += self.selling_revenue[stream] * (-1)  # todo: Turn around caluclation of disposal etc?
+                total_costs += self.selling_revenue[stream] * (-1)
 
             if self.selling_revenue[stream] > 0:
                 cost_distribution.loc['Revenue ' + self.pm_object.get_nice_name(stream), 'Total'] \
                     = self.selling_revenue[stream] * (-1)
-                total_costs += self.selling_revenue[stream] * (-1)  # todo: Turn around caluclation of disposal etc?
+                total_costs += self.selling_revenue[stream] * (-1)
 
         cost_distribution.loc['Total', 'Total'] = total_costs
 
@@ -569,7 +569,7 @@ class Result:
                     plt.savefig(self.new_result_folder + '/' + variable_name + " " + c + '.png')
                     plt.close()
 
-    def create_and_print_vector(self):
+    def create_and_print_vector(self, plots=False):
 
         """ Uses the created dataframes to plot the stream vectors over time """
 
@@ -604,6 +604,10 @@ class Result:
                     if stream not in all_streams:
                         continue
 
+                    if (variable_name == 'storage_charge_binary') | (variable_name == 'storage_discharge_binary'):
+                        if self.all_variables_dict['nominal_cap'][stream] == 0:
+                            continue
+
                     list_values = self.all_variables_dict[variable_name][stream]
                     unit = self.pm_object.get_stream(stream).get_unit()
                     if unit == 'MWh':
@@ -614,16 +618,18 @@ class Result:
 
                     if sum(list_values) > 0:
 
-                        plt.figure()
-                        plt.plot(list_values)
-                        plt.xlabel('Hours')
-                        plt.ylabel(unit)
-                        plt.title(variable_nice_names[variable_name] + ' '
-                                  + self.pm_object.get_nice_name(stream))
+                        if plots:
 
-                        plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
-                                    + self.pm_object.get_nice_name(stream) + '.png')
-                        plt.close()
+                            plt.figure()
+                            plt.plot(list_values)
+                            plt.xlabel('Hours')
+                            plt.ylabel(unit)
+                            plt.title(variable_nice_names[variable_name] + ' '
+                                      + self.pm_object.get_nice_name(stream))
+
+                            plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
+                                        + self.pm_object.get_nice_name(stream) + '.png')
+                            plt.close()
 
                         if variable_name in [*variable_nice_names.keys()]:
                             time_depending_variables[(variable_nice_names[variable_name], '',
@@ -648,18 +654,20 @@ class Result:
 
                         if sum(list_values) > 0:
 
-                            plt.figure()
-                            plt.plot(list_values)
-                            plt.xlabel('Hours')
-                            plt.ylabel(unit)
-                            plt.title(variable_nice_names[variable_name] + ' '
-                                      + self.pm_object.get_nice_name(stream) + ' '
-                                      + self.pm_object.get_nice_name(c))
+                            if plots:
 
-                            plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
-                                        + self.pm_object.get_nice_name(stream) + ' '
-                                        + self.pm_object.get_nice_name(c) + '.png')
-                            plt.close()
+                                plt.figure()
+                                plt.plot(list_values)
+                                plt.xlabel('Hours')
+                                plt.ylabel(unit)
+                                plt.title(variable_nice_names[variable_name] + ' '
+                                          + self.pm_object.get_nice_name(stream) + ' '
+                                          + self.pm_object.get_nice_name(c))
+
+                                plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
+                                            + self.pm_object.get_nice_name(stream) + ' '
+                                            + self.pm_object.get_nice_name(c) + '.png')
+                                plt.close()
 
                             if variable_name in [*variable_nice_names.keys()]:
                                 time_depending_variables[(variable_nice_names[variable_name],
@@ -667,8 +675,9 @@ class Result:
                                                           self.pm_object.get_nice_name(stream))] = list_values
 
         ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component', 'Stream'))
-
         time_depending_variables_df = pd.DataFrame(index=ind)
+        time_depending_variables_df = time_depending_variables_df.sort_index()
+
         for key in [*time_depending_variables.keys()]:
             unit = self.pm_object.get_stream(self.pm_object.get_abbreviation(key[2])).get_unit()
             if unit == 'MWh':
@@ -901,7 +910,6 @@ class Result:
 
         self.optimization_problem = optimization_problem
         self.model = optimization_problem.model
-        self.results = optimization_problem.results
         self.instance = optimization_problem.instance
         self.pm_object = optimization_problem.pm_object
         self.file_name = file_name
@@ -949,15 +957,12 @@ class Result:
         self.variable_three_index = []
         self.all_variables_dict = {}
 
-        #self.create_dataframe()
-        #self.create_and_print_vector()
-        #self.create_and_print_financial()
-
         self.extracting_data()
         self.analyze_components()
         self.analyze_streams()
         self.analyze_generation()
         self.analyze_total_costs()
         # self.check_integer_variables()
+        self.create_and_print_vector()
 
         #self.build_sankey_diagram(only_energy=True)

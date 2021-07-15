@@ -450,7 +450,9 @@ class ToggledFrame(tk.Frame):
                            command=lambda c=c, i=i: set_component(c, i)).grid(row=i, column=0, columnspan=2, sticky='w')
             i += 1
 
-        ttk.Button(delete_component_window, text='Delete components', command=delete_and_kill).grid(row=i + 1, column=0, sticky='we')
+        ttk.Button(delete_component_window, text='Delete components', command=delete_and_kill).grid(row=i + 1,
+                                                                                                    column=0,
+                                                                                                    sticky='we')
         ttk.Button(delete_component_window, text='Cancel', command=kill_only).grid(row=i + 1, column=1, sticky='we')
 
         delete_component_window.grid_columnconfigure(0, weight=1)
@@ -555,6 +557,7 @@ class SettingWindow:
             self.base_settings.loc['path_custom'] = self.selected_custom
             self.base_settings.loc['chosen_setting'] = self.radiobutton_variable.get()
             self.base_settings.loc['path_optimize'] = self.folder_optimize
+            self.base_settings.loc['solver'] = self.solver_combobox.get()
 
             self.base_settings.to_excel(os.getcwd() + '/base_settings.xlsx', index=True)
 
@@ -580,6 +583,7 @@ class SettingWindow:
         self.path_settings = self.base_settings.loc['path_settings'].values[0]
         self.path_custom = self.base_settings.loc['path_custom'].values[0]
         self.path_optimize = self.base_settings.loc['path_optimize'].values[0]
+        self.solver = self.base_settings.loc['solver'].values[0]
 
         radiobutton_frame = ttk.Frame(self.frame)
         radiobutton_frame.grid_columnconfigure(0, weight=1)
@@ -610,6 +614,7 @@ class SettingWindow:
         self.choose_saved_settings_folder_var = StringVar()
         self.choose_custom_path_label_var = StringVar()
         self.choose_optimize_folder_var = StringVar()
+        self.choose_solver_var = StringVar()
 
         if type(self.path_result) == str:
 
@@ -628,12 +633,15 @@ class SettingWindow:
             self.choose_optimize_folder_var.set(self.path_optimize)
             self.folder_optimize = self.path_optimize
 
+            self.choose_solver_var.set(self.solver)
+
         else:
             self.choose_data_folder_var.set('')
             self.choose_result_folder_var.set('')
             self.choose_saved_settings_folder_var.set('')
             self.choose_custom_path_label_var.set('')
             self.choose_optimize_folder_var.set('')
+            self.choose_solver_var.set('')
 
             self.folder_data = None
             self.selected_custom = None
@@ -676,6 +684,12 @@ class SettingWindow:
         self.optimize_only_path_label = tk.Label(self.frame, textvariable=self.choose_optimize_folder_var)
         self.optimize_only_path_label.grid(row=5, column=1, sticky='w')
 
+        tk.Label(self.frame, text='Solver').grid(row=6, column=0, sticky='w')
+        solvers = ['gurobi', 'cplex']
+        self.solver_combobox = ttk.Combobox(self.frame, values=solvers)
+        self.solver_combobox.set(self.choose_solver_var.get())
+        self.solver_combobox.grid(row=6, column=1, sticky='ew')
+
         button_frame = ttk.Frame(self.frame)
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
@@ -685,7 +699,7 @@ class SettingWindow:
         self.button_ok = ttk.Button(button_frame, text='Cancel', command=self.kill_window_without)
         self.button_ok.grid(row=0, column=1, sticky='ew')
 
-        button_frame.grid(row=6, columnspan=2, sticky='ew')
+        button_frame.grid(row=7, columnspan=2, sticky='ew')
 
         self.radiobutton_command()
         self.window.mainloop()

@@ -1052,13 +1052,13 @@ class OptimizationProblem:
 
     def optimize(self):
 
-        opt = pyo.SolverFactory("gurobi", solver_io="python")
+        opt = pyo.SolverFactory(self.solver, solver_io="python")
         self.instance = self.model.create_instance()
         opt.options["mipgap"] = 0.05
-        self.results = opt.solve(self.instance, tee=True)
-        print(self.results)
+        results = opt.solve(self.instance, tee=True)
+        print(results)
 
-    def __init__(self, pm_object, path_data):
+    def __init__(self, pm_object, path_data, solver):
 
         self.conversion_tuples = []
         self.conversion_tuples_dict = {}
@@ -1075,6 +1075,8 @@ class OptimizationProblem:
         # Set up problem
         self.pm_object = self.pre_adjustments(pm_object)
         self.path_data = path_data
+        self.solver = solver
+        self.instance = None
         self.initialize_problem()
         self.post_adjustments()
         self.attach_constraints()

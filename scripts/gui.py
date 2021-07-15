@@ -14,13 +14,14 @@ from objects_formulation import ParameterObject
 
 class Interface:
 
-    def __init__(self, path_data, path_result, path_settings, path_custom=None):
+    def __init__(self, path_data, path_result, path_settings, solver, path_custom=None):
 
         self.path_data = path_data
         self.path_result = path_result
         self.path_settings = path_settings
         self.path_custom = path_custom
         self.working_path = os.getcwd()
+        self.solver = solver
 
         if self.path_custom is None:
 
@@ -421,6 +422,7 @@ class Interface:
             case_data.loc[k, 'demanded'] = stream.is_demanded()
             case_data.loc[k, 'total_demand'] = stream.is_total_demand()
             case_data.loc[k, 'final'] = stream.is_final()
+            case_data.loc[k, 'storable'] = stream.is_storable()
 
             # Purchasable streams
             case_data.loc[k, 'purchase_price_type'] = stream.get_purchase_price_type()
@@ -455,13 +457,13 @@ class Interface:
 
     def optimize(self):
 
-        self.optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data)
+        optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
 
-        self.analyze_results()
+        self.analyze_results(optimization_problem)
 
-    def analyze_results(self):
+    def analyze_results(self, optimization_problem):
 
-        result = Result(self.optimization_problem, self.path_result)
+        result = Result(optimization_problem, self.path_result)
 
 
 

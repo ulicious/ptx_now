@@ -559,6 +559,7 @@ class AdjustStreamWindow:
         # Set demand settings
         if self.demand_var.get():
             self.stream_object.set_demanded(True)
+            self.stream_object.set_demand(self.demand_entry.get())
         else:
             self.stream_object.set_demanded(False)
 
@@ -606,9 +607,6 @@ class AdjustStreamWindow:
                 self.stream_object.set_sale_price(self.sale_fixed_price_entry.get())
             else:
                 self.stream_object.set_sale_price(self.sale_price_curve_text_var.get())
-
-        if self.demand_var.get():
-            self.stream_object.set_demand(self.demand_entry.get())
 
         self.parent.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.parent.update_widgets()

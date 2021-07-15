@@ -263,6 +263,7 @@ class Result:
             # Calculate how much input one outstream got from instream
             # Important: The coefficients have to be weighted regarding the amount of stream which is actually produced
             # by the component
+
             for out_stream in self.model.ME_STREAMS:
                 outstream_instream_coefficient_dict = {}
                 stream_equation_list = []
@@ -274,9 +275,16 @@ class Result:
                 if len(index_stream_main_conversions) > 0:
                     for i in index_stream_main_conversions:
                         c = main_conversions.loc[i, 'component']
+
                         in_stream = main_conversions.loc[i, 'input_me']
-                        coefficient = main_conversions.loc[i, 'coefficient'] * self.conversed_stream_per_component[c][out_stream]
-                        outstream_instream_coefficient_dict.update({in_stream: coefficient / self.conversed_stream[out_stream]})
+                        if in_stream not in [*outstream_instream_coefficient_dict.keys()]:
+                            outstream_instream_coefficient_dict[in_stream] = 0
+
+                        coefficient = (main_conversions.loc[i, 'coefficient']
+                                       * self.conversed_stream_per_component[c][out_stream]
+                                       / self.conversed_stream[out_stream])
+
+                        outstream_instream_coefficient_dict.update({in_stream: outstream_instream_coefficient_dict[in_stream] + coefficient})
 
                     # Second, side conversions from side input to main output
                     side_conversions = self.pm_object.get_all_side_conversions()
@@ -284,12 +292,17 @@ class Result:
                     if len(index_stream_side_conversions) > 0:
                         for i in index_stream_side_conversions:
                             c = side_conversions.loc[i, 'component']
+
                             in_stream = side_conversions.loc[i, 'input_me']
-                            coefficient = side_conversions.loc[i, 'coefficient']
+                            if in_stream not in [*outstream_instream_coefficient_dict.keys()]:
+                                outstream_instream_coefficient_dict[in_stream] = 0
+
+                            coefficient = (side_conversions.loc[i, 'coefficient']
+                                           * self.conversed_stream_per_component[c][out_stream]
+                                           / self.conversed_stream[out_stream])
+
                             outstream_instream_coefficient_dict.update(
-                                {in_stream: coefficient
-                                            * self.conversed_stream_per_component[c][out_stream]
-                                            / self.conversed_stream[out_stream]})
+                                {in_stream: outstream_instream_coefficient_dict[in_stream] + coefficient})
 
                     # Third, side conversions from side output to main output
                     # From side output to main input to main output
@@ -299,12 +312,16 @@ class Result:
                         for i in index_stream_side_conversions:
                             c = side_conversions.loc[i, 'component']
                             output = side_conversions.loc[i, 'output_me']
+                            if output not in [*outstream_instream_coefficient_dict.keys()]:
+                                outstream_instream_coefficient_dict[output] = 0
+
                             coefficient_1 = side_conversions.loc[i, 'coefficient']
                             input_me = side_conversions.loc[i, 'input_me']
                             ind = main_conversions[(main_conversions['output_me'] == out_stream)
                                                    & (main_conversions['input_me'] == input_me)].index
                             coefficient_2 = main_conversions.loc[ind, 'coefficient'].values[0]
-                            coefficient = (1 / coefficient_1 / coefficient_2
+                            coefficient = (outstream_instream_coefficient_dict[output]
+                                           + 1 / coefficient_1 / coefficient_2
                                            * self.conversed_stream_per_component[c][output]
                                            / self.conversed_stream[output])
 
@@ -546,28 +563,43 @@ class Result:
 
         cost_distribution.to_excel(self.new_result_folder + '/cost_distribution.xlsx')
 
-    def check_integer_variables(self):
+    def check_integer_variables(self, plots=False):
 
         integer_variables = ['capacity_binary', 'penalty_binary_lower_bound', 'component_correct_p', 'component_status',
                              'component_status_1', 'component_status_2', 'status_switch_on', 'status_switch_off',
                              'storage_charge_binary',
                              'storage_discharge_binary']
 
+        time_depending_variables = {}
+
         for variable_name in [*self.all_variables_dict]:
 
             if variable_name in integer_variables:
 
                 for c in [*self.all_variables_dict[variable_name]]:
-
                     list_values = self.all_variables_dict[variable_name][c]
+                    if plots:
 
-                    plt.figure()
-                    plt.plot(list_values)
-                    plt.xlabel('Hours')
-                    plt.title(variable_name)
+                        plt.figure()
+                        plt.plot(list_values)
+                        plt.xlabel('Hours')
+                        plt.title(variable_name)
 
-                    plt.savefig(self.new_result_folder + '/' + variable_name + " " + c + '.png')
-                    plt.close()
+                        plt.savefig(self.new_result_folder + '/' + variable_name + " " + c + '.png')
+                        plt.close()
+
+                    if variable_name in integer_variables:
+                        time_depending_variables[(variable_name, c)] = list_values
+
+        ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component'))
+        time_depending_variables_df = pd.DataFrame(index=ind)
+        time_depending_variables_df = time_depending_variables_df.sort_index()
+
+        for key in [*time_depending_variables.keys()]:
+            for i, elem in enumerate(time_depending_variables[key]):
+                time_depending_variables_df.loc[key, i] = elem
+
+        time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_binaries.xlsx')
 
     def create_and_print_vector(self, plots=False):
 
@@ -962,7 +994,7 @@ class Result:
         self.analyze_streams()
         self.analyze_generation()
         self.analyze_total_costs()
-        # self.check_integer_variables()
+        self.check_integer_variables()
         self.create_and_print_vector()
 
         #self.build_sankey_diagram(only_energy=True)

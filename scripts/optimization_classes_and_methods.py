@@ -20,6 +20,7 @@ class OptimizationProblem:
         # Copy components if number of components in system is higher than 1
         for component_object in pm_object_copy.get_specific_components('final', 'conversion'):
             if component_object.get_number_parallel_units() > 1:
+                # Simply rename first component
                 component_name = component_object.get_name()
                 component_nice_name = component_object.get_nice_name()
                 component_object.set_name(component_name + '_0')
@@ -28,6 +29,7 @@ class OptimizationProblem:
                 pm_object_copy.add_component(component_name + '_0', component_object)
 
                 for i in range(1, int(component_object.get_number_parallel_units())):
+                    # Add other components as copy
                     parallel_unit_component_name = component_name + '_' + str(i)
                     parallel_unit_component_nice_name = component_nice_name + ' Parallel Unit ' + str(i)
                     component_copy = component_object.__copy__()
@@ -35,13 +37,15 @@ class OptimizationProblem:
                     component_copy.set_nice_name(parallel_unit_component_nice_name)
                     pm_object_copy.add_component(parallel_unit_component_name, component_copy)
 
+                for i in range(0, int(component_object.get_number_parallel_units())):
                     exclude = ['wacc', 'covered_period']
-                    for p in self.pm_object.get_general_parameters():
+                    parallel_unit_component_name = component_name + '_' + str(i)
+                    for p in pm_object.get_general_parameters():
                         if p in exclude:
                             continue
                         pm_object_copy.set_applied_parameter_for_component(p,
                                                                            parallel_unit_component_name,
-                                                                           self.pm_object.get_applied_parameter_for_component(p, component_name))
+                                                                           pm_object.get_applied_parameter_for_component(p, component_name))
 
         return pm_object_copy
 
@@ -478,8 +482,6 @@ class OptimizationProblem:
         # Set normalized generation profiles
         for generator in self.pm_object.get_specific_components('final', 'generator'):
             generator_name = generator.get_name()
-            print(self.path_data)
-            print(generator.get_generation_data())
             generation_profile = pd.read_excel(self.path_data + generator.get_generation_data(), index_col=0)
             for t in self.model.TIME:
                 generation_profiles_dict.update({(generator_name, t): float(generation_profile.loc[t, 'value'])})
@@ -721,6 +723,14 @@ class OptimizationProblem:
         self.model._ramp_up_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
                                              self.model.TIME, rule=_ramp_up_rule)
 
+        def no_power_when_shutoff_rule(model, c, me_in, t):
+            if c in model.SHUT_DOWN_COMPONENTS:
+                return model.mass_energy_component_in_streams[c, me_in, t] <= model.component_status[c, t] * model.M
+            else:
+                return Constraint.Skip
+        self.model.no_power_when_shutoff_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
+                                                          self.model.TIME, rule=no_power_when_shutoff_rule)
+
         """ Component shut down and start up constraints """
         def _correct_power_rule(model, c, me_in, t):
             # Sets status binary to 1 if in stream is higher than nominal capacity * min p
@@ -794,12 +804,11 @@ class OptimizationProblem:
         self.model.storage_balance_con = Constraint(self.model.ME_STREAMS, self.model.TIME,
                                                     rule=storage_balance_rule)
 
-        if True:
-            def last_soc_rule(model, me):
-                # Defines SOC in last to as no charging and discharging is possible
-                return model.soc[me, max(model.TIME)] == model.initial_soc[me] * model.nominal_cap[me]
+        def last_soc_rule(model, me):
+            # Defines SOC in last to as no charging and discharging is possible
+            return model.soc[me, max(model.TIME)] == model.initial_soc[me] * model.nominal_cap[me]
 
-            self.model.last_soc_con = Constraint(self.model.STORAGES, rule=last_soc_rule)
+        self.model.last_soc_con = Constraint(self.model.STORAGES, rule=last_soc_rule)
 
         def soc_max_bound_rule(model, me, t):
             # Sets upper bound of SOC
@@ -1054,7 +1063,7 @@ class OptimizationProblem:
 
         opt = pyo.SolverFactory(self.solver, solver_io="python")
         self.instance = self.model.create_instance()
-        opt.options["mipgap"] = 0.05
+        opt.options["mipgap"] = 0.1
         results = opt.solve(self.instance, tee=True)
         print(results)
 

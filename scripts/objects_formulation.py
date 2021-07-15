@@ -292,6 +292,9 @@ class ConversionComponent(Component):
                                    scalable=self.scalable, base_investment=self.base_investment,
                                    base_capacity=self.base_capacity, economies_of_scale=self.economies_of_scale,
                                    max_capacity_economies_of_scale=self.max_capacity_economies_of_scale,
+                                   ramp_down=self.ramp_down, ramp_up=self.ramp_up,
+                                   shut_down_ability=self.shut_down_ability, shut_down_time=self.shut_down_time,
+                                   start_up_time=self.start_up_time, number_parallel_units=self.number_parallel_units,
                                    main_conversion=self.main_conversion, side_conversions=self.side_conversions,
                                    min_p=self.min_p, max_p=self.max_p, final_unit=self.final_unit,
                                    default_unit=self.default_unit, custom_unit=self.custom_unit)
@@ -785,7 +788,6 @@ class ParameterObject:
         return self.components[name]
 
     def remove_component_entirely(self, name):
-        print(self.components)
         self.components.pop(name)
 
     def get_component_by_nice_name(self, nice_name):  # checked

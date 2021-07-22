@@ -332,6 +332,9 @@ class OptimizationProblem:
         self.model.component_status_2 = Var(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME, within=Binary)  # todo: delete
         self.model.status_switch_on = Var(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME, within=Binary)
         self.model.status_switch_off = Var(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME, within=Binary)
+        self.model.test = Var(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME)
+        self.model.test_2 = Var(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS)
+        self.model.test_3 = Var()
 
         # STORAGE binaries (charging and discharging)
         self.model.storage_charge_binary = Var(self.model.STORAGES, self.model.TIME, within=Binary)
@@ -671,41 +674,16 @@ class OptimizationProblem:
             Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS, self.model.TIME,
                        rule=_conversion_maximal_component_capacity_rule)
 
-        def _ramp_down_rule(model, c, me_in, t):
+        def _ramp_up_down_rule(model, c, me_in, t):
             # Sets limits of change based on ramp down
             if c in model.SHUT_DOWN_COMPONENTS:
                 # If shut down is possible, the change is unlimited
                 if (c, me_in) in self.main_tuples:
                     if t > 0:
-                        return model.mass_energy_component_in_streams[c, me_in, t - 1] \
-                               - model.mass_energy_component_in_streams[c, me_in, t] <= \
-                               model.nominal_cap[c] * model.ramp_down[c] + model.status_switch_off[c, t] * model.M
-                    else:
-                        return Constraint.Skip
-                else:
-                    return Constraint.Skip
-            else:
-                if (c, me_in) in self.main_tuples:
-                    if t > 0:
-                        return model.mass_energy_component_in_streams[c, me_in, t - 1] \
-                               - model.mass_energy_component_in_streams[c, me_in, t] <= \
-                               model.nominal_cap[c] * model.ramp_down[c]
-                    else:
-                        return Constraint.Skip
-                else:
-                    return Constraint.Skip
-        self.model._ramp_down_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
-                                               self.model.TIME, rule=_ramp_down_rule)
-
-        def _ramp_up_rule(model, c, me_in, t):
-            # Sets limits of change based on ramp up
-            if c in model.SHUT_DOWN_COMPONENTS:
-                # If shut down is possible, the change is unlimited
-                if (c, me_in) in self.main_tuples:
-                    if t > 0:
                         return model.mass_energy_component_in_streams[c, me_in, t] \
-                               - model.mass_energy_component_in_streams[c, me_in, t - 1] \
-                               <= model.nominal_cap[c] * model.ramp_up[c] + model.status_switch_on[c, t] * model.M
+                               - model.mass_energy_component_in_streams[c, me_in, t - 1] <= \
+                               model.nominal_cap[c] * model.ramp_up[c] - model.nominal_cap[c] * model.ramp_down[c] \
+                               + model.status_switch_off[c, t] * model.M
                     else:
                         return Constraint.Skip
                 else:
@@ -714,35 +692,75 @@ class OptimizationProblem:
                 if (c, me_in) in self.main_tuples:
                     if t > 0:
                         return model.mass_energy_component_in_streams[c, me_in, t] \
-                               - model.mass_energy_component_in_streams[c, me_in, t - 1] \
-                               <= model.nominal_cap[c] * model.ramp_up[c]
+                               - model.mass_energy_component_in_streams[c, me_in, t - 1] <= \
+                               model.nominal_cap[c] * model.ramp_up[c] - model.nominal_cap[c] * model.ramp_down[c]
                     else:
                         return Constraint.Skip
                 else:
                     return Constraint.Skip
-        self.model._ramp_up_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
-                                             self.model.TIME, rule=_ramp_up_rule)
+        self.model._ramp_up_down_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
+                                                  self.model.TIME, rule=_ramp_up_down_rule)
 
-        def no_power_when_shutoff_rule(model, c, me_in, t):
-            if c in model.SHUT_DOWN_COMPONENTS:
+        if False:
+
+            def _ramp_up_rule(model, c, me_in, t):
+                # Sets limits of change based on ramp up
+                if c in model.SHUT_DOWN_COMPONENTS:
+                    # If shut down is possible, the change is unlimited
+                    if (c, me_in) in self.main_tuples:
+                        if t > 0:
+                            return model.mass_energy_component_in_streams[c, me_in, t] \
+                                   - model.mass_energy_component_in_streams[c, me_in, t - 1] \
+                                   <= model.nominal_cap[c] * model.ramp_up[c] + model.status_switch_on[c, t] * model.M
+                        else:
+                            return Constraint.Skip
+                    else:
+                        return Constraint.Skip
+                else:
+                    if (c, me_in) in self.main_tuples:
+                        if t > 0:
+                            return model.mass_energy_component_in_streams[c, me_in, t] \
+                                   - model.mass_energy_component_in_streams[c, me_in, t - 1] \
+                                   <= model.nominal_cap[c] * model.ramp_up[c]
+                        else:
+                            return Constraint.Skip
+                    else:
+                        return Constraint.Skip
+            self.model._ramp_up_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
+                                                 self.model.TIME, rule=_ramp_up_rule)
+
+        if False:
+
+            def no_power_when_shutoff_rule(model, c, me_in, t):
                 return model.mass_energy_component_in_streams[c, me_in, t] <= model.component_status[c, t] * model.M
+            self.model.no_power_when_shutoff_con = Constraint(self.model.SHUT_DOWN_COMPONENTS, self.model.ME_STREAMS,
+                                                              self.model.TIME, rule=no_power_when_shutoff_rule)
+
+        def test(model, c, me_in, t):
+            # Sets status binary to 0 if in stream is higher than nominal capacity * min p
+            if (c, me_in) in self.main_tuples:
+                return model.test[c, t] == model.nominal_cap[c] * model.min_p[c] - \
+                       model.mass_energy_component_in_streams[c, me_in, t] - model.component_correct_p[c, t] * 1000
             else:
                 return Constraint.Skip
-        self.model.no_power_when_shutoff_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
-                                                          self.model.TIME, rule=no_power_when_shutoff_rule)
+
+        self.model.test_con = Constraint(self.model.SHUT_DOWN_COMPONENTS,
+                                         self.model.ME_STREAMS, self.model.TIME,
+                                         rule=test)
 
         """ Component shut down and start up constraints """
-        def _correct_power_rule(model, c, me_in, t):
-            # Sets status binary to 1 if in stream is higher than nominal capacity * min p
-            if (c, me_in) in self.main_tuples:
-                return model.nominal_cap[c] * model.min_p[c] \
-                       - model.mass_energy_component_in_streams[c, me_in, t] \
-                       - model.component_correct_p[c, t] * model.M <= 0
-            else:
-                return Constraint.Skip
-        self.model._correct_power_con = Constraint(self.model.SHUT_DOWN_COMPONENTS,
-                                                   self.model.ME_STREAMS, self.model.TIME,
-                                                   rule=_correct_power_rule)
+        if True:
+            def _correct_power_rule(model, c, me_in, t):
+                # Sets status binary to 0 if in stream is higher than nominal capacity * min p
+                if (c, me_in) in self.main_tuples:
+                    return (model.nominal_cap[c] * model.min_p[c]
+                            - model.mass_energy_component_in_streams[c, me_in, t]
+                            - model.component_correct_p[c, t] * 1000) <= 0
+                else:
+                    return Constraint.Skip
+            self.model._correct_power_con = Constraint(self.model.SHUT_DOWN_COMPONENTS,
+                                                       self.model.ME_STREAMS, self.model.TIME,
+                                                       rule=_correct_power_rule)
 
         def _active_component_rule(model, c, me_in, t):
             # Set binary to 1 if component is active
@@ -771,11 +789,12 @@ class OptimizationProblem:
         self.model._define_status_con = Constraint(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME,
                                                    rule=_define_status_rule)
 
-        def _define_machine_rule(model, c, t):
-            # todo: delete
-            return model.component_status[c, t] + model.component_correct_p[c, t] - 1 == model.component_status_1[c, t]
-        self.model._define_machine_con = Constraint(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME,
-                                                    rule=_define_machine_rule)
+        if False:
+            def _define_machine_rule(model, c, t):
+                # todo: delete
+                return model.component_status[c, t] - model.component_correct_p[c, t] == model.component_status_1[c, t]
+            self.model._define_machine_con = Constraint(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME,
+                                                        rule=_define_machine_rule)
 
         def _deactivate_component_rule(model, c, t):
             # if component is shut off, it can not be turned on again
@@ -789,6 +808,54 @@ class OptimizationProblem:
         self.model._deactivate_component_con = Constraint(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME,
                                                           rule=_deactivate_component_rule)
 
+        """ Capacity of scalable units """
+        def capacity_binary_sum_rule(model, c):
+            # For each component, only one capacity over all integer steps can be 1
+            return sum(model.capacity_binary[c, i] for i in model.INTEGER_STEPS) <= 1
+        self.model.capacity_binary_sum_con = Constraint(self.model.SCALABLE_COMPONENTS,
+                                                        rule=capacity_binary_sum_rule)
+
+        def capacity_binary_activation_rule(model, c, i):
+            # Capacity binary will be 1 if the capacity of the integer step is higher than 0
+            return model.capacity_binary[c, i] >= model.nominal_cap_pre[c, i] / 10000
+        self.model.capacity_binary_activation_con = Constraint(self.model.SCALABLE_COMPONENTS,
+                                                               self.model.INTEGER_STEPS,
+                                                               rule=capacity_binary_activation_rule)
+
+
+
+        if True:
+            def test_2_rule(model, c, i):
+                return model.nominal_cap_pre[c, i] >= self.lower_bound_dict[c, i] * model.capacity_binary[c, i]
+            self.model.test_2_con = Constraint(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
+                                               rule=test_2_rule)
+
+        def final_capacity_rule(model, c):
+            # Final capacity of component is sum of capacity over all integer steps
+            return model.nominal_cap[c] == sum(model.nominal_cap_pre[c, i] for i in model.INTEGER_STEPS)
+        self.model.final_capacity_con = Constraint(self.model.SCALABLE_COMPONENTS, rule=final_capacity_rule)
+
+        if False:
+            def test(model, c, i):
+                # Final capacity of component is sum of capacity over all integer steps
+                return model.penalty_binary_lower_bound[c, i] + model.capacity_binary[c, i] - 1 == 0
+            self.model.test = Constraint(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS, rule=test)
+
+        if False:
+
+            def lower_bound_adherence_rule(model, c, i):
+                # To allow the capacity steps to be 0, they have no lower bound.
+                # Therefore, it is ensured that the lower bound is adhered
+                # Activates binary if the capacity is lower than the lower bound of the integer step
+                # This binary is later used to penalize the objective function
+                if i == 0:
+                    return model.penalty_binary_lower_bound[c, i] == 1
+                else:
+                    return model.penalty_binary_lower_bound[c, i] >= (self.lower_bound_dict[c, i] - model.nominal_cap_pre[c, i]) / 1000
+            self.model.lower_bound_adherence_con = Constraint(self.model.SCALABLE_COMPONENTS,
+                                                              self.model.INTEGER_STEPS,
+                                                              rule=lower_bound_adherence_rule)
+
         """ Storage constraints """
         def storage_balance_rule(model, me, t):
             # Defines the SOC of the storage unit
@@ -801,6 +868,7 @@ class OptimizationProblem:
                            - model.mass_energy_storage_out_streams[me, t - 1] / model.discharging_efficiency[me]
             else:
                 return model.soc[me, t] == 0
+
         self.model.storage_balance_con = Constraint(self.model.ME_STREAMS, self.model.TIME,
                                                     rule=storage_balance_rule)
 
@@ -867,19 +935,23 @@ class OptimizationProblem:
             return model.nominal_cap[s] == model.nominal_cap[model.storage_limiting_component[s]] \
                    * model.storage_limiting_component_ratio[s] * coefficient
             # todo: wenn input, dann muss die effizienz noch eingerechnet werden
+
         self.model.storage_limitation_to_component_con = Constraint(self.model.LIMITED_STORAGES,
                                                                     rule=storage_limitation_to_component_rule)
 
         """ STORAGE BINARY DECISIONS """
+
         def storage_binary_sum_rule(model, s, t):
             # Constraints simultaneous charging and discharging
             return model.storage_charge_binary[s, t] + model.storage_discharge_binary[s, t] <= 1
+
         self.model.storage_binary_sum_con = Constraint(self.model.STORAGES, self.model.TIME,
                                                        rule=storage_binary_sum_rule)
 
         def charge_binary_activation_rule(model, s, t):
             # Define charging binary -> if charged, binary = 1
             return model.mass_energy_storage_in_streams[s, t] - model.storage_charge_binary[s, t] * model.M <= 0
+
         self.model.charge_binary_activation_con = Constraint(self.model.STORAGES, self.model.TIME,
                                                              rule=charge_binary_activation_rule)
 
@@ -887,38 +959,9 @@ class OptimizationProblem:
             # Define discharging binary -> if discharged, binary = 1
             return model.mass_energy_storage_out_streams[s, t] - model.storage_discharge_binary[
                 s, t] * model.M <= 0
+
         self.model.discharge_binary_activation_con = Constraint(self.model.STORAGES, self.model.TIME,
                                                                 rule=discharge_binary_activation_rule)
-
-        """ Capacity of scalable units """
-        def capacity_binary_sum_rule(model, c):
-            # For each component, only one capacity over all integer steps can be 1
-            return sum(model.capacity_binary[c, i] for i in model.INTEGER_STEPS) <= 1
-        self.model.capacity_binary_sum_con = Constraint(self.model.SCALABLE_COMPONENTS,
-                                                        rule=capacity_binary_sum_rule)
-
-        def capacity_binary_activation_rule(model, c, i):
-            # Capacity binary will be 1 if the capacity of the integer step is higher than 0
-            return model.nominal_cap_pre[c, i] <= model.capacity_binary[c, i] * model.M
-        self.model.capacity_binary_activation_con = Constraint(self.model.SCALABLE_COMPONENTS,
-                                                               self.model.INTEGER_STEPS,
-                                                               rule=capacity_binary_activation_rule)
-
-        def lower_bound_adherence_rule(model, c, i):
-            # To allow the capacity steps to be 0, they have no lower bound.
-            # Therefore, it is ensured that the lower bound is adhered
-            # Activates binary if the capacity is lower than the lower bound of the integer step
-            # This binary is later used to penalize the objective function
-            return self.lower_bound_dict[c, i] - model.nominal_cap_pre[c, i] \
-                   - model.penalty_binary_lower_bound[c, i] * model.M <= 0
-        self.model.lower_bound_adherence_con = Constraint(self.model.SCALABLE_COMPONENTS,
-                                                          self.model.INTEGER_STEPS,
-                                                          rule=lower_bound_adherence_rule)
-
-        def final_capacity_rule(model, c):
-            # Final capacity of component is sum of capacity over all integer steps
-            return model.nominal_cap[c] == sum(model.nominal_cap_pre[c, i] for i in model.INTEGER_STEPS)
-        self.model.final_capacity_con = Constraint(self.model.SCALABLE_COMPONENTS, rule=final_capacity_rule)
 
         """ Financial constraints """
         def _investment_rule(model, c):
@@ -926,7 +969,7 @@ class OptimizationProblem:
             if c in model.SCALABLE_COMPONENTS:
                 return model.investment[c] == sum(model.nominal_cap_pre[c, i] * model.capex_pre_var[c, i]
                                                   + model.capex_pre_fix[c, i] * model.capacity_binary[c, i]
-                                                  for i in model.INTEGER_STEPS)
+                                                  for i in model.INTEGER_STEPS) / 1000
             else:
                 return model.investment[c] == model.nominal_cap[c] * model.capex_var[c] + model.capex_fix[c]
         self.model.investment_con = Constraint(self.model.COMPONENTS, rule=_investment_rule)
@@ -1027,19 +1070,28 @@ class OptimizationProblem:
             return model.total_revenue == sum(model.revenue[me] for me in model.SALEABLE_STREAMS)
         self.model._total_revenue_con = Constraint(rule=_total_revenue_rule)
 
-        def capacity_lower_bound_ignoring_penalty_rule(model):
-            # Penalize capacities lower than lower bound
-            return model.capacity_penalty == sum((model.penalty_binary_lower_bound[c, i]
-                                                  + model.capacity_binary[c, i] - 1) * model.M
-                                                 for c in self.model.SCALABLE_COMPONENTS
-                                                 for i in model.INTEGER_STEPS)
-        self.model.capacity_lower_bound_ignoring_penalty_con = Constraint(
-            rule=capacity_lower_bound_ignoring_penalty_rule)
+        if False:
+
+            def capacity_lower_bound_ignoring_penalty_rule(model):
+                # Penalize capacities lower than lower bound
+                return model.capacity_penalty == sum((model.penalty_binary_lower_bound[c, i]) * model.M
+                                                     for c in self.model.SCALABLE_COMPONENTS
+                                                     for i in model.INTEGER_STEPS if i != 0)
+            self.model.capacity_lower_bound_ignoring_penalty_con = Constraint(
+                rule=capacity_lower_bound_ignoring_penalty_rule)
+
+            def test_3_rule(model):
+                return model.test_3 == sum((model.penalty_binary_lower_bound[c, i])
+                                                     for c in self.model.SCALABLE_COMPONENTS
+                                                     for i in model.INTEGER_STEPS)
+            self.model.test_3_con = Constraint(self.model.SCALABLE_COMPONENTS,
+                                               self.model.INTEGER_STEPS,
+                                               rule=test_3_rule)
 
         def power_lower_bound_ignoring_penalty_rule(model):
             # Penalize capacities lower than lower bound
-            return model.power_penalty == sum((model.component_status[c, t]
-                                               + model.component_correct_p[c, t] - 1) * model.M
+            return model.power_penalty == sum(-(model.component_status[c, t]
+                                               - model.component_correct_p[c, t] - 1) * model.M
                                               for c in model.SHUT_DOWN_COMPONENTS
                                               for t in model.TIME)
         self.model.capacity_lower_bound_ignoring_penalty_con = Constraint(
@@ -1055,7 +1107,7 @@ class OptimizationProblem:
                     + model.total_working_capital_costs
                     + model.total_purchase_costs
                     - model.total_revenue
-                    + model.capacity_penalty
+                    # + model.capacity_penalty
                     + model.power_penalty)
         self.model.obj = Objective(rule=objective_function, sense=minimize)
 
@@ -1063,7 +1115,7 @@ class OptimizationProblem:
 
         opt = pyo.SolverFactory(self.solver, solver_io="python")
         self.instance = self.model.create_instance()
-        opt.options["mipgap"] = 0.1
+        opt.options["mipgap"] = 0.05
         results = opt.solve(self.instance, tee=True)
         print(results)
 

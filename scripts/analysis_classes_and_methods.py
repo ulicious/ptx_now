@@ -35,6 +35,14 @@ class Result:
                     list_value = value_list[item]
                 self.all_variables_dict.update({str(v): list_value})
                 self.variable_zero_index.append(str(v))
+
+                if str(v) == 'power_penalty':
+                    print(list_value)
+                if str(v) == 'capacity_penalty':
+                    print(list_value)
+                if str(v) == 'test_3':
+                    print(str(v))
+                    print(list_value)
             elif number_keys == 1:
                 self.all_variables_dict.update({str(v): variable_dict})
                 self.variable_one_index.append(str(v))
@@ -59,6 +67,9 @@ class Result:
                     variable_list.append(variable_dict[key])
 
                 stream_dict.update({stream: variable_list})
+
+                if str(v) == 'test_2':
+                    print(stream_dict)
 
                 self.all_variables_dict.update({str(v): stream_dict})
                 self.variable_two_index.append(str(v))

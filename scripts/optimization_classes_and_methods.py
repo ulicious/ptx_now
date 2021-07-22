@@ -755,7 +755,7 @@ class OptimizationProblem:
                 if (c, me_in) in self.main_tuples:
                     return (model.nominal_cap[c] * model.min_p[c]
                             - model.mass_energy_component_in_streams[c, me_in, t]
-                            - model.component_correct_p[c, t] * 1000) <= 0
+                            - model.component_correct_p[c, t] * 10000) <= 0
                 else:
                     return Constraint.Skip
             self.model._correct_power_con = Constraint(self.model.SHUT_DOWN_COMPONENTS,
@@ -818,28 +818,19 @@ class OptimizationProblem:
         def capacity_binary_activation_rule(model, c, i):
             # Capacity binary will be 1 if the capacity of the integer step is higher than 0
             return model.capacity_binary[c, i] >= model.nominal_cap_pre[c, i] / 10000
-        self.model.capacity_binary_activation_con = Constraint(self.model.SCALABLE_COMPONENTS,
-                                                               self.model.INTEGER_STEPS,
+        self.model.capacity_binary_activation_con = Constraint(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
                                                                rule=capacity_binary_activation_rule)
 
-
-
-        if True:
-            def test_2_rule(model, c, i):
-                return model.nominal_cap_pre[c, i] >= self.lower_bound_dict[c, i] * model.capacity_binary[c, i]
-            self.model.test_2_con = Constraint(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
-                                               rule=test_2_rule)
+        def set_lower_bound_rule(model, c, i):
+            # capacity binary sets lower bound. Lower bound is not predefined as each capacity step can be 0
+            return model.nominal_cap_pre[c, i] >= self.lower_bound_dict[c, i] * model.capacity_binary[c, i]
+        self.model.set_lower_bound_con = Constraint(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
+                                                    rule=set_lower_bound_rule)
 
         def final_capacity_rule(model, c):
             # Final capacity of component is sum of capacity over all integer steps
             return model.nominal_cap[c] == sum(model.nominal_cap_pre[c, i] for i in model.INTEGER_STEPS)
         self.model.final_capacity_con = Constraint(self.model.SCALABLE_COMPONENTS, rule=final_capacity_rule)
-
-        if False:
-            def test(model, c, i):
-                # Final capacity of component is sum of capacity over all integer steps
-                return model.penalty_binary_lower_bound[c, i] + model.capacity_binary[c, i] - 1 == 0
-            self.model.test = Constraint(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS, rule=test)
 
         if False:
 
@@ -969,7 +960,7 @@ class OptimizationProblem:
             if c in model.SCALABLE_COMPONENTS:
                 return model.investment[c] == sum(model.nominal_cap_pre[c, i] * model.capex_pre_var[c, i]
                                                   + model.capex_pre_fix[c, i] * model.capacity_binary[c, i]
-                                                  for i in model.INTEGER_STEPS) / 1000
+                                                  for i in model.INTEGER_STEPS)
             else:
                 return model.investment[c] == model.nominal_cap[c] * model.capex_var[c] + model.capex_fix[c]
         self.model.investment_con = Constraint(self.model.COMPONENTS, rule=_investment_rule)
@@ -1070,24 +1061,6 @@ class OptimizationProblem:
             return model.total_revenue == sum(model.revenue[me] for me in model.SALEABLE_STREAMS)
         self.model._total_revenue_con = Constraint(rule=_total_revenue_rule)
 
-        if False:
-
-            def capacity_lower_bound_ignoring_penalty_rule(model):
-                # Penalize capacities lower than lower bound
-                return model.capacity_penalty == sum((model.penalty_binary_lower_bound[c, i]) * model.M
-                                                     for c in self.model.SCALABLE_COMPONENTS
-                                                     for i in model.INTEGER_STEPS if i != 0)
-            self.model.capacity_lower_bound_ignoring_penalty_con = Constraint(
-                rule=capacity_lower_bound_ignoring_penalty_rule)
-
-            def test_3_rule(model):
-                return model.test_3 == sum((model.penalty_binary_lower_bound[c, i])
-                                                     for c in self.model.SCALABLE_COMPONENTS
-                                                     for i in model.INTEGER_STEPS)
-            self.model.test_3_con = Constraint(self.model.SCALABLE_COMPONENTS,
-                                               self.model.INTEGER_STEPS,
-                                               rule=test_3_rule)
-
         def power_lower_bound_ignoring_penalty_rule(model):
             # Penalize capacities lower than lower bound
             return model.power_penalty == sum(-(model.component_status[c, t]
@@ -1107,7 +1080,6 @@ class OptimizationProblem:
                     + model.total_working_capital_costs
                     + model.total_purchase_costs
                     - model.total_revenue
-                    # + model.capacity_penalty
                     + model.power_penalty)
         self.model.obj = Objective(rule=objective_function, sense=minimize)
 

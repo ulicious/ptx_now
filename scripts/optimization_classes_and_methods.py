@@ -649,7 +649,7 @@ class OptimizationProblem:
             # todo: adjustment: '<=' durch abregelung?
 
             if me in model.GENERATED_STREAMS:
-                return model.mass_energy_generation[g, me, t] <= sum(model.generation_profiles[g, t]
+                return model.mass_energy_generation[g, me, t] == sum(model.generation_profiles[g, t]
                                                                   * model.nominal_cap[g] for g in model.GENERATORS
                                                                   if me == self.pm_object.get_component(g).get_generated_stream())
             else:
@@ -674,16 +674,42 @@ class OptimizationProblem:
             Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS, self.model.TIME,
                        rule=_conversion_maximal_component_capacity_rule)
 
-        def _ramp_up_down_rule(model, c, me_in, t):
+        def _ramp_up_rule(model, c, me_in, t):
+            # Sets limits of change based on ramp up
+            if c in model.SHUT_DOWN_COMPONENTS:
+                if (c, me_in) in self.main_tuples:
+                    if t > 0:
+                        return model.mass_energy_component_in_streams[c, me_in, t] <= \
+                               (model.mass_energy_component_in_streams[c, me_in, t - 1]
+                                + model.nominal_cap[c] * model.ramp_up[c]
+                                + model.status_switch_on[c, t] * 10000)
+                    else:
+                        return Constraint.Skip
+                else:
+                    return Constraint.Skip
+            else:
+                if (c, me_in) in self.main_tuples:
+                    if t > 0:
+                        return model.mass_energy_component_in_streams[c, me_in, t] <= \
+                               (model.mass_energy_component_in_streams[c, me_in, t - 1]
+                                + model.nominal_cap[c] * model.ramp_up[c])
+                    else:
+                        return Constraint.Skip
+                else:
+                    return Constraint.Skip
+        self.model._ramp_up_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
+                                             self.model.TIME, rule=_ramp_up_rule)
+
+        def _ramp_down_rule(model, c, me_in, t):
             # Sets limits of change based on ramp down
             if c in model.SHUT_DOWN_COMPONENTS:
                 # If shut down is possible, the change is unlimited
                 if (c, me_in) in self.main_tuples:
                     if t > 0:
-                        return model.mass_energy_component_in_streams[c, me_in, t] \
-                               - model.mass_energy_component_in_streams[c, me_in, t - 1] <= \
-                               model.nominal_cap[c] * model.ramp_up[c] - model.nominal_cap[c] * model.ramp_down[c] \
-                               + model.status_switch_off[c, t] * model.M
+                        return model.mass_energy_component_in_streams[c, me_in, t] >= \
+                               (model.mass_energy_component_in_streams[c, me_in, t - 1]
+                                - model.nominal_cap[c] * model.ramp_down[c]
+                                - model.status_switch_on[c, t] * 10000)
                     else:
                         return Constraint.Skip
                 else:
@@ -691,62 +717,17 @@ class OptimizationProblem:
             else:
                 if (c, me_in) in self.main_tuples:
                     if t > 0:
-                        return model.mass_energy_component_in_streams[c, me_in, t] \
-                               - model.mass_energy_component_in_streams[c, me_in, t - 1] <= \
-                               model.nominal_cap[c] * model.ramp_up[c] - model.nominal_cap[c] * model.ramp_down[c]
+                        return model.mass_energy_component_in_streams[c, me_in, t] >= \
+                               (model.mass_energy_component_in_streams[c, me_in, t - 1]
+                                - model.nominal_cap[c] * model.ramp_down[c])
                     else:
                         return Constraint.Skip
                 else:
                     return Constraint.Skip
-        self.model._ramp_up_down_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
-                                                  self.model.TIME, rule=_ramp_up_down_rule)
+        self.model._ramp_down_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
+                                               self.model.TIME, rule=_ramp_down_rule)
 
-        if False:
 
-            def _ramp_up_rule(model, c, me_in, t):
-                # Sets limits of change based on ramp up
-                if c in model.SHUT_DOWN_COMPONENTS:
-                    # If shut down is possible, the change is unlimited
-                    if (c, me_in) in self.main_tuples:
-                        if t > 0:
-                            return model.mass_energy_component_in_streams[c, me_in, t] \
-                                   - model.mass_energy_component_in_streams[c, me_in, t - 1] \
-                                   <= model.nominal_cap[c] * model.ramp_up[c] + model.status_switch_on[c, t] * model.M
-                        else:
-                            return Constraint.Skip
-                    else:
-                        return Constraint.Skip
-                else:
-                    if (c, me_in) in self.main_tuples:
-                        if t > 0:
-                            return model.mass_energy_component_in_streams[c, me_in, t] \
-                                   - model.mass_energy_component_in_streams[c, me_in, t - 1] \
-                                   <= model.nominal_cap[c] * model.ramp_up[c]
-                        else:
-                            return Constraint.Skip
-                    else:
-                        return Constraint.Skip
-            self.model._ramp_up_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
-                                                 self.model.TIME, rule=_ramp_up_rule)
-
-        if False:
-
-            def no_power_when_shutoff_rule(model, c, me_in, t):
-                return model.mass_energy_component_in_streams[c, me_in, t] <= model.component_status[c, t] * model.M
-            self.model.no_power_when_shutoff_con = Constraint(self.model.SHUT_DOWN_COMPONENTS, self.model.ME_STREAMS,
-                                                              self.model.TIME, rule=no_power_when_shutoff_rule)
-
-        def test(model, c, me_in, t):
-            # Sets status binary to 0 if in stream is higher than nominal capacity * min p
-            if (c, me_in) in self.main_tuples:
-                return model.test[c, t] == model.nominal_cap[c] * model.min_p[c] - \
-                       model.mass_energy_component_in_streams[c, me_in, t] - model.component_correct_p[c, t] * 1000
-            else:
-                return Constraint.Skip
-
-        self.model.test_con = Constraint(self.model.SHUT_DOWN_COMPONENTS,
-                                         self.model.ME_STREAMS, self.model.TIME,
-                                         rule=test)
 
         """ Component shut down and start up constraints """
         if True:

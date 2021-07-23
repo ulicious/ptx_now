@@ -36,6 +36,12 @@ class Result:
                 self.all_variables_dict.update({str(v): list_value})
                 self.variable_zero_index.append(str(v))
 
+                if str(v) == 'test_b':
+                    print(list_value)
+
+                if str(v) == 'power_penalty':
+                    print(list_value)
+
             elif number_keys == 1:
                 self.all_variables_dict.update({str(v): variable_dict})
                 self.variable_one_index.append(str(v))

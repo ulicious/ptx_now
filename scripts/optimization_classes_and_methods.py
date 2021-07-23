@@ -335,6 +335,7 @@ class OptimizationProblem:
         self.model.test = Var(self.model.SHUT_DOWN_COMPONENTS, self.model.TIME)
         self.model.test_2 = Var(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS)
         self.model.test_3 = Var()
+        self.model.test_b = Var(within=Binary)
 
         # STORAGE binaries (charging and discharging)
         self.model.storage_charge_binary = Var(self.model.STORAGES, self.model.TIME, within=Binary)
@@ -727,8 +728,6 @@ class OptimizationProblem:
         self.model._ramp_down_con = Constraint(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
                                                self.model.TIME, rule=_ramp_down_rule)
 
-
-
         """ Component shut down and start up constraints """
         if True:
             def _correct_power_rule(model, c, me_in, t):
@@ -1044,12 +1043,22 @@ class OptimizationProblem:
 
         def power_lower_bound_ignoring_penalty_rule(model):
             # Penalize capacities lower than lower bound
-            return model.power_penalty == sum(-(model.component_status[c, t]
-                                               - model.component_correct_p[c, t] - 1) * model.M
-                                              for c in model.SHUT_DOWN_COMPONENTS
-                                              for t in model.TIME)
+            if False:
+                return model.power_penalty == sum(-(model.component_status[c, t]
+                                                   - model.component_correct_p[c, t] - 1) * model.M
+                                                  for c in model.SHUT_DOWN_COMPONENTS
+                                                  for t in model.TIME)
+            else:
+                return model.power_penalty == model.test_b * 1000000000
         self.model.capacity_lower_bound_ignoring_penalty_con = Constraint(
             rule=power_lower_bound_ignoring_penalty_rule)
+
+        def test_rule(model):
+            return model.test_b * 10000000000 >= sum((model.component_status[c, t]
+                                        + model.component_correct_p[c, t] - 1)
+                                       for c in model.SHUT_DOWN_COMPONENTS
+                                       for t in model.TIME)
+        self.model.test_con = Constraint(rule=test_rule)
 
         def objective_function(model):
             # Define objective function

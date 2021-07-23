@@ -3,6 +3,7 @@ from pyomo.core import *
 import pandas as pd
 from pyomo.core import Binary
 from copy import deepcopy
+from pyomo.opt import SolverStatus, TerminationCondition
 
 from _helper_optimization import calculate_economies_of_scale_steps
 
@@ -27,121 +28,124 @@ class OptimizationProblem:
         model = self.initialize_problem(pm_object_warm_start)
         model = self.post_adjustments(pm_object_warm_start, model)
         model = self.attach_constraints(pm_object_warm_start, model)
-        instance = self.optimize(model)
+        instance, results = self.optimize(model)
+
+        solved_feasible = False
+        if (results.solver.status == SolverStatus.ok) & (results.solver.termination_condition == TerminationCondition.optimal):
+            solved_feasible = True
 
         self.reset_information()
 
-        # Implement complex model and retrieve instance
-        pm_object_adjusted = self.pre_adjustments(pm_object)
-        model_adjusted = self.initialize_problem(pm_object_adjusted)
-        model_adjusted = self.post_adjustments(pm_object_adjusted, model_adjusted)
-        model_adjusted = self.attach_constraints(pm_object_adjusted, model_adjusted)
-        instance_adjusted = model_adjusted.create_instance()
+        if solved_feasible:
 
-        # Parallel units will have no capacity
-        # Respective variables are capacity_binary, nominal_cap and nominal_cap_pre
-        for component_object in pm_object.get_specific_components('final', 'conversion'):
-            component_name = component_object.get_name()
-            capacity = instance.nominal_cap[component_name].value
+            # Implement complex model and retrieve instance
+            pm_object_adjusted = self.pre_adjustments(pm_object)
+            model_adjusted = self.initialize_problem(pm_object_adjusted)
+            model_adjusted = self.post_adjustments(pm_object_adjusted, model_adjusted)
+            model_adjusted = self.attach_constraints(pm_object_adjusted, model_adjusted)
+            instance_adjusted = model_adjusted.create_instance()
 
-            lower_bound_dict = {}
-            upper_bound_dict = {}
-            if component_object.is_scalable():
-                lower_bound, upper_bound, coefficient, intercept = calculate_economies_of_scale_steps(
-                    component_object, pm_object_adjusted)
+            # Parallel units will have no capacity
+            # Respective variables are capacity_binary, nominal_cap and nominal_cap_pre
+            for component_object in pm_object.get_specific_components('final', 'conversion'):
+                component_name = component_object.get_name()
+                capacity = instance.nominal_cap[component_name].value
 
-                for key in [*lower_bound.keys()]:
-                    lower_bound_dict[key] = lower_bound[key]
+                lower_bound_dict = {}
+                upper_bound_dict = {}
+                if component_object.is_scalable():
+                    lower_bound, upper_bound, coefficient, intercept = calculate_economies_of_scale_steps(
+                        component_object, pm_object_adjusted)
 
-                for key in [*upper_bound.keys()]:
-                    upper_bound_dict[key] = upper_bound[key]
+                    for key in [*lower_bound.keys()]:
+                        lower_bound_dict[key] = lower_bound[key]
 
-            if component_object.get_number_parallel_units() > 1:
-                # Several parallel units exist
-                for i in range(0, int(component_object.get_number_parallel_units())):
-                    parallel_unit_component_name = component_name + '_' + str(i)
-                    if i == 0:
-                        # As initial solution, the component_0 will have the values of the single component of
-                        # the simple problem
-                        instance_adjusted.nominal_cap[parallel_unit_component_name] = capacity
-                        if component_object.is_scalable():
+                    for key in [*upper_bound.keys()]:
+                        upper_bound_dict[key] = upper_bound[key]
+
+                if component_object.get_number_parallel_units() > 1:
+                    # Several parallel units exist
+                    for i in range(0, int(component_object.get_number_parallel_units())):
+                        parallel_unit_component_name = component_name + '_' + str(i)
+                        if i == 0:
+                            # As initial solution, the component_0 will have the values of the single component of
+                            # the simple problem
+                            instance_adjusted.nominal_cap[parallel_unit_component_name] = capacity
+                            if component_object.is_scalable():
+                                for j in range(pm_object_adjusted.get_integer_steps()):
+                                    lower_bound = lower_bound_dict[(component_name, j)]
+                                    upper_bound = upper_bound_dict[(component_name, j)]
+                                    if (capacity >= lower_bound) & (capacity <= upper_bound):
+                                        # if capacity of simple solution is between lb and ub of component
+                                        # This integer step will be chosen
+                                        instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = capacity
+                                        instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 1
+                                    else:
+                                        instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
+                                        instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
+
+                            if component_object.get_shut_down_ability():
+                                # if component is able for shutdown, it will set the binaries s.t. no shutdown is initiated
+                                for t in model.TIME:
+
+                                    # Time depending variables
+                                    instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 0
+                                    instance_adjusted.component_status[(parallel_unit_component_name, t)] = 1
+                                    instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
+                                    instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
+                        else:
+                            # component_x will have no capacity
+                            instance_adjusted.nominal_cap[parallel_unit_component_name] = 0
                             for j in range(pm_object_adjusted.get_integer_steps()):
-                                lower_bound = lower_bound_dict[(component_name, j)]
-                                upper_bound = upper_bound_dict[(component_name, j)]
-                                if (capacity >= lower_bound) & (capacity <= upper_bound):
-                                    # if capacity of simple solution is between lb and ub of component
-                                    # This integer step will be chosen
-                                    instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = capacity
+                                if j == 0:
+                                    instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
                                     instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 1
                                 else:
                                     instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
                                     instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
 
-                        if component_object.get_shut_down_ability():
-                            # if component is able for shutdown, it will set the binaries s.t. no shutdown is initiated
-                            for t in model.TIME:
+                            if component_object.get_shut_down_ability():
+                                for t in model.TIME:
 
-                                # Time depending variables
-                                instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 0
-                                instance_adjusted.component_status[(parallel_unit_component_name, t)] = 1
-                                instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
-                                instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
-                    else:
-                        # component_x will have no capacity
-                        instance_adjusted.nominal_cap[parallel_unit_component_name] = 0
+                                    # Time depending variables
+                                    instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 1
+                                    instance_adjusted.component_status[(parallel_unit_component_name, t)] = 0
+                                    instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
+                                    instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
+
+                else:
+                    # No parallel units
+                    instance_adjusted.nominal_cap[component_name] = capacity
+                    # integer depending binaries: capacity binary and nominal cap pre
+                    if component_object.is_scalable():
                         for j in range(pm_object_adjusted.get_integer_steps()):
-                            if j == 0:
-                                instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
-                                instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 1
+                            lower_bound = lower_bound_dict[(component_name, j)]
+                            upper_bound = upper_bound_dict[(component_name, j)]
+                            if (capacity >= lower_bound) & (capacity <= upper_bound):
+                                instance_adjusted.nominal_cap_pre[(component_name, j)] = capacity
+                                instance_adjusted.capacity_binary[(component_name, j)] = 1
                             else:
-                                instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
-                                instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
+                                instance_adjusted.nominal_cap_pre[(component_name, j)] = 0
+                                instance_adjusted.capacity_binary[(component_name, j)] = 0
 
-                        if component_object.get_shut_down_ability():
-                            for t in model.TIME:
+                    if component_object.get_shut_down_ability():
+                        # Time depending binaries
+                        for t in model.TIME:
 
-                                # Time depending variables
-                                instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 1
-                                instance_adjusted.component_status[(parallel_unit_component_name, t)] = 0
-                                instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
-                                instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
+                            instance_adjusted.component_correct_p[(component_name, t)] = 0
+                            instance_adjusted.component_status[(component_name, t)] = 1
+                            instance_adjusted.status_switch_on[(component_name, t)] = 0
+                            instance_adjusted.status_switch_off[(component_name, t)] = 0
+
+            # Create variables, which are not in instance as shutdown was forbidden
+            # Respective variables are component_correct_p, component_status
+            # switch_on and switch_off
+
+                return solved_feasible, model_adjusted, instance_adjusted, pm_object_adjusted
 
             else:
-                # No parallel units
-                instance_adjusted.nominal_cap[component_name] = capacity
-                # integer depending binaries: capacity binary and nominal cap pre
-                if component_object.is_scalable():
-                    for j in range(pm_object_adjusted.get_integer_steps()):
-                        lower_bound = lower_bound_dict[(component_name, j)]
-                        upper_bound = upper_bound_dict[(component_name, j)]
-                        if (capacity >= lower_bound) & (capacity <= upper_bound):
-                            instance_adjusted.nominal_cap_pre[(component_name, j)] = capacity
-                            instance_adjusted.capacity_binary[(component_name, j)] = 1
-                        else:
-                            instance_adjusted.nominal_cap_pre[(component_name, j)] = 0
-                            instance_adjusted.capacity_binary[(component_name, j)] = 0
 
-                if component_object.get_shut_down_ability():
-                    # Time depending binaries
-                    for t in model.TIME:
-
-                        instance_adjusted.component_correct_p[(component_name, t)] = 0
-                        instance_adjusted.component_status[(component_name, t)] = 1
-                        instance_adjusted.status_switch_on[(component_name, t)] = 0
-                        instance_adjusted.status_switch_off[(component_name, t)] = 0
-
-        # Create variables, which are not in instance as shutdown was forbidden
-        # Respective variables are component_correct_p, component_status
-        # switch_on and switch_off
-
-        if False:
-            import sys
-            f = open(r'C:\Users\mt5285\Desktop/test.txt', 'w')
-            sys.stdout = f
-            instance_adjusted.pprint()
-            f.close()
-
-        return model_adjusted, instance_adjusted, pm_object_adjusted
+                return solved_feasible
 
     def pre_adjustments(self, pm_object):
 
@@ -1278,8 +1282,16 @@ class OptimizationProblem:
                 break
 
         if shutdown_exists:
-            self.model, self.instance, self.pm_object = self.create_initial_solution(pm_object)
-            self.instance = self.optimize(self.model, self.instance)
+            solved_feasible, self.model, self.instance, self.pm_object \
+                = self.create_initial_solution(pm_object)
+            if solved_feasible:
+                self.instance = self.optimize(self.model, self.instance)
+            else:
+                self.pm_object = self.pre_adjustments(pm_object)
+                model = self.initialize_problem(self.pm_object)
+                model = self.post_adjustments(self.pm_object, model)
+                self.model = self.attach_constraints(self.pm_object, model)
+                self.instance = self.optimize(model)
         else:
             self.pm_object = self.pre_adjustments(pm_object)
             model = self.initialize_problem(self.pm_object)

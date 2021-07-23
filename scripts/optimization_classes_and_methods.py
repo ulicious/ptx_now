@@ -42,6 +42,7 @@ class OptimizationProblem:
         # Respective variables are capacity_binary, nominal_cap and nominal_cap_pre
         for component_object in pm_object.get_specific_components('final', 'conversion'):
             component_name = component_object.get_name()
+            capacity = instance.nominal_cap[component_name].value
 
             lower_bound_dict = {}
             upper_bound_dict = {}
@@ -60,29 +61,33 @@ class OptimizationProblem:
                 for i in range(0, int(component_object.get_number_parallel_units())):
                     parallel_unit_component_name = component_name + '_' + str(i)
                     if i == 0:
-                        instance_adjusted.nominal_cap[parallel_unit_component_name] \
-                            = instance.nominal_cap[component_name].value
+                        # As initial solution, the component_0 will have the values of the single component of
+                        # the simple problem
+                        instance_adjusted.nominal_cap[parallel_unit_component_name] = capacity
                         if component_object.is_scalable():
                             for j in range(pm_object_adjusted.get_integer_steps()):
                                 lower_bound = lower_bound_dict[(component_name, j)]
                                 upper_bound = upper_bound_dict[(component_name, j)]
-                                if (instance.nominal_cap[component_name].value >= lower_bound) \
-                                        & (instance.nominal_cap[component_name].value <= upper_bound):
-                                    instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] \
-                                        = instance.nominal_cap[component_name].value
+                                if (capacity >= lower_bound) & (capacity <= upper_bound):
+                                    # if capacity of simple solution is between lb and ub of component
+                                    # This integer step will be chosen
+                                    instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = capacity
                                     instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 1
                                 else:
                                     instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
                                     instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
 
                         if component_object.get_shut_down_ability():
+                            # if component is able for shutdown, it will set the binaries s.t. no shutdown is initiated
                             for t in model.TIME:
+
                                 # Time depending variables
                                 instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 0
                                 instance_adjusted.component_status[(parallel_unit_component_name, t)] = 1
                                 instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
                                 instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
                     else:
+                        # component_x will have no capacity
                         instance_adjusted.nominal_cap[parallel_unit_component_name] = 0
                         for j in range(pm_object_adjusted.get_integer_steps()):
                             if j == 0:
@@ -94,6 +99,7 @@ class OptimizationProblem:
 
                         if component_object.get_shut_down_ability():
                             for t in model.TIME:
+
                                 # Time depending variables
                                 instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 1
                                 instance_adjusted.component_status[(parallel_unit_component_name, t)] = 0
@@ -101,32 +107,39 @@ class OptimizationProblem:
                                 instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
 
             else:
-                instance_adjusted.nominal_cap[component_name] = instance.nominal_cap[component_name].value
+                # No parallel units
+                instance_adjusted.nominal_cap[component_name] = capacity
                 # integer depending binaries: capacity binary and nominal cap pre
                 if component_object.is_scalable():
                     for j in range(pm_object_adjusted.get_integer_steps()):
                         lower_bound = lower_bound_dict[(component_name, j)]
                         upper_bound = upper_bound_dict[(component_name, j)]
-                        if (instance.nominal_cap[component_name].value >= lower_bound) \
-                                & (instance.nominal_cap[component_name].value <= upper_bound):
-                            instance_adjusted.nominal_cap_pre[component_name][j] \
-                                = instance.nominal_cap[component_name].value
-                            instance_adjusted.capacity_binary[component_name][j] = 1
+                        if (capacity >= lower_bound) & (capacity <= upper_bound):
+                            instance_adjusted.nominal_cap_pre[(component_name, j)] = capacity
+                            instance_adjusted.capacity_binary[(component_name, j)] = 1
                         else:
-                            instance_adjusted.nominal_cap_pre[component_name][j] = 0
-                            instance_adjusted.capacity_binary[component_name][j] = 0
+                            instance_adjusted.nominal_cap_pre[(component_name, j)] = 0
+                            instance_adjusted.capacity_binary[(component_name, j)] = 0
 
                 if component_object.get_shut_down_ability():
                     # Time depending binaries
                     for t in model.TIME:
-                        instance_adjusted.component_correct_p[component_name][t] = 0
-                        instance_adjusted.component_status[component_name][t] = 1
-                        instance_adjusted.status_switch_on[component_name][t] = 0
-                        instance_adjusted.status_switch_off[component_name][t] = 0
+
+                        instance_adjusted.component_correct_p[(component_name, t)] = 0
+                        instance_adjusted.component_status[(component_name, t)] = 1
+                        instance_adjusted.status_switch_on[(component_name, t)] = 0
+                        instance_adjusted.status_switch_off[(component_name, t)] = 0
 
         # Create variables, which are not in instance as shutdown was forbidden
         # Respective variables are component_correct_p, component_status
         # switch_on and switch_off
+
+        if False:
+            import sys
+            f = open(r'C:\Users\mt5285\Desktop/test.txt', 'w')
+            sys.stdout = f
+            instance_adjusted.pprint()
+            f.close()
 
         return model_adjusted, instance_adjusted, pm_object_adjusted
 
@@ -457,7 +470,7 @@ class OptimizationProblem:
         # model.test = Var(model.SHUT_DOWN_COMPONENTS, model.TIME)
         # model.test_2 = Var(model.SCALABLE_COMPONENTS, model.INTEGER_STEPS)
         # model.test_3 = Var()
-        model.wrong_capacity = Var(within=Binary)
+        model.wrong_power = Var(model.SHUT_DOWN_COMPONENTS, within=Binary)
 
         # STORAGE binaries (charging and discharging)
         model.storage_charge_binary = Var(model.STORAGES, model.TIME, within=Binary)
@@ -800,6 +813,20 @@ class OptimizationProblem:
         model._conversion_maximal_component_capacity_con = \
             Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
                        rule=_conversion_maximal_component_capacity_rule)
+
+        def _conversion_minimal_component_capacity_rule(model, c, me_in, t):
+            # Limits conversion on capacity of conversion unit and defines conversions
+            # Important: Capacity is always matched with input
+            if c not in model.SHUT_DOWN_COMPONENTS:
+                if (c, me_in) in self.main_tuples:
+                    return model.mass_energy_component_in_streams[c, me_in, t] >= model.nominal_cap[c] * model.min_p[c]
+                else:
+                    return Constraint.Skip
+            else:
+                return Constraint.Skip
+        model._conversion_minimal_component_capacity_con = \
+            Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                       rule=_conversion_minimal_component_capacity_rule)
 
         def _ramp_up_rule(model, c, me_in, t):
             # Sets limits of change based on ramp up
@@ -1175,16 +1202,16 @@ class OptimizationProblem:
                                                   for c in model.SHUT_DOWN_COMPONENTS
                                                   for t in model.TIME)
             else:
-                return model.power_penalty == model.wrong_capacity * 1000000000
+                return model.power_penalty == sum(model.wrong_power[c] * 1000000000
+                                                  for c in model.SHUT_DOWN_COMPONENTS)
         model.capacity_lower_bound_ignoring_penalty_con = Constraint(
             rule=power_lower_bound_ignoring_penalty_rule)
 
-        def test_rule(model):
-            return model.wrong_capacity * 10000000000 >= sum((model.component_status[c, t]
-                                        + model.component_correct_p[c, t] - 1)
-                                       for c in model.SHUT_DOWN_COMPONENTS
-                                       for t in model.TIME)
-        model.test_con = Constraint(rule=test_rule)
+        def wrong_power_rule(model, c):
+            return model.wrong_power[c] * 10000000000 >= sum((model.component_status[c, t]
+                                                              + model.component_correct_p[c, t] - 1)
+                                                             for t in model.TIME)
+        model.wrong_power_con = Constraint(model.SHUT_DOWN_COMPONENTS, rule=wrong_power_rule)
 
         def objective_function(model):
             # Define objective function

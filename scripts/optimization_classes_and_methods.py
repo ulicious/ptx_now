@@ -903,7 +903,7 @@ class OptimizationProblem:
             # Set binary to 1 if component is active
             if (c, me_in) in self.main_tuples:
                 return model.mass_energy_component_in_streams[c, me_in, t] \
-                       - model.component_status[c, t] * model.M <= 0
+                       - model.component_status[c, t] * 10000 <= 0
             else:
                 return Constraint.Skip
         model._active_component_con = Constraint(model.SHUT_DOWN_COMPONENTS,
@@ -1085,7 +1085,7 @@ class OptimizationProblem:
 
         def charge_binary_activation_rule(model, s, t):
             # Define charging binary -> if charged, binary = 1
-            return model.mass_energy_storage_in_streams[s, t] - model.storage_charge_binary[s, t] * model.M <= 0
+            return model.mass_energy_storage_in_streams[s, t] - model.storage_charge_binary[s, t] * 10000 <= 0
 
         model.charge_binary_activation_con = Constraint(model.STORAGES, model.TIME,
                                                              rule=charge_binary_activation_rule)
@@ -1093,7 +1093,7 @@ class OptimizationProblem:
         def discharge_binary_activation_rule(model, s, t):
             # Define discharging binary -> if discharged, binary = 1
             return model.mass_energy_storage_out_streams[s, t] - model.storage_discharge_binary[
-                s, t] * model.M <= 0
+                s, t] * 10000 <= 0
 
         model.discharge_binary_activation_con = Constraint(model.STORAGES, model.TIME,
                                                                 rule=discharge_binary_activation_rule)

@@ -141,11 +141,11 @@ class OptimizationProblem:
             # Respective variables are component_correct_p, component_status
             # switch_on and switch_off
 
-                return solved_feasible, model_adjusted, instance_adjusted, pm_object_adjusted
+            return solved_feasible, model_adjusted, instance_adjusted, pm_object_adjusted
 
-            else:
+        else:
 
-                return solved_feasible
+            return solved_feasible
 
     def pre_adjustments(self, pm_object):
 
@@ -793,7 +793,7 @@ class OptimizationProblem:
             # todo: adjustment: '<=' durch abregelung?
 
             if me in model.GENERATED_STREAMS:
-                return model.mass_energy_generation[g, me, t] == sum(model.generation_profiles[g, t]
+                return model.mass_energy_generation[g, me, t] <= sum(model.generation_profiles[g, t]
                                                                   * model.nominal_cap[g] for g in model.GENERATORS
                                                                   if me == pm_object.get_component(g).get_generated_stream())
             else:
@@ -944,6 +944,13 @@ class OptimizationProblem:
                 return Constraint.Skip
         model._deactivate_component_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
                                                           rule=_deactivate_component_rule)
+
+        def right_power_adherence_rule(model, c, t):
+            # Defines that the component is on and in the right power bounds,
+            # or off and the power is 0
+            return model.component_status[c, t] + model.component_correct_p[c, t] == 1
+        model.right_power_adherence_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
+                                                     rule=right_power_adherence_rule)
 
         """ Capacity of scalable units """
         def capacity_binary_sum_rule(model, c):
@@ -1198,24 +1205,25 @@ class OptimizationProblem:
             return model.total_revenue == sum(model.revenue[me] for me in model.SALEABLE_STREAMS)
         model._total_revenue_con = Constraint(rule=_total_revenue_rule)
 
-        def power_lower_bound_ignoring_penalty_rule(model):
-            # Penalize capacities lower than lower bound
-            if False:
-                return model.power_penalty == sum(-(model.component_status[c, t]
-                                                   - model.component_correct_p[c, t] - 1) * model.M
-                                                  for c in model.SHUT_DOWN_COMPONENTS
-                                                  for t in model.TIME)
-            else:
-                return model.power_penalty == sum(model.wrong_power[c] * 1000000000
-                                                  for c in model.SHUT_DOWN_COMPONENTS)
-        model.capacity_lower_bound_ignoring_penalty_con = Constraint(
-            rule=power_lower_bound_ignoring_penalty_rule)
+        if False:
+            def power_lower_bound_ignoring_penalty_rule(model):
+                # Penalize capacities lower than lower bound
+                if False:
+                    return model.power_penalty == sum(-(model.component_status[c, t]
+                                                       - model.component_correct_p[c, t] - 1) * model.M
+                                                      for c in model.SHUT_DOWN_COMPONENTS
+                                                      for t in model.TIME)
+                else:
+                    return model.power_penalty == sum(model.wrong_power[c] * 1000000000
+                                                      for c in model.SHUT_DOWN_COMPONENTS)
+            model.capacity_lower_bound_ignoring_penalty_con = Constraint(
+                rule=power_lower_bound_ignoring_penalty_rule)
 
-        def wrong_power_rule(model, c):
-            return model.wrong_power[c] * 10000000000 >= sum((model.component_status[c, t]
-                                                              + model.component_correct_p[c, t] - 1)
-                                                             for t in model.TIME)
-        model.wrong_power_con = Constraint(model.SHUT_DOWN_COMPONENTS, rule=wrong_power_rule)
+            def wrong_power_rule(model, c):
+                return model.wrong_power[c] * 10000000000 >= sum((model.component_status[c, t]
+                                                                  + model.component_correct_p[c, t] - 1)
+                                                                 for t in model.TIME)
+            model.wrong_power_con = Constraint(model.SHUT_DOWN_COMPONENTS, rule=wrong_power_rule)
 
         def objective_function(model):
             # Define objective function
@@ -1226,8 +1234,8 @@ class OptimizationProblem:
                     + model.total_personnel_costs
                     + model.total_working_capital_costs
                     + model.total_purchase_costs
-                    - model.total_revenue
-                    + model.power_penalty)
+                    - model.total_revenue)
+                    #+ model.power_penalty)
         model.obj = Objective(rule=objective_function, sense=minimize)
 
         return model
@@ -1243,9 +1251,10 @@ class OptimizationProblem:
             results = opt.solve(instance, tee=True)
         else:
             results = opt.solve(instance, tee=True, warmstart=True)
+
         print(results)
 
-        return instance
+        return instance, results
 
     def reset_information(self):
         self.conversion_tuples = []
@@ -1285,18 +1294,18 @@ class OptimizationProblem:
             solved_feasible, self.model, self.instance, self.pm_object \
                 = self.create_initial_solution(pm_object)
             if solved_feasible:
-                self.instance = self.optimize(self.model, self.instance)
+                self.instance, self.results = self.optimize(self.model, self.instance)
             else:
                 self.pm_object = self.pre_adjustments(pm_object)
                 model = self.initialize_problem(self.pm_object)
                 model = self.post_adjustments(self.pm_object, model)
                 self.model = self.attach_constraints(self.pm_object, model)
-                self.instance = self.optimize(model)
+                self.instance, self.results = self.optimize(model)
         else:
             self.pm_object = self.pre_adjustments(pm_object)
             model = self.initialize_problem(self.pm_object)
             model = self.post_adjustments(self.pm_object, model)
             self.model = self.attach_constraints(self.pm_object, model)
-            self.instance = self.optimize(model)
+            self.instance, self.results = self.optimize(model)
 
         # print(self.instance.pprint())

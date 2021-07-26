@@ -89,7 +89,7 @@ class OptimizationProblem:
                                 for t in model.TIME:
 
                                     # Time depending variables
-                                    instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 0
+                                    #instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 0
                                     instance_adjusted.component_status[(parallel_unit_component_name, t)] = 1
                                     instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
                                     instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
@@ -108,7 +108,7 @@ class OptimizationProblem:
                                 for t in model.TIME:
 
                                     # Time depending variables
-                                    instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 1
+                                    #instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 1
                                     instance_adjusted.component_status[(parallel_unit_component_name, t)] = 0
                                     instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
                                     instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
@@ -132,7 +132,7 @@ class OptimizationProblem:
                         # Time depending binaries
                         for t in model.TIME:
 
-                            instance_adjusted.component_correct_p[(component_name, t)] = 0
+                            #instance_adjusted.component_correct_p[(component_name, t)] = 0
                             instance_adjusted.component_status[(component_name, t)] = 1
                             instance_adjusted.status_switch_on[(component_name, t)] = 0
                             instance_adjusted.status_switch_off[(component_name, t)] = 0
@@ -827,7 +827,11 @@ class OptimizationProblem:
                 else:
                     return Constraint.Skip
             else:
-                return Constraint.Skip
+                if (c, me_in) in self.main_tuples:
+                    return model.mass_energy_component_in_streams[c, me_in, t] \
+                           >= model.nominal_cap[c] * model.min_p[c] + (model.component_status[c, t] - 1) * 10000
+                else:
+                    return Constraint.Skip
         model._conversion_minimal_component_capacity_con = \
             Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
                        rule=_conversion_minimal_component_capacity_rule)
@@ -886,7 +890,7 @@ class OptimizationProblem:
                                                model.TIME, rule=_ramp_down_rule)
 
         """ Component shut down and start up constraints """
-        if True:
+        if False:
             def _correct_power_rule(model, c, me_in, t):
                 # Sets status binary to 0 if in stream is higher than nominal capacity * min p
                 if (c, me_in) in self.main_tuples:
@@ -933,6 +937,14 @@ class OptimizationProblem:
             model._define_machine_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
                                                         rule=_define_machine_rule)
 
+            def right_power_adherence_rule(model, c, t):
+                # Defines that the component is on and in the right power bounds,
+                # or off and the power is 0
+                return model.component_status[c, t] + model.component_correct_p[c, t] == 1
+
+            model.right_power_adherence_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
+                                                         rule=right_power_adherence_rule)
+
         def _deactivate_component_rule(model, c, t):
             # if component is shut off, it can not be turned on again
             # without waiting for time = shut down time + start up time
@@ -944,13 +956,6 @@ class OptimizationProblem:
                 return Constraint.Skip
         model._deactivate_component_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
                                                           rule=_deactivate_component_rule)
-
-        def right_power_adherence_rule(model, c, t):
-            # Defines that the component is on and in the right power bounds,
-            # or off and the power is 0
-            return model.component_status[c, t] + model.component_correct_p[c, t] == 1
-        model.right_power_adherence_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
-                                                     rule=right_power_adherence_rule)
 
         """ Capacity of scalable units """
         def capacity_binary_sum_rule(model, c):

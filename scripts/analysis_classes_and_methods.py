@@ -187,7 +187,7 @@ class Result:
             # Calculate total stream availability
             for stream in self.model.ME_STREAMS:
                 self.total_availability[stream] = (self.purchased_stream[stream] + self.generated_stream[stream]
-                                                   + self.conversed_stream[stream])
+                                                   + self.conversed_stream[stream] - self.emitted_stream[stream])
 
             not_used_streams = []
             for key in [*self.total_availability]:
@@ -403,8 +403,8 @@ class Result:
 
                 streams_and_costs.loc[nice_name, 'Total Generation Fix Costs'] = self.generation_costs[stream]
                 if self.generated_stream[stream] > 0:
-                    streams_and_costs.loc[nice_name, 'Total Generation Fix Costs per generated Unit'] = self.generation_costs[stream] \
-                                                                                 / self.generated_stream[stream]
+                    streams_and_costs.loc[nice_name, 'Total Generation Fix Costs per generated Unit'] \
+                        = self.generation_costs[stream] / (self.generated_stream[stream] - self.emitted_stream[stream])
                 else:
                     streams_and_costs.loc[nice_name, 'Total Generation Fix Costs per generated Unit'] = 0
 
@@ -453,34 +453,61 @@ class Result:
             overhead = self.all_variables_dict['overhead_costs'][key]
             working_capital = self.all_variables_dict['working_capital_costs'][key]
 
-            storage = False
-
             if component_object.get_component_type() == 'conversion':
                 main_conversions = self.pm_object.get_main_conversion_streams_by_component(key)
-                stream_object = self.pm_object.get_stream(main_conversions[0])
-                nice_name_stream = stream_object.get_nice_name()
-                unit = stream_object.get_unit()
+                stream_object_input = self.pm_object.get_stream(main_conversions[0])
+                nice_name_stream = stream_object_input.get_nice_name()
+                unit = stream_object_input.get_unit()
+
+                stream_object_output = self.pm_object.get_stream(main_conversions[1])
+                nice_name_stream_output = stream_object_output.get_nice_name()
+                unit_output = stream_object_output.get_unit()
+
+                main_conversions = self.pm_object.get_all_main_conversion()
+                c_main_conversion = main_conversions[main_conversions['component'] == key].index
+                coefficient = main_conversions.loc[c_main_conversion, 'coefficient'].values[0]
+
+                capacity_df.loc[nice_name, 'Capacity [input]'] = capacity
+                if unit == 'MWh':
+                    unit = 'MW'
+                else:
+                    unit = unit + ' / h'
+                capacity_df.loc[nice_name, 'Capacity Unit [input]'] = unit + ' ' + nice_name_stream
+                capacity_df.loc[nice_name, 'Investment [per input]'] = investment / capacity
+
+                capacity_df.loc[nice_name, 'Capacity [output]'] = capacity * coefficient
+                if unit_output == 'MWh':
+                    unit_output = 'MW'
+                else:
+                    unit_output = unit_output + ' / h'
+                capacity_df.loc[nice_name, 'Capacity Unit [output]'] = unit_output + ' ' + nice_name_stream_output
+                capacity_df.loc[nice_name, 'Investment [per output]'] = investment / (capacity * coefficient)
+
             elif component_object.get_component_type() == 'generator':
                 stream_object = self.pm_object.get_stream(component_object.get_generated_stream())
                 nice_name_stream = stream_object.get_nice_name()
                 unit = stream_object.get_unit()
+
+                capacity_df.loc[nice_name, 'Capacity [output]'] = capacity
+                if unit == 'MWh':
+                    unit = 'MW'
+                else:
+                    unit = unit + ' / h'
+                capacity_df.loc[nice_name, 'Capacity Unit [output]'] = unit + ' ' + nice_name_stream
+
+                capacity_df.loc[nice_name, 'Investment [per output]'] = investment / capacity
+
             else:
                 stream_object = self.pm_object.get_stream(key)
                 nice_name_stream = stream_object.get_nice_name() + ' Storage'
                 unit = stream_object.get_unit()
-                storage = True
 
-            capacity_df.loc[nice_name, 'Capacity'] = capacity
+                capacity_df.loc[nice_name, 'Capacity [input]'] = capacity
+                capacity_df.loc[nice_name, 'Capacity Unit [input]'] = unit + ' ' + nice_name_stream
 
-            if (not storage) & (unit == 'MWh'):
-                unit = 'MW'
-                capacity_df.loc[nice_name, 'Capacity Unit'] = unit + ' ' + nice_name_stream
-            elif storage:
-                capacity_df.loc[nice_name, 'Capacity Unit'] = unit + ' ' + nice_name_stream
-            else:
-                capacity_df.loc[nice_name, 'Capacity Unit'] = unit + ' ' + nice_name_stream + ' / h'
+                capacity_df.loc[nice_name, 'Investment [per input]'] = investment / capacity
 
-            capacity_df.loc[nice_name, 'Investment'] = investment
+            capacity_df.loc[nice_name, 'Total Investment'] = investment
             capacity_df.loc[nice_name, 'Annuity'] = annuity
             capacity_df.loc[nice_name, 'Maintenance'] = maintenance
             capacity_df.loc[nice_name, 'Taxes and Insurance'] = taxes_and_insurance
@@ -1004,4 +1031,4 @@ class Result:
         self.check_integer_variables()
         self.create_and_print_vector()
 
-        #self.build_sankey_diagram(only_energy=True)
+        # self.build_sankey_diagram(only_energy=True)

@@ -187,7 +187,8 @@ class Result:
             # Calculate total stream availability
             for stream in self.model.ME_STREAMS:
                 self.total_availability[stream] = (self.purchased_stream[stream] + self.generated_stream[stream]
-                                                   + self.conversed_stream[stream] - self.emitted_stream[stream])
+                                                   + self.conversed_stream[stream] - self.emitted_stream[stream]
+                                                   - self.sold_stream[stream])
 
             not_used_streams = []
             for key in [*self.total_availability]:
@@ -245,10 +246,10 @@ class Result:
                                                       + self.generation_costs[stream])})
 
             for stream in self.model.ME_STREAMS:
-                self.total_market_costs.update({stream: self.purchase_costs[stream] - self.selling_revenue[stream]})
+                self.total_variable_costs.update({stream: self.purchase_costs[stream] - self.selling_revenue[stream]})
 
             for stream in self.model.ME_STREAMS:
-                self.total_costs.update({stream: self.total_fix_costs[stream] + self.total_market_costs[stream]})
+                self.total_costs.update({stream: self.total_fix_costs[stream] + self.total_variable_costs[stream]})
 
             # Calculation of costs per stream
             costs_per_unit = {}
@@ -399,7 +400,7 @@ class Result:
                 else:
                     streams_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] = 0
 
-                streams_and_costs.loc[nice_name, 'Total Market Costs'] = self.total_market_costs[stream]
+                streams_and_costs.loc[nice_name, 'Total Variable Costs'] = self.total_variable_costs[stream]
 
                 streams_and_costs.loc[nice_name, 'Total Generation Fix Costs'] = self.generation_costs[stream]
                 if self.generated_stream[stream] > 0:
@@ -425,12 +426,6 @@ class Result:
                 streams_and_costs.loc[nice_name, 'Total Fix Costs'] = self.total_fix_costs[stream]
                 streams_and_costs.loc[nice_name, 'Total Costs'] = self.total_costs[stream]
                 streams_and_costs.loc[nice_name, 'Total Costs per Unit'] = costs_per_unit[stream]
-
-                if self.total_availability[stream] != 0:
-                    streams_and_costs.loc[nice_name, 'Total Variable Costs per Unit'] = \
-                        (self.total_costs[stream] - self.total_fix_costs[stream]) / self.total_availability[stream]
-                else:
-                    streams_and_costs.loc[nice_name, 'Total Variable Costs per Unit'] = 0
 
                 streams_and_costs.loc[nice_name, 'Production Costs per Unit'] = \
                     self.production_cost_stream_per_unit[stream]
@@ -1012,7 +1007,7 @@ class Result:
         self.conversion_component_costs = {}
         self.maintenance = {}
         self.total_fix_costs = {}
-        self.total_market_costs = {}
+        self.total_variable_costs = {}
         self.total_costs = {}
         self.total_availability = {}
         self.production_cost_stream_per_unit = {}

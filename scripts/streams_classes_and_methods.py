@@ -3,8 +3,6 @@ from tkinter import ttk
 from tkinter import *
 from tkinter import filedialog
 
-from objects_formulation import StorageComponent
-
 
 class StreamFrame:
 
@@ -17,6 +15,8 @@ class StreamFrame:
 
         stream_original = self.pm_object_original.get_stream(self.stream)
         self.pm_object.add_stream(self.stream, stream_original.__copy__())
+
+        # todo: Storable?
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
@@ -141,19 +141,19 @@ class StreamFrame:
 
             i += 1
 
-        tk.Label(self.frame, text='Stream storable?').grid(row=i, column=0, sticky='w')
-        if self.storable_var.get():
-            tk.Label(self.frame, text='Yes').grid(row=i, column=1)
-        else:
-            tk.Label(self.frame, text='No').grid(row=i, column=1)
-
         i += 1
 
         button_frame = ttk.Frame(self.frame)
         ttk.Button(button_frame, text='Adjust setting', command=self.adjust_values)\
             .grid(row=0, column=0, sticky='ew')
-        ttk.Button(button_frame, text='Reset setting', command=self.set_stream_settings_to_default)\
-            .grid(row=0, column=1, sticky='ew')
+
+        if not self.stream_object.is_custom():
+            ttk.Button(button_frame, text='Reset setting', command=self.set_stream_settings_to_default)\
+                .grid(row=0, column=1, sticky='ew')
+        else:
+            ttk.Button(button_frame, text='Reset setting', command=self.set_stream_settings_to_default, state=DISABLED) \
+                .grid(row=0, column=1, sticky='ew')
+
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
         button_frame.grid(row=i, column=0, columnspan=max_columns+1, sticky='ew')
@@ -219,11 +219,6 @@ class StreamFrame:
         else:
             self.total_demand_var.set(False)
 
-        if self.stream_object.is_storable():
-            self.storable_var.set(True)
-        else:
-            self.storable_var.set(False)
-
         self.demand_text_var.set(self.stream_object.get_demand())
 
     def __init__(self, parent, root, stream, pm_object, pm_object_original):
@@ -256,8 +251,6 @@ class StreamFrame:
         self.total_demand_var = tk.BooleanVar()
         self.demand_text_var = StringVar()
 
-        self.storable_var = tk.BooleanVar()
-
         self.create_widgets_in_frame()
 
 
@@ -273,8 +266,6 @@ class AdjustStreamWindow:
                         offvalue=False).grid(row=0, column=0, sticky='ew')
         ttk.Checkbutton(basic_setting_frame, text='Emitted', variable=self.emitted_var, onvalue=True,
                         offvalue=False).grid(row=0, column=1, sticky='ew')
-        ttk.Checkbutton(basic_setting_frame, text='Stream storable', variable=self.storable_var, onvalue=True,
-                        offvalue=False).grid(row=0, column=2, sticky='ew')
 
         basic_setting_frame.grid_columnconfigure(0, weight=1)
         basic_setting_frame.grid_columnconfigure(1, weight=1)
@@ -422,11 +413,6 @@ class AdjustStreamWindow:
         else:
             self.total_demand_var.set(False)
 
-        if self.stream_object.is_storable():
-            self.storable_var.set(True)
-        else:
-            self.storable_var.set(False)
-
         self.demand_text_var.set(self.stream_object.get_demand())
 
     def configure_purchasable_streams(self):
@@ -569,33 +555,6 @@ class AdjustStreamWindow:
         else:
             self.stream_object.set_total_demand(False)
 
-        # Set storage settings
-        # Check if storage object exits but is not set
-        exists = False
-        storages = self.pm_object.get_specific_components(component_type='storage')
-        for c in storages:
-            if c.get_name() == self.stream_object.get_name():
-                exists = True
-
-        if self.storable_var.get():
-            self.stream_object.set_storable(True)
-
-            if exists:
-                storage = self.pm_object.get_component(self.stream_object.get_name())
-                storage.set_final(True)
-            else:
-                storage = StorageComponent(self.stream_object.get_name(), self.stream_object.get_nice_name(),
-                                           final_unit=True)
-                self.pm_object.add_component(self.stream_object.get_name(), storage)
-
-                for p in self.pm_object.get_general_parameters():
-                    self.pm_object.set_applied_parameter_for_component(p, self.stream_object.get_name(), True)
-
-        else:
-            self.stream_object.set_storable(False)
-            if exists:
-                self.pm_object.get_component(self.stream).set_final(False)
-
         if self.purchasable_var.get():
             if self.purchase_price_type_var.get() == 'fixed':
                 self.stream_object.set_purchase_price(self.purchase_fixed_price_entry.get())
@@ -622,6 +581,7 @@ class AdjustStreamWindow:
         self.stream_object = self.pm_object.get_stream(self.stream)
 
         self.newWindow = Toplevel(self.root)
+        self.newWindow.title('Adjust Stream Parameters')
         self.newWindow.grab_set()
 
         self.purchasable_var = tk.BooleanVar()
@@ -638,7 +598,6 @@ class AdjustStreamWindow:
         self.emitted_var = tk.BooleanVar()
         self.demand_var = tk.BooleanVar()
         self.total_demand_var = tk.BooleanVar()
-        self.storable_var = tk.BooleanVar()
 
         self.demand_text_var = StringVar()
         self.initial_purchase_price_var = StringVar()

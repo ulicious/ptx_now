@@ -511,42 +511,69 @@ class OptimizationProblem:
 
         # Define conversion tuples which will be used to set main conversion and side conversion
         # All other conversions will be set to 0 if not in conversion tuples
-        main_conversions = pm_object.get_all_main_conversion()
-        for i in main_conversions.index:
-            conversion_component = main_conversions.loc[i, 'component']
-            input_stream = main_conversions.loc[i, 'input_me']
-            output_stream = main_conversions.loc[i, 'output_me']
-            coefficient = float(main_conversions.loc[i, 'coefficient'])
+        for c in model.CONVERSION_COMPONENTS:
+            component = self.pm_object.get_component(c)
+            inputs = component.get_inputs()
+            outputs = component.get_outputs()
 
-            if conversion_component in model.CONVERSION_COMPONENTS:
-                self.conversion_tuples.append((conversion_component, input_stream, output_stream))
-                self.conversion_tuples_dict.update({(conversion_component, input_stream, output_stream): coefficient})
+            main_input = component.get_main_input()
+            for current_output in [*outputs.keys()]:
 
-                self.main_tuples.append((conversion_component, input_stream))
-                self.main_out_streams.append(output_stream)
-                self.input_tuples.append((conversion_component, input_stream))
-                self.output_tuples.append((conversion_component, output_stream))
+                self.output_conversion_tuples.append((c, main_input, current_output))
+                self.conversion_tuples_dict.update(
+                    {(c, main_input, current_output): float(outputs[current_output]) / float(inputs[main_input])})
 
-        side_conversions = pm_object.get_all_side_conversions()
-        if not side_conversions.empty:
-            for i in side_conversions.index:
-                conversion_component = side_conversions.loc[i, 'component']
-                input_stream = side_conversions.loc[i, 'input_me']
-                output_stream = side_conversions.loc[i, 'output_me']
-                coefficient = float(side_conversions.loc[i, 'coefficient'])
+                self.output_tuples.append((c, current_output))
+
+            for current_input in [*inputs.keys()]:
+                self.input_tuples.append((c, current_input))
+                if current_input != main_input:
+                    self.input_conversion_tuples.append((c, main_input, current_input))
+                    self.conversion_tuples_dict.update(
+                        {(c, main_input, current_input): float(inputs[current_input]) / float(inputs[main_input])})
+
+        print(self.output_conversion_tuples)
+        print(self.input_conversion_tuples)
+        print(self.conversion_tuples_dict)
+
+        if False:
+
+            main_conversions = pm_object.get_all_main_conversion()
+            for i in main_conversions.index:
+                conversion_component = main_conversions.loc[i, 'component']
+                input_stream = main_conversions.loc[i, 'input_me']
+                output_stream = main_conversions.loc[i, 'output_me']
+                coefficient = float(main_conversions.loc[i, 'coefficient'])
 
                 if conversion_component in model.CONVERSION_COMPONENTS:
                     self.conversion_tuples.append((conversion_component, input_stream, output_stream))
-                    self.conversion_tuples_dict.update(
-                        {(conversion_component, input_stream, output_stream): coefficient})
+                    self.conversion_tuples_dict.update({(conversion_component, input_stream, output_stream): coefficient})
 
-                    self.side_tuples.append((conversion_component, input_stream))
-
+                    self.main_tuples.append((conversion_component, input_stream))
+                    self.main_out_streams.append(output_stream)
                     self.input_tuples.append((conversion_component, input_stream))
                     self.output_tuples.append((conversion_component, output_stream))
 
-        model.CONVERSION_FACTOR = Param(model.COMPONENTS, model.ME_STREAMS, model.ME_STREAMS,
-                                        initialize=self.conversion_tuples_dict)
+            side_conversions = pm_object.get_all_side_conversions()
+            if not side_conversions.empty:
+                for i in side_conversions.index:
+                    conversion_component = side_conversions.loc[i, 'component']
+                    input_stream = side_conversions.loc[i, 'input_me']
+                    output_stream = side_conversions.loc[i, 'output_me']
+                    coefficient = float(side_conversions.loc[i, 'coefficient'])
+
+                    if conversion_component in model.CONVERSION_COMPONENTS:
+                        self.conversion_tuples.append((conversion_component, input_stream, output_stream))
+                        self.conversion_tuples_dict.update(
+                            {(conversion_component, input_stream, output_stream): coefficient})
+
+                        self.side_tuples.append((conversion_component, input_stream))
+
+                        self.input_tuples.append((conversion_component, input_stream))
+                        self.output_tuples.append((conversion_component, output_stream))
+
+            model.CONVERSION_FACTOR = Param(model.COMPONENTS, model.ME_STREAMS, model.ME_STREAMS,
+                                            initialize=self.conversion_tuples_dict)
 
         # Attach data to vector parameters, e.g., purchase price
         purchase_price_dict = {}
@@ -639,7 +666,7 @@ class OptimizationProblem:
             # Sets streams, which are demanded
             if me in model.DEMANDED_STREAMS:  # Case with demand
                 if me not in model.TOTAL_DEMANDED_STREAMS:  # Case where demand needs to be satisfied in every t
-                    return model.mass_energy_demand[me, t] == model.stream_demand[me, t]
+                    return model.mass_energy_demand[me, t] >= model.stream_demand[me, t]
                 else:
                     return Constraint.Skip
             else:  # Case without demand
@@ -651,7 +678,7 @@ class OptimizationProblem:
             if me in model.DEMANDED_STREAMS:  # Case with demand
                 if me in model.TOTAL_DEMANDED_STREAMS:  # Case where demand needs to be satisfied over all t
                     return sum(model.mass_energy_demand[me, t] for t in model.TIME) \
-                           == model.stream_demand[me, 0]
+                           >= model.stream_demand[me, 0]
                 else:
                     return Constraint.Skip
             else:
@@ -693,35 +720,6 @@ class OptimizationProblem:
             return sum(equation_lhs) == sum(equation_rhs)
         model._mass_energy_balance_con = Constraint(model.ME_STREAMS, model.TIME, rule=_mass_energy_balance_rule)
 
-        def _stream_conversion_rule(model, c, me_in, me_out, t):
-            # Define ratio between input and output streams for all conversion tuples
-            if (c, me_in, me_out) in self.conversion_tuples:
-                return model.mass_energy_component_out_streams[c, me_out, t] == \
-                       model.mass_energy_component_in_streams[c, me_in, t] \
-                       * model.CONVERSION_FACTOR[c, me_in, me_out]
-            else:
-                return Constraint.Skip
-        model.stream_conversion_con = Constraint(model.COMPONENTS, model.ME_STREAMS, model.ME_STREAMS, model.TIME,
-                                                 rule=_stream_conversion_rule)
-
-        def _stream_conversion_input_rule(model, c, me_in, t):
-            # Sets all inputs to 0 if not in conversion tuples
-            if (c, me_in) not in self.input_tuples:
-                return model.mass_energy_component_in_streams[c, me_in, t] == 0
-            else:
-                return Constraint.Skip
-        model._stream_conversion_input_con = Constraint(model.COMPONENTS, model.ME_STREAMS, model.TIME,
-                                                        rule=_stream_conversion_input_rule)
-
-        def _stream_conversion_output_rule(model, c, me_out, t):
-            # Sets all outputs to 0 if not in conversion tuples
-            if (c, me_out) not in self.output_tuples:
-                return model.mass_energy_component_out_streams[c, me_out, t] == 0
-            else:
-                return Constraint.Skip
-        model._stream_conversion_output_con = Constraint(model.COMPONENTS, model.ME_STREAMS, model.TIME,
-                                                         rule=_stream_conversion_output_rule)
-
         def power_generation_rule(model, g, me, t):
             # Limits generation to capacity factor * generator capacity for each t
             # todo: adjustment: '<=' durch abregelung?
@@ -738,10 +736,70 @@ class OptimizationProblem:
                                                                     for g in model.GENERATORS)
         model.total_power_generation_con = Constraint(model.ME_STREAMS, model.TIME, rule=total_power_generation_rule)
 
+        if False:
+
+            def _stream_conversion_rule(model, c, me_in, me_out, t):
+                # Define ratio between input and output streams for all conversion tuples
+                if (c, me_in, me_out) in self.conversion_tuples:
+                    return model.mass_energy_component_out_streams[c, me_out, t] == \
+                           model.mass_energy_component_in_streams[c, me_in, t] \
+                           * model.CONVERSION_FACTOR[c, me_in, me_out]
+                else:
+                    return Constraint.Skip
+            model.stream_conversion_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.ME_STREAMS, model.TIME,
+                                                     rule=_stream_conversion_rule)
+
+            def _stream_conversion_input_rule(model, c, me_in, t):
+                # Sets all inputs to 0 if not in conversion tuples
+                if (c, me_in) not in self.input_tuples:
+                    return model.mass_energy_component_in_streams[c, me_in, t] == 0
+                else:
+                    return Constraint.Skip
+            model._stream_conversion_input_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                            rule=_stream_conversion_input_rule)
+
+            def _stream_conversion_output_rule(model, c, me_out, t):
+                # Sets all outputs to 0 if not in conversion tuples
+                if (c, me_out) not in self.output_tuples:
+                    return model.mass_energy_component_out_streams[c, me_out, t] == 0
+                else:
+                    return Constraint.Skip
+            model._stream_conversion_output_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                             rule=_stream_conversion_output_rule)
+
+        else:
+            def _stream_conversion_output_rule(model, c, me_out, t):
+                # Define ratio between main input and output streams for all conversion tuples
+                main_input = self.pm_object.get_component(c).get_main_input()
+                if (c, main_input, me_out) in self.output_conversion_tuples:
+                    return model.mass_energy_component_out_streams[c, me_out, t] == \
+                           model.mass_energy_component_in_streams[c, main_input, t] \
+                           * self.conversion_tuples_dict[c, main_input, me_out]
+                else:
+                    return model.mass_energy_component_out_streams[c, me_out, t] == 0
+            model._stream_conversion_output_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                             rule=_stream_conversion_output_rule)
+
+            def _stream_conversion_input_rule(model, c, me_in, t):
+                # Define ratio between main input and other input streams for all conversion tuples
+                main_input = self.pm_object.get_component(c).get_main_input()
+                if me_in == main_input:
+                    return Constraint.Skip
+                else:
+                    if (c, main_input, me_in) in self.input_conversion_tuples:
+                        return model.mass_energy_component_in_streams[c, me_in, t] == \
+                               model.mass_energy_component_in_streams[c, main_input, t] \
+                               * self.conversion_tuples_dict[c, main_input, me_in]
+                    else:
+                        return model.mass_energy_component_in_streams[c, me_in, t] == 0
+            model._stream_conversion_input_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                            rule=_stream_conversion_input_rule)
+
         def _conversion_maximal_component_capacity_rule(model, c, me_in, t):
             # Limits conversion on capacity of conversion unit and defines conversions
             # Important: Capacity is always matched with input
-            if (c, me_in) in self.main_tuples:
+            main_input = self.pm_object.get_component(c).get_main_input()
+            if me_in == main_input:
                 return model.mass_energy_component_in_streams[c, me_in, t] <= model.nominal_cap[c] * model.max_p[c]
             else:
                 return Constraint.Skip
@@ -752,13 +810,14 @@ class OptimizationProblem:
         def _conversion_minimal_component_capacity_rule(model, c, me_in, t):
             # Limits conversion on capacity of conversion unit and defines conversions
             # Important: Capacity is always matched with input
+            main_input = self.pm_object.get_component(c).get_main_input()
             if c not in model.SHUT_DOWN_COMPONENTS:
-                if (c, me_in) in self.main_tuples:
+                if me_in == main_input:
                     return model.mass_energy_component_in_streams[c, me_in, t] >= model.nominal_cap[c] * model.min_p[c]
                 else:
                     return Constraint.Skip
             else:
-                if (c, me_in) in self.main_tuples:
+                if me_in == main_input:
                     return model.mass_energy_component_in_streams[c, me_in, t] \
                            >= model.nominal_cap[c] * model.min_p[c] + (model.component_status[c, t] - 1) * 10000
                 else:
@@ -769,8 +828,9 @@ class OptimizationProblem:
 
         def _ramp_up_rule(model, c, me_in, t):
             # Sets limits of change based on ramp up
+            main_input = self.pm_object.get_component(c).get_main_input()
             if c in model.SHUT_DOWN_COMPONENTS:
-                if (c, me_in) in self.main_tuples:
+                if me_in == main_input:
                     if t > 0:
                         return (model.mass_energy_component_in_streams[c, me_in, t]
                                 - model.mass_energy_component_in_streams[c, me_in, t - 1]) <= \
@@ -780,7 +840,7 @@ class OptimizationProblem:
                 else:
                     return Constraint.Skip
             else:
-                if (c, me_in) in self.main_tuples:
+                if me_in == main_input:
                     if t > 0:
                         return (model.mass_energy_component_in_streams[c, me_in, t]
                                 - model.mass_energy_component_in_streams[c, me_in, t - 1]) <= \
@@ -793,9 +853,10 @@ class OptimizationProblem:
 
         def _ramp_down_rule(model, c, me_in, t):
             # Sets limits of change based on ramp down
+            main_input = self.pm_object.get_component(c).get_main_input()
             if c in model.SHUT_DOWN_COMPONENTS:
                 # If shut down is possible, the change is unlimited
-                if (c, me_in) in self.main_tuples:
+                if me_in == main_input:
                     if t > 0:
                         return (model.mass_energy_component_in_streams[c, me_in, t]
                                 - model.mass_energy_component_in_streams[c, me_in, t - 1]) >= \
@@ -805,7 +866,7 @@ class OptimizationProblem:
                 else:
                     return Constraint.Skip
             else:
-                if (c, me_in) in self.main_tuples:
+                if me_in == main_input:
                     if t > 0:
                         return (model.mass_energy_component_in_streams[c, me_in, t]
                                 - model.mass_energy_component_in_streams[c, me_in, t - 1]) >= \
@@ -820,7 +881,8 @@ class OptimizationProblem:
         """ Component shut down and start up constraints """
         def _active_component_rule(model, c, me_in, t):
             # Set binary to 1 if component is active
-            if (c, me_in) in self.main_tuples:
+            main_input = self.pm_object.get_component(c).get_main_input()
+            if me_in == main_input:
                 return model.mass_energy_component_in_streams[c, me_in, t] \
                        - model.component_status[c, t] * 10000 <= 0
             else:
@@ -957,24 +1019,27 @@ class OptimizationProblem:
         model.storage_discharge_upper_bound_con = Constraint(model.ME_STREAMS, model.TIME,
                                                                   rule=storage_discharge_upper_bound_rule)
 
-        def storage_limitation_to_component_rule(model, s):
-            # todo: delete completely to avoid complex cases?
-            # Sets storage limitation based on other component.
-            # E.g., if battery should be able to store max a 24 hour supply for electrolysis
-            c = model.storage_limiting_component[s]
-            coefficient = 1
-            for stream in model.ME_STREAMS:
-                if (c, stream, s) in [*self.conversion_tuples_dict.keys()]:
-                    # Case, the storage is based in input -> Adjust coefficient
-                    coefficient = self.conversion_tuples_dict[(c, stream, s)]
-                    if (c, stream) in self.main_tuples:
-                        break
-            return model.nominal_cap[s] == model.nominal_cap[model.storage_limiting_component[s]] \
-                   * model.storage_limiting_component_ratio[s] * coefficient
-            # todo: wenn input, dann muss die effizienz noch eingerechnet werden
+        if False: # todo: delete
 
-        model.storage_limitation_to_component_con = Constraint(model.LIMITED_STORAGES,
-                                                                    rule=storage_limitation_to_component_rule)
+            def storage_limitation_to_component_rule(model, s):
+                # todo: delete completely to avoid complex cases?
+                # Sets storage limitation based on other component.
+                # E.g., if battery should be able to store max a 24 hour supply for electrolysis
+                c = model.storage_limiting_component[s]
+                coefficient = 1
+                main_input = self.pm_object.get_component(c).get_main_input()
+                for stream in model.ME_STREAMS:
+                    if (c, stream, s) in [*self.conversion_tuples_dict.keys()]:
+                        # Case, the storage is based in input -> Adjust coefficient
+                        coefficient = self.conversion_tuples_dict[(c, stream, s)]
+                        if (c, stream) in self.main_tuples:
+                            break
+                return model.nominal_cap[s] == model.nominal_cap[model.storage_limiting_component[s]] \
+                       * model.storage_limiting_component_ratio[s] * coefficient
+                # todo: wenn input, dann muss die effizienz noch eingerechnet werden
+
+            model.storage_limitation_to_component_con = Constraint(model.LIMITED_STORAGES,
+                                                                        rule=storage_limitation_to_component_rule)
 
         """ STORAGE BINARY DECISIONS """
 
@@ -1163,17 +1228,14 @@ class OptimizationProblem:
         self.conversion_tuples_dict = {}
         self.main_tuples = []
         self.side_tuples = []
-        self.main_out_streams = []
         self.input_tuples = []
         self.output_tuples = []
 
     def __init__(self, pm_object, path_data, solver):
 
-        self.conversion_tuples = []
+        self.input_conversion_tuples = []
+        self.output_conversion_tuples = []
         self.conversion_tuples_dict = {}
-        self.main_tuples = []
-        self.side_tuples = []
-        self.main_out_streams = []
         self.input_tuples = []
         self.output_tuples = []
 

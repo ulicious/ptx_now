@@ -23,18 +23,22 @@ class Interface:
         self.working_path = os.getcwd()
         self.solver = solver
 
-        if self.path_custom is None:
-
-            self.pm_object_original = ParameterObject('parameter', integer_steps=10)
-            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10)
-        else:
-            self.pm_object_original = ParameterObject('parameter', path_custom=self.path_custom, integer_steps=10)
-            self.pm_object_copy = ParameterObject('parameter2', path_custom=self.path_custom, integer_steps=10)
-
         self.root = Tk()
         self.root.geometry('500x750')
 
-        self.me_checked = False
+        if self.path_custom is None:  # New project
+
+            self.pm_object_original = ParameterObject('parameter', integer_steps=10)
+            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10)
+            self.root.title('New Project')
+        else:  # Custom project
+            self.pm_object_original = ParameterObject('parameter', path_custom=self.path_custom, integer_steps=10)
+            self.pm_object_copy = ParameterObject('parameter2', path_custom=self.path_custom, integer_steps=10)
+
+            custom_title = self.path_custom.split('/')[-1].split('.')[0]
+            self.root.title(custom_title)
+
+        self.me_checked = False  # boolean if mass energy balance was checked
 
         self.general_parameters_df = pd.DataFrame()
         self.components_df = pd.DataFrame()
@@ -50,16 +54,17 @@ class Interface:
 
         self.canvas = tk.Canvas(self.root)
         self.scrollbar = ttk.Scrollbar(self.root, orient="vertical")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.config(command=self.canvas.yview)
 
         self.scrollable_frame = ttk.Frame(self.canvas)
         interior_id = self.canvas.create_window(0, 0, window=self.scrollable_frame, anchor=NW)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
         def _configure_interior(event):
             # update the scrollbars to match the size of the inner frame
-            size = (self.scrollable_frame.winfo_reqwidth(), self.scrollable_frame.winfo_reqheight())
-            self.canvas.config(scrollregion="0 0 %s %s" % size)
+            #size = (self.scrollable_frame.winfo_reqwidth(), self.scrollable_frame.winfo_reqheight())
+            #self.canvas.config(scrollregion="0 0 %s %s" % size)
+            self.canvas.config(scrollregion=self.canvas.bbox('all'))
             if self.scrollable_frame.winfo_reqwidth() != self.canvas.winfo_width():
                 # update the canvas's width to fit the inner frame
                 self.canvas.config(width=self.scrollable_frame.winfo_reqwidth())
@@ -71,30 +76,30 @@ class Interface:
                 self.canvas.itemconfigure(interior_id, width=self.canvas.winfo_width())
         self.canvas.bind('<Configure>', _configure_canvas)
 
-        self.t1 = ToggledFrame(self, self.root, self.scrollable_frame, text='General assumptions',
+        self.general_assumptions = ToggledFrame(self, self.root, self.scrollable_frame, text='General assumptions',
                                pm_object_original=self.pm_object_original, pm_object_copy=self.pm_object_copy,
                                frame_type='general', relief="raised", borderwidth=1)
-        self.t1.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
+        self.general_assumptions.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
 
-        self.t2 = ToggledFrame(self, self.root, self.scrollable_frame, text='Components',
+        self.components = ToggledFrame(self, self.root, self.scrollable_frame, text='Components',
                                pm_object_original=self.pm_object_original, pm_object_copy=self.pm_object_copy,
                                frame_type='component', relief="raised", borderwidth=1)
-        self.t2.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
+        self.components.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
 
-        self.t3 = ToggledFrame(self, self.root, self.scrollable_frame, text='Streams',
+        self.streams = ToggledFrame(self, self.root, self.scrollable_frame, text='Streams',
                                pm_object_original=self.pm_object_original, pm_object_copy=self.pm_object_copy,
                                frame_type='stream', relief="raised", borderwidth=1)
-        self.t3.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
+        self.streams.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
 
-        self.t4 = ToggledFrame(self, self.root, self.scrollable_frame, text='Storage',
+        self.storages = ToggledFrame(self, self.root, self.scrollable_frame, text='Storage',
                                pm_object_original=self.pm_object_original, pm_object_copy=self.pm_object_copy,
                                frame_type='storage', relief="raised", borderwidth=1)
-        self.t4.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
+        self.storages.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
 
-        self.t5 = ToggledFrame(self, self.root, self.scrollable_frame, text='Generators',
+        self.generators = ToggledFrame(self, self.root, self.scrollable_frame, text='Generators',
                                pm_object_original=self.pm_object_original, pm_object_copy=self.pm_object_copy,
                                frame_type='generator', relief="raised", borderwidth=1)
-        self.t5.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
+        self.generators.pack(fill="x", expand=1, pady=2, padx=2, anchor="n")
 
         button_frame = ttk.Frame(self.scrollable_frame)
 
@@ -107,13 +112,27 @@ class Interface:
         self.optimize_button = ttk.Button(button_frame, text='Optimize', state=DISABLED, command=self.optimize)
         self.optimize_button.grid(row=0, column=2, sticky='ew')
 
-        button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid_columnconfigure(2, weight=1)
+        button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(2, weight=1, uniform='a')
+
+        button_frame.pack(fill="both", expand=True)
+
+        button_frame_2 = ttk.Frame(self.scrollable_frame)
+
+        self.get_data_template_button = ttk.Button(button_frame_2, text='Get Data Template', command=self.get_data_template)
+        self.get_data_template_button.grid(row=0, column=0, sticky='ew')
+
+        self.return_to_start = ttk.Button(button_frame_2, text='Cancel', command=self.cancel)
+        self.return_to_start.grid(row=0, column=1, sticky='ew')
+
+        button_frame_2.grid_columnconfigure(0, weight=1, uniform='a')
+        button_frame_2.grid_columnconfigure(1, weight=1, uniform='a')
+
+        button_frame_2.pack(fill="both", expand=True)
 
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y", expand=False)
-        button_frame.pack(fill="both", expand=True)
 
         self.scrollable_frame.grid_rowconfigure(0, weight=1)
         self.scrollable_frame.grid_columnconfigure(0, weight=1)
@@ -123,20 +142,20 @@ class Interface:
     def update_widgets(self):
         # Simply recreate the frames with the new pm object
 
-        self.t1.update_self_pm_object(self.pm_object_copy)
-        self.t1.update_frame(self.t1.frame_type)
+        self.general_assumptions.update_self_pm_object(self.pm_object_copy)
+        self.general_assumptions.update_frame(self.general_assumptions.frame_type)
 
-        self.t2.update_self_pm_object(self.pm_object_copy)
-        self.t2.update_frame(self.t2.frame_type)
+        self.components.update_self_pm_object(self.pm_object_copy)
+        self.components.update_frame(self.components.frame_type)
 
-        self.t3.update_self_pm_object(self.pm_object_copy)
-        self.t3.update_frame(self.t3.frame_type)
+        self.streams.update_self_pm_object(self.pm_object_copy)
+        self.streams.update_frame(self.streams.frame_type)
 
-        self.t4.update_self_pm_object(self.pm_object_copy)
-        self.t4.update_frame(self.t4.frame_type)
+        self.storages.update_self_pm_object(self.pm_object_copy)
+        self.storages.update_frame(self.storages.frame_type)
 
-        self.t5.update_self_pm_object(self.pm_object_copy)
-        self.t5.update_frame(self.t5.frame_type)
+        self.generators.update_self_pm_object(self.pm_object_copy)
+        self.generators.update_frame(self.generators.frame_type)
 
         self.optimize_button.config(state=DISABLED)
 
@@ -149,7 +168,7 @@ class Interface:
         streams_without_well = []
         streams_without_sink = []
 
-        for stream in self.pm_object_copy.get_specific_streams('final'):
+        for stream in self.pm_object_copy.get_specific_streams(final_stream=True):
 
             well_existing = False
             sink_existing = False
@@ -163,17 +182,11 @@ class Interface:
             # If no well exists, the stream has to be generated or converted from other stream
             if not well_existing:
                 for component in self.pm_object_copy.get_specific_components('final', 'conversion'):
-                    main_conversions = component.get_main_conversion()
-                    if main_conversions.loc['output_me'] == stream.get_name():
-                        well_existing = True
-                        break
-
-                    if not well_existing:
-                        side_conversions = component.get_side_conversions()
-                        for i in side_conversions.index:
-                            if side_conversions.loc[i, 'output_me'] == stream.get_name():
-                                well_existing = True
-                                break
+                    outputs = component.get_outputs()
+                    for o in [*outputs.keys()]:
+                        if o == stream.get_name():
+                            well_existing = True
+                            break
 
                 if not well_existing:
                     for component in self.pm_object_copy.get_specific_components('final', 'generator'):
@@ -195,17 +208,11 @@ class Interface:
             # If no well exists, the stream has to be generated or converted from other stream
             if not sink_existing:
                 for component in self.pm_object_copy.get_specific_components('final', 'conversion'):
-                    main_conversions = component.get_main_conversion()
-                    if main_conversions.loc['input_me'] == stream.get_name():
-                        sink_existing = True
-                        break
-
-                    if not sink_existing:
-                        side_conversions = component.get_side_conversions()
-                        for i in side_conversions.index:
-                            if side_conversions.loc[i, 'input_me'] == stream.get_name():
-                                sink_existing = True
-                                break
+                    inputs = component.get_inputs()
+                    for i in [*inputs.keys()]:
+                        if i == stream.get_name():
+                            sink_existing = True
+                            break
 
             if not sink_existing:
                 streams_without_sink.append(stream.get_name())
@@ -216,7 +223,7 @@ class Interface:
                 valid_me_for_stream.update({stream.get_name(): False})
 
         all_streams_valid = True
-        for stream in self.pm_object_copy.get_specific_streams('final'):
+        for stream in self.pm_object_copy.get_specific_streams(final_stream=True):
             if not valid_me_for_stream[stream.get_name()]:
                 all_streams_valid = False
 
@@ -237,6 +244,7 @@ class Interface:
         if error_in_setting:
             self.optimize_button.config(state=DISABLED)
             alert_window = Toplevel(self.root)
+            alert_window.title('')
 
             if not all_streams_valid:
 
@@ -273,14 +281,20 @@ class Interface:
 
                     tk.Label(alert_window, text=no_well_text).pack()
                     tk.Label(alert_window,
-                             text='It is important that every stream has a well. That means that it is either generated, converted from another stream, freely available or purchasable. \n Please adjust your conversions or the indivdual stream').pack()
+                             text='It is important that every stream has a well. \n' +
+                                  ' That means that it is either generated, converted from another stream,' +
+                                  ' freely available or purchasable. \n'
+                                  ' Please adjust your inputs/outputs or the individual stream').pack()
                     tk.Label(alert_window, text='').pack()
 
                 if no_sink_text != '':
 
                     tk.Label(alert_window, text=no_sink_text).pack()
                     tk.Label(alert_window,
-                             text='It is important that every stream has a sink. That means that it is either converted to another stream, emitted, saleable or implemented as demand. \n Please adjust your conversions or the indivdual stream').pack()
+                             text='It is important that every stream has a sink. \n'
+                                  ' That means that it is either converted to another stream,' +
+                                  ' emitted, saleable or implemented as demand. \n' +
+                                  ' Please adjust your inputs/outputs or the individual stream').pack()
                     tk.Label(alert_window, text='').pack()
 
             if not profiles_exist:
@@ -297,7 +311,7 @@ class Interface:
                          text='It is important that every generator has a profile. Please adjust your generators').pack()
                 tk.Label(alert_window, text='').pack()
 
-            tk.Button(alert_window, text='OK', command=kill_window).pack()
+            ttk.Button(alert_window, text='OK', command=kill_window).pack(fill='both', expand=True)
         else:
             self.optimize_button.config(state=NORMAL)
 
@@ -307,14 +321,20 @@ class Interface:
             self.save_current_parameters_and_options(name_entry.get())
             newWindow.destroy()
 
+        def kill_only():
+            newWindow.destroy()
+
         newWindow = Toplevel(self.root)
 
-        Label(newWindow, text='Enter name of settings file').pack()
+        Label(newWindow, text='Enter name of settings file').grid(row=0, column=0, sticky='ew')
 
-        name_entry = Entry(newWindow)
-        name_entry.pack()
+        name_entry = Entry(newWindow).grid(row=0, column=1, sticky='ew')
 
-        Button(newWindow, text='Save', command=kill_window_and_save).pack()
+        ttk.Button(newWindow, text='Save', command=kill_window_and_save).grid(row=1, column=0, sticky='ew')
+        ttk.Button(newWindow, text='Cancel', command=kill_only).grid(row=1, column=1, sticky='ew')
+
+        newWindow.grid_columnconfigure(0, weight=1, uniform='a')
+        newWindow.grid_columnconfigure(1, weight=1, uniform='a')
 
     def save_current_parameters_and_options(self, name=None):
 
@@ -389,22 +409,32 @@ class Interface:
             k += 1
 
         for component in self.pm_object_copy.get_specific_components('final', 'conversion'):
-            main_conversion = component.get_main_conversion()
-            case_data.loc[k, 'type'] = 'main_conversion'
-            case_data.loc[k, 'component'] = component.get_name()
-            case_data.loc[k, 'input_stream'] = main_conversion['input_me']
-            case_data.loc[k, 'output_stream'] = main_conversion['output_me']
-            case_data.loc[k, 'coefficient'] = main_conversion['coefficient']
 
-            k += 1
-
-            side_conversions = component.get_side_conversions()
-            for i in side_conversions.index:
-                case_data.loc[k, 'type'] = 'side_conversion'
+            inputs = component.get_inputs()
+            for i in [*inputs.keys()]:
+                case_data.loc[k, 'type'] = 'input'
                 case_data.loc[k, 'component'] = component.get_name()
-                case_data.loc[k, 'input_stream'] = side_conversions.loc[i, 'input_me']
-                case_data.loc[k, 'output_stream'] = side_conversions.loc[i, 'output_me']
-                case_data.loc[k, 'coefficient'] = side_conversions.loc[i, 'coefficient']
+                case_data.loc[k, 'input_stream'] = i
+                case_data.loc[k, 'coefficient'] = inputs[i]
+
+                if i == component.get_main_input():
+                    case_data.loc[k, 'main_input'] = True
+                else:
+                    case_data.loc[k, 'main_input'] = False
+
+                k += 1
+
+            outputs = component.get_outputs()
+            for o in [*outputs.keys()]:
+                case_data.loc[k, 'type'] = 'output'
+                case_data.loc[k, 'component'] = component.get_name()
+                case_data.loc[k, 'output_stream'] = o
+                case_data.loc[k, 'coefficient'] = outputs[o]
+
+                if o == component.get_main_output():
+                    case_data.loc[k, 'main_output'] = True
+                else:
+                    case_data.loc[k, 'main_output'] = False
 
                 k += 1
 
@@ -422,7 +452,6 @@ class Interface:
             case_data.loc[k, 'demanded'] = stream.is_demanded()
             case_data.loc[k, 'total_demand'] = stream.is_total_demand()
             case_data.loc[k, 'final'] = stream.is_final()
-            case_data.loc[k, 'storable'] = stream.is_storable()
 
             # Purchasable streams
             case_data.loc[k, 'purchase_price_type'] = stream.get_purchase_price_type()
@@ -464,6 +493,58 @@ class Interface:
     def analyze_results(self, optimization_problem):
 
         result = Result(optimization_problem, self.path_result)
+
+    def get_data_template(self):
+
+        os.system('start "excel" "data_template.xlsx"')
+
+    def cancel(self):
+
+        self.root.destroy()
+
+        from _helpers_gui import SettingWindow
+        from os import walk
+        from objects_formulation import ParameterObject
+        from optimization_classes_and_methods import OptimizationProblem
+        from analysis_classes_and_methods import Result
+
+        setting_window = SettingWindow()
+
+        if setting_window.go_on:
+
+            path_data = setting_window.folder_data
+            path_result = setting_window.folder_result
+            path_settings = setting_window.folder_settings
+            solver = setting_window.solver
+
+            if setting_window.radiobutton_variable.get() == 'new':
+
+                interface = Interface(path_data=path_data, path_result=path_result,
+                                      path_settings=path_settings, solver=solver)
+
+            elif setting_window.radiobutton_variable.get() == 'custom':
+
+                path_custom = setting_window.selected_custom
+                interface = Interface(path_data=path_data, path_result=path_result,
+                                      path_settings=path_settings,
+                                      path_custom=path_custom, solver=solver)
+
+            elif setting_window.radiobutton_variable.get() == 'optimize_only':
+
+                path_to_settings = setting_window.folder_optimize
+
+                # Get path of every object in folder
+                _, _, filenames = next(walk(path_to_settings))
+
+                for file in filenames:
+                    file = file.split('/')[0]
+                    path = path_to_settings + file
+                    file_without_ending = file.split('.')[0]
+
+                    pm_object = ParameterObject('parameter2', path_custom=path, integer_steps=10)
+
+                    optimization_problem = OptimizationProblem(pm_object, path_data=path_data, solver=solver)
+                    result = Result(optimization_problem, path_result, file_without_ending)
 
 
 

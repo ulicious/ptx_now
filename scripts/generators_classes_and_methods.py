@@ -53,7 +53,13 @@ class GeneratorFrame:
 
             window.destroy()
 
+        def kill_window():
+            window.destroy()
+
         window = Toplevel(self.root)
+        window.title('Adjust Parameters')
+        window.grab_set()
+
         window.grid_columnconfigure(0, weight=1)
         window.grid_columnconfigure(2, weight=1)
 
@@ -73,12 +79,16 @@ class GeneratorFrame:
         for stream in self.pm_object.get_specific_streams('final'):
             streams.append(stream.get_nice_name())
 
-        generated_stream_cb = ttk.Combobox(window, values=streams)
+        generated_stream_cb = ttk.Combobox(window, values=streams, state='readonly')
         generated_stream_cb.grid(row=3, column=1, sticky='ew')
         generated_stream_cb.set(self.generated_stream_var.get())
 
-        ttk.Button(window, text='Adjust values', command=get_values_and_kill_window).grid(row=4, columnspan=2,
-                                                                                          sticky='ew')
+        ttk.Button(window, text='Adjust values', command=get_values_and_kill_window).grid(row=4, column=0,  sticky='ew')
+
+        ttk.Button(window, text='Cancel', command=kill_window).grid(row=4, column=1, sticky='ew')
+
+        window.grid_columnconfigure(0, weight=1, uniform='a')
+        window.grid_columnconfigure(1, weight=1, uniform='a')
 
     def set_profile_generation(self):
         path = filedialog.askopenfilename()
@@ -105,11 +115,10 @@ class GeneratorFrame:
 
     def set_generator_settings_to_default(self):
 
-        if self.generator in self.pm_object_original.get_specific_components('final', 'generator'):
-            self.pm_object.remove_component_entirely(self.generator)
+        self.pm_object.remove_component_entirely(self.generator)
 
-            generator_original = self.pm_object_original.get_component(self.generator)
-            self.pm_object.add_component(self.generator, generator_original.__copy__())
+        generator_original = self.pm_object_original.get_component(self.generator)
+        self.pm_object.add_component(self.generator, generator_original.__copy__())
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
@@ -119,7 +128,7 @@ class GeneratorFrame:
         if self.stream_unit == 'MWh':
             self.stream_unit = 'MW'
         else:
-            self.stream_unit = self.stream_unit * ' / h'
+            self.stream_unit = self.stream_unit + ' / h'
 
         tk.Label(self.frame, text='Parameter', font='Helvetica 10 bold').grid(row=1, column=0, sticky='w')
         tk.Label(self.frame, text='Value', font='Helvetica 10 bold').grid(row=1, column=1, sticky='w')
@@ -172,18 +181,20 @@ class GeneratorFrame:
         button_frame.grid_columnconfigure(1, weight=1)
         button_frame.grid_columnconfigure(2, weight=1)
 
-        if True:
-            self.adjust_values_button = ttk.Button(button_frame, text='Adjust values', command=self.adjust_values,
-                                                   state=state)
-            self.adjust_values_button.grid(row=0, column=0, sticky='ew')
+        self.adjust_values_button = ttk.Button(button_frame, text='Adjust values', command=self.adjust_values,
+                                               state=state)
+        self.adjust_values_button.grid(row=0, column=0, sticky='ew')
 
-            self.set_profile_button = ttk.Button(button_frame, text='Set profile', command=self.set_profile_generation,
-                                                 state=state)
-            self.set_profile_button.grid(row=0, column=1, sticky='ew')
+        self.set_profile_button = ttk.Button(button_frame, text='Set profile', command=self.set_profile_generation,
+                                             state=state)
+        self.set_profile_button.grid(row=0, column=1, sticky='ew')
 
-            self.default_generators_button = ttk.Button(button_frame, text='Default values',
-                                                        command=self.set_generator_settings_to_default)
-            self.default_generators_button.grid(row=0, column=2, sticky='ew')
+        self.default_generators_button = ttk.Button(button_frame, text='Default values',
+                                                    command=self.set_generator_settings_to_default)
+        self.default_generators_button.grid(row=0, column=2, sticky='ew')
+
+        if self.generator_object.is_custom():
+            self.default_generators_button.config(state=DISABLED)
 
         button_frame.grid(row=7, columnspan=2, sticky='ew')
 
@@ -196,8 +207,8 @@ class GeneratorFrame:
         self.generator = generator
 
         self.frame = tk.Frame(self.parent.sub_frame)
-        self.frame.grid_columnconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1, uniform='a')
+        self.frame.grid_columnconfigure(1, weight=1, uniform='a')
 
         self.generator_object = self.pm_object.get_component(self.generator)
         self.generated_stream = self.pm_object.get_nice_name(self.generator_object.get_generated_stream())

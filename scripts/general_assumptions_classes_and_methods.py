@@ -13,6 +13,7 @@ class GeneralAssumptionsFrame:
             def wrong_format():
 
                 wrong_format_window = Toplevel(self.root)
+                wrong_format_window.title('')
                 wrong_format_window.grab_set()
 
                 tk.Label(wrong_format_window, text='Please only use numbers and use dots as separators').pack()
@@ -40,15 +41,10 @@ class GeneralAssumptionsFrame:
         # Toplevel object which will
         # be treated as a new window
         newWindow = Toplevel(self.root)
-        newWindow.grid_columnconfigure(0, weight=1)
-        newWindow.grid_columnconfigure(1, weight=1)
+        newWindow.title('Adjust Parameter')
+        newWindow.grid_columnconfigure(0, weight=1, uniform='a')
+        newWindow.grid_columnconfigure(1, weight=1, uniform='a')
         newWindow.grab_set()
-
-        # sets the title of the
-        # Toplevel widget
-        newWindow.title('Adjust component values')
-
-        entries = {}
 
         i = 0
         for c in self.pm_object.get_general_parameters():
@@ -69,6 +65,7 @@ class GeneralAssumptionsFrame:
 
     def set_applied_general_parameters(self):
         newWindow = Toplevel(self.root)
+        newWindow.title('Choose Applied Parameters')
 
         def get_values_and_kill_window():
             for comp in self.pm_object.get_specific_components('final'):
@@ -114,8 +111,8 @@ class GeneralAssumptionsFrame:
             i += 1
 
         buttons = ttk.Frame(newWindow)
-        buttons.grid_columnconfigure(0, weight=1)
-        buttons.grid_columnconfigure(1, weight=1)
+        buttons.grid_columnconfigure(0, weight=1, uniform='a')
+        buttons.grid_columnconfigure(1, weight=1, uniform='a')
 
         ttk.Button(buttons, text='Ok', command=get_values_and_kill_window).grid(row=0, column=0, sticky='ew')
         ttk.Button(buttons, text='Cancel', command=kill_window).grid(row=0, column=1, sticky='ew')
@@ -146,9 +143,9 @@ class GeneralAssumptionsFrame:
 
         button_frame = ttk.Frame(self.frame)
 
-        button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid_columnconfigure(2, weight=1)
+        button_frame.grid_columnconfigure(0, weight=1, uniform="a")
+        button_frame.grid_columnconfigure(1, weight=1, uniform="a")
+        button_frame.grid_columnconfigure(2, weight=1, uniform="a")
 
         self.adjust_values_button = ttk.Button(button_frame, text='Adjust parameters',
                                                command=self.adjust_component_value)
@@ -182,5 +179,5 @@ class GeneralAssumptionsFrame:
         self.frame = tk.Frame(self.parent.sub_frame)
         self.initiate_frame()
         self.frame.pack(fill="both", expand=True)
-        self.frame.grid_columnconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1, uniform='a')
+        self.frame.grid_columnconfigure(1, weight=1, uniform='a')

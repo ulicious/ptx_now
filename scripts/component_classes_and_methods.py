@@ -37,18 +37,14 @@ class ComponentFrame:
             # Create frame for parameters, main conversion and side conversions
             self.parameter_frame = ComponentParametersFrame(self.parent, self.root, self.frame, self.component,
                                                             self.pm_object, self.pm_object_original)
-            self.conversion_frame_main = ConversionFrame(self, self.root, self.frame, self.component, 'main',
-                                                         self.pm_object, self.pm_object_original)
-            self.conversion_frame_side = ConversionFrame(self, self.root, self.frame, self.component, 'side',
-                                                         self.pm_object, self.pm_object_original)
+            self.conversion_frame = ConversionFrame(self, self.root, self.frame, self.component,
+                                                    self.pm_object, self.pm_object_original)
 
             # Attach frames to interface and separate with separators
             ttk.Separator(self.frame, orient='horizontal').pack(fill="both", expand=True)
             self.parameter_frame.frame.pack(fill="both", expand=True)
             ttk.Separator(self.frame, orient='horizontal').pack(fill="both", expand=True)
-            self.conversion_frame_main.frame.pack(fill="both", expand=True)
-            self.conversion_frame_side.frame.pack(fill="both", expand=True)
-            ttk.Separator(self.frame, orient='horizontal').pack(fill="both", expand=True)
+            self.conversion_frame.frame.pack(fill="both", expand=True)
 
 
 class ComponentParametersFrame:
@@ -125,7 +121,7 @@ class ComponentParametersFrame:
 
         # sets the title of the
         # Toplevel widget
-        newWindow.title('Adjust component values')
+        newWindow.title('Adjust Component Parameters')
 
         tk.Checkbutton(newWindow, text='Scalable?',
                        variable=self.scalable_var,
@@ -254,7 +250,7 @@ class ComponentParametersFrame:
         component_copy.set_shut_down_time(component_original.get_shut_down_time())
         component_copy.set_start_up_time(component_original.get_start_up_time())
 
-        self.pm_object.applied_parameter_for_component = self.pm_object_original.applied_parameter_for_component
+        self.pm_object.set_all_applied_parameters(self.pm_object_original.get_all_applied_parameters)
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
@@ -455,13 +451,18 @@ class ComponentParametersFrame:
             self.delete_component_dict = {}
 
             ttk.Button(self.frame, text='Adjust parameters',
-                       command=self.adjust_component_value).grid(column=0, row=11+i+j, sticky=W+E)
+                       command=self.adjust_component_value).grid(column=0, row=11+i+j, sticky='ew')
 
-            ttk.Button(self.frame, text='Default parameters',
-                       command=self.set_component_parameters_to_default).grid(column=1, row=11+i+j, sticky=W+E)
+            if self.component_object.is_custom():
+                ttk.Button(self.frame, text='Default parameters',
+                           command=self.set_component_parameters_to_default,
+                           state=DISABLED).grid(column=1, row=11 + i + j, sticky='ew')
+            else:
+                ttk.Button(self.frame, text='Default parameters',
+                           command=self.set_component_parameters_to_default).grid(column=1, row=11+i+j, sticky='ew')
 
-            self.frame.grid_columnconfigure(0, weight=1)
-            self.frame.grid_columnconfigure(1, weight=1)
+            self.frame.grid_columnconfigure(0, weight=1, uniform="a")
+            self.frame.grid_columnconfigure(1, weight=1, uniform="a")
 
 
 class AddNewComponentWindow:
@@ -470,17 +471,17 @@ class AddNewComponentWindow:
 
         # Creates component with dummy parameters and random main conversion
 
-        random_main_conversion = pd.Series()
-        random_main_conversion.loc['input_me'] = random.choice([*self.pm_object.get_all_streams().keys()])
-        random_main_conversion.loc['output_me'] = random.choice([*self.pm_object.get_all_streams().keys()])
-        random_main_conversion.loc['coefficient'] = 1
+        new_component = ConversionComponent(self.name.get(), self.nice_name.get(), final_unit=True, custom_unit=True)
 
-        new_component = ConversionComponent(self.name.get(), self.nice_name.get(),
-                                            main_conversion=random_main_conversion, final_unit=True)
+        input_random = random.choice([*self.pm_object.get_all_streams().keys()])
+        new_component.add_input(input_random, 1)
+        new_component.set_main_input(input_random)
+
+        output_random = random.choice([*self.pm_object.get_all_streams().keys()])
+        new_component.add_output(output_random, 1)
+        new_component.set_main_output(output_random)
+
         self.pm_object.add_component(self.name.get(), new_component)
-
-        self.pm_object.get_stream(random_main_conversion.loc['input_me']).set_final(True)
-        self.pm_object.get_stream(random_main_conversion.loc['output_me']).set_final(True)
 
         for gp in self.pm_object.get_general_parameters():
             self.pm_object.set_applied_parameter_for_component(gp, self.name.get(), True)
@@ -509,6 +510,7 @@ class AddNewComponentWindow:
 
         self.newWindow = Toplevel(self.root)
         self.newWindow.grab_set()
+        self.newWindow.title('Add New Component')
 
         self.nice_name = StringVar()
         self.name = StringVar()
@@ -526,586 +528,1043 @@ class ConversionFrame:
 
     def set_component_conversions_to_default(self):
 
-        component_original = self.pm_object_original.get_component(self.component)
-        component_copy = self.pm_object.get_component(self.component)
+        # Remove all inputs and outputs from component
+        all_inputs = dict(self.component_object.get_inputs())
 
-        main_conversion = component_original.get_main_conversion()
+        for comp_input in all_inputs:
+            self.component_object.remove_input(comp_input)
 
-        component_copy.set_main_conversion(main_conversion['input_me'],
-                                           main_conversion['output_me'],
-                                           main_conversion['coefficient'])
+        all_outputs = dict(self.component_object.get_outputs())
 
-        side_conversion = component_copy.get_side_conversions()
-        for i in side_conversion.index:
-            component_copy.remove_side_conversion(side_conversion.loc[i, 'input_me'],
-                                                  side_conversion.loc[i, 'output_me'])
+        for comp_output in all_outputs:
+            self.component_object.remove_output(comp_output)
 
-        side_conversion = component_original.get_side_conversions()
-        for i in side_conversion.index:
-            input_me = side_conversion.loc[i, 'input_me']
-            output_me = side_conversion.loc[i, 'output_me']
-            coefficient = side_conversion.loc[i, 'coefficient']
+        # get inputs and outputs from original parameter object
+        original_component = self.pm_object_original.get_component(self.component_object.get_name())
 
-            component_copy.add_side_conversion(input_me, output_me, coefficient)
+        all_inputs = dict(original_component.get_inputs())
+        all_outputs = dict(original_component.get_outputs())
 
-        for stream in self.pm_object.get_specific_streams('final'):
-            self.pm_object.remove_stream(stream.get_name())
+        # add inputs and outputs to component
+        for comp_input in all_inputs:
+            self.component_object.add_input(comp_input, original_component.get_inputs()[comp_input])
+
+        for comp_output in all_outputs:
+            self.component_object.add_output(comp_output, original_component.get_outputs()[comp_output])
+
+        # set main input and output
+        main_input = original_component.get_main_input()
+        main_output = original_component.get_main_output()
+
+        self.component_object.set_main_input(main_input)
+        self.component_object.set_main_output(main_output)
 
         self.parent.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.parent.update_widgets()
 
-    def add_new_conversion(self):
+    def create_me_balance_window(self):
 
-        new_conversion_window = ConversionWindow(self, self.root, self.pm_object, self.component,
-                                                 self.conversion_type)
-        new_conversion_window.create_new_window()
+        def get_values_and_kill_me_balance_window():
 
-    def delete_conversion(self):
+            def main_input_or_output_problem():
 
-        def kill_window():
-            newWindow.destroy()
+                def kill_main_i_o_window():
+                    missing_main_i_o_window.destroy()
 
-        def check_and_remove_conversions():
+                missing_main_i_o_window = Toplevel()
+                missing_main_i_o_window.title('')
+                missing_main_i_o_window.grab_set()
 
-            for key in checkbox_vars.keys():
-                if checkbox_vars[key].get():
-                    input_stream = self.conversions.loc[key, 'input_me']
-                    output_stream = self.conversions.loc[key, 'output_me']
+                ttk.Label(missing_main_i_o_window, text=text).pack()
+                ttk.Button(missing_main_i_o_window, text='Ok', command=kill_main_i_o_window).pack()
 
-                    self.pm_object.get_component(self.component).remove_side_conversion(input_stream, output_stream)
+            # Check if main input and output are chosen and inform user if not
+            main_input_exists = False
+            for inp in self.current_inputs:
+                if inp == current_main_input_var.get():
+                    main_input_exists = True
 
-            for stream in self.pm_object.get_specific_streams('final'):
-                self.pm_object.remove_stream(stream.get_name())
+            main_output_exists = False
+            for inp in self.current_outputs:
+                if inp == current_main_output_var.get():
+                    main_output_exists = True
 
-            self.parent.parent.parent.pm_object_copy = self.pm_object
-            self.parent.parent.parent.update_widgets()
+            if (not main_input_exists) & (not main_output_exists):
+                text = 'Please choose main input and output'
+                main_input_or_output_problem()
+            elif main_input_exists & (not main_output_exists):
+                text = 'Please choose main output'
+                main_input_or_output_problem()
+            elif (not main_input_exists) & main_output_exists:
+                text = 'Please choose main input'
+                main_input_or_output_problem()
+            else:  # case main input and output are chosen
 
-            kill_window()
+                # Delete all inputs and outputs from component
+                all_inputs = dict(self.component_object.get_inputs())
 
-        newWindow = Toplevel(self.root)
-        newWindow.grab_set()
+                for comp_input in all_inputs:
+                    self.component_object.remove_input(comp_input)
 
-        checkbox_vars = {}
+                all_outputs = dict(self.component_object.get_outputs())
 
-        j = 0
-        for i in self.conversions.index:
+                for comp_output in all_outputs:
+                    self.component_object.remove_output(comp_output)
 
-            checkbox_vars.update({i: tk.BooleanVar()})
-            checkbox_vars[i].set(False)
+                # Add adjusted inputs and outputs to component
+                main_input = current_main_input_var.get()
+                main_output = current_main_output_var.get()
 
-            ttk.Checkbutton(newWindow, variable=checkbox_vars[i], onvalue=True, offvalue=False) \
-                .grid(row=j, column=0)
+                for comp_input in self.current_inputs:
+                    self.component_object.add_input(comp_input, self.current_input_coefficients[comp_input])
 
-            input_me = self.pm_object.get_nice_name(self.conversions.loc[i, 'input_me'])
-            input_me_unit = self.pm_object.get_stream(self.conversions.loc[i, 'input_me']).get_unit()
-            output_me = self.pm_object.get_nice_name(self.conversions.loc[i, 'output_me'])
-            output_me_unit = self.pm_object.get_stream(self.conversions.loc[i, 'output_me']).get_unit()
-            coefficient = round(float(self.conversions.loc[i, 'coefficient']), 2)
+                    if comp_input not in self.pm_object.get_all_streams():
+                        s = Stream(comp_input, self.current_nice_names[comp_input], self.current_units[comp_input],
+                                   final_stream=True, custom_stream=True)
+                        self.pm_object.add_stream(comp_input, s)
 
-            top = str(coefficient) + str(' ') + str(output_me_unit) + str(' ') + str(output_me)
-            bottom = str(1) + str(' ') + str(input_me_unit) + str(' ') + str(input_me)
+                for comp_output in self.current_outputs:
+                    self.component_object.add_output(comp_output, self.current_output_coefficients[comp_output])
 
-            ttk.Label(newWindow, text=top).grid(row=j, column=1)
-            ttk.Label(newWindow, text=bottom).grid(row=j + 2, column=1)
+                    if comp_output not in self.pm_object.get_all_streams():
+                        s = Stream(comp_output, self.current_nice_names[comp_output], self.current_units[comp_output],
+                                   final_stream=True, custom_stream=True)
+                        self.pm_object.add_stream(comp_output, s)
 
-            ttk.Separator(newWindow, orient='horizontal').grid(row=j + 1, column=1, sticky='ew')
+                # set main input and output, and adjust capex unit depending on main input
+                self.component_object.set_main_input(main_input)
 
-            j += 3
+                capex_unit = '€/' + self.current_units[main_input] + ' ' + self.current_nice_names[main_input]
+                self.component_object.set_capex_unit(capex_unit)
 
-        ttk.Button(newWindow, text='Delete conversion', command=check_and_remove_conversions).grid(row=j + 1, column=1)
-        ttk.Button(newWindow, text='Cancel', command=kill_window).grid(row=j + 1, column=0)
+                self.component_object.set_main_output(main_output)
 
-    def adjust_conversion(self, index):
+                # Check if streams are not used anymore and delete them from all streams
+                for stream in self.pm_object.get_all_streams():
+                    stream_used = False
+                    for c in self.pm_object.get_specific_components('final', 'conversion'):
+                        inputs = c.get_inputs()
+                        for inp in [*inputs.keys()]:
+                            if inp == stream:
+                                stream_used = True
+                                break
 
-        new_conversion_window = ConversionWindow(self, self.root, self.pm_object,
-                                                 self.component, self.conversion_type, self.conversions.loc[index, :])
-        new_conversion_window.create_new_window()
+                        outputs = c.get_outputs()
+                        for outp in [*outputs.keys()]:
+                            if outp == stream:
+                                stream_used = True
+                                break
 
-    def __init__(self, parent, root, super_frame, component, conversion_type, pm_object, pm_object_original):
+                    if not stream_used:
+                        self.pm_object.remove_stream(stream)
+
+                # Check if stream is used again and add it to all streams
+                used_streams = []
+                for c in self.pm_object.get_specific_components('final', 'conversion'):
+                    inputs = c.get_inputs()
+                    for inp in [*inputs.keys()]:
+                        if inp not in used_streams:
+                            used_streams.append(inp)
+
+                    outputs = c.get_outputs()
+                    for outp in [*outputs.keys()]:
+                        if outp not in used_streams:
+                            used_streams.append(outp)
+
+                for stream in used_streams:
+                    if stream not in self.pm_object.get_specific_streams('final'):
+                        self.pm_object.activate_stream(stream)
+
+                me_balance_window.destroy()
+
+                self.parent.parent.parent.pm_object_copy = self.pm_object
+                self.parent.parent.parent.update_widgets()
+
+        def kill_only_me_balance_window():
+            me_balance_window.destroy()
+
+        def adjust_input(number_to_adjust):
+
+            input_stream_to_adjust = input_streams[number_to_adjust]
+            input_stream_nice_name_to_adjust = input_nice_names[number_to_adjust]
+            coefficient_to_adjust = input_coefficients[number_to_adjust]
+
+            def change_input_entry():
+                if input_radiobutton_var.get() == 'existing':
+                    combobox_existing_stream_input.config(state=NORMAL)
+
+                    input_stream_name_entry.config(state=DISABLED)
+                    input_stream_abbreviation_entry.config(state=DISABLED)
+                    input_unit_entry.config(state=DISABLED)
+                else:
+                    combobox_existing_stream_input.config(state=DISABLED)
+                    input_stream_name_entry.config(state=NORMAL)
+                    input_stream_abbreviation_entry.config(state=NORMAL)
+                    input_unit_entry.config(state=NORMAL)
+
+            def get_values_and_kill():
+
+                if input_radiobutton_var.get() == 'existing':
+
+                    if combobox_existing_stream_input.get() in [*self.current_nice_names.values()]:
+                        for name, nice_name in self.current_nice_names.items():
+                            if nice_name == combobox_existing_stream_input.get():
+                                stream = name
+
+                        for n, stream_n in enumerate(self.current_inputs):
+                            if stream_n == input_stream_to_adjust:
+                                self.current_inputs[n] = stream
+                    else:
+                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_input.get())
+
+                        for n, stream_n in enumerate(self.current_inputs):
+                            if stream_n == input_stream_to_adjust:
+                                self.current_inputs[n] = stream
+
+                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
+                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
+
+                    for n, stream_n in enumerate(self.current_inputs):
+                        if stream_n == input_stream_to_adjust:
+                            self.current_inputs[n] = stream
+
+                else:
+                    stream = input_stream_abbreviation_entry.get()
+                    for n, stream_n in enumerate(self.current_inputs):
+                        if stream_n == input_stream_to_adjust:
+                            self.current_inputs[n] = stream
+
+                    self.current_nice_names[stream] = input_stream_name_entry.get()
+                    self.current_units[stream] = input_unit_entry.get()
+
+                    self.streams_add_conversion_nice_names.append(input_stream_name_entry.get())
+
+                self.current_input_coefficients[stream] = coefficient_entry_var.get()
+
+                adjust_input_window.destroy()
+                update_me_balance_window()
+
+            def kill_only():
+
+                if input_radiobutton_var.get() == 'new':
+                    if input_stream_name_entry.get() in self.streams_add_conversion_nice_names:
+                        self.streams_add_conversion_nice_names.remove(input_stream_name_entry.get())
+
+                adjust_input_window.destroy()
+
+            adjust_input_window = Toplevel(self.root)
+            adjust_input_window.title('Adjust Input')
+            adjust_input_window.grab_set()
+
+            input_radiobutton_var = StringVar()
+            input_radiobutton_var.set('existing')
+            input_radiobutton_existing = ttk.Radiobutton(adjust_input_window, text='Existing stream',
+                                                         variable=input_radiobutton_var,
+                                                         value='existing', command=change_input_entry)
+            input_radiobutton_existing.grid(row=1, column=0, sticky='ew')
+
+            combobox_existing_stream_input = ttk.Combobox(adjust_input_window,
+                                                          values=self.streams_add_conversion_nice_names,
+                                                          state='readonly')
+            combobox_existing_stream_input.grid(row=2, column=0, sticky='ew')
+            combobox_existing_stream_input.set(input_stream_nice_name_to_adjust)
+
+            input_radiobutton_new = ttk.Radiobutton(adjust_input_window, text='New stream',
+                                                    variable=input_radiobutton_var, value='new',
+                                                    command=change_input_entry)
+            input_radiobutton_new.grid(row=3, column=0, sticky='ew')
+
+            input_stream_name_entry = ttk.Entry(adjust_input_window)
+            input_stream_name_entry.insert(END, 'Nice Name')
+            input_stream_name_entry.config(state=DISABLED)
+            input_stream_name_entry.grid(row=4, column=0, sticky='ew')
+
+            input_stream_abbreviation_entry = ttk.Entry(adjust_input_window)
+            input_stream_abbreviation_entry.insert(END, 'Abbreviation')
+            input_stream_abbreviation_entry.config(state=DISABLED)
+            input_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+
+            input_unit_entry = ttk.Entry(adjust_input_window)
+            input_unit_entry.insert(END, 'Unit')
+            input_unit_entry.config(state=DISABLED)
+            input_unit_entry.grid(row=6, column=0, sticky='ew')
+
+            coefficient_entry_var = StringVar()
+            coefficient_entry_var.set(coefficient_to_adjust)
+            tk.Label(adjust_input_window, text='Coefficient').grid(row=7, column=0, columnspan=3, sticky='ew')
+            coefficient_entry = Entry(adjust_input_window, text=coefficient_entry_var)
+            coefficient_entry.grid(row=8, column=0, columnspan=3, sticky='ew')
+
+            adjust_input_button_frame = ttk.Frame(adjust_input_window)
+
+            ttk.Button(adjust_input_button_frame, text='Ok', command=get_values_and_kill).grid(row=0, column=0)
+            ttk.Button(adjust_input_button_frame, text='Cancel', command=kill_only).grid(row=0, column=1)
+
+            adjust_input_button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+            adjust_input_button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+
+            adjust_input_button_frame.grid(row=9, column=0, sticky='ew')
+
+        def adjust_output(number_to_adjust):
+
+            output_stream_to_adjust = output_streams[number_to_adjust]
+            output_stream_nice_name_to_adjust = output_nice_names[number_to_adjust]
+            coefficient_to_adjust = output_coefficients[number_to_adjust]
+
+            def change_output_entry():
+                if output_radiobutton_var.get() == 'existing':
+                    combobox_existing_stream_output.config(state=NORMAL)
+
+                    output_stream_name_entry.config(state=DISABLED)
+                    output_stream_abbreviation_entry.config(state=DISABLED)
+                    output_unit_entry.config(state=DISABLED)
+                else:
+                    combobox_existing_stream_output.config(state=DISABLED)
+                    output_stream_name_entry.config(state=NORMAL)
+                    output_stream_abbreviation_entry.config(state=NORMAL)
+                    output_unit_entry.config(state=NORMAL)
+
+            def get_values_and_kill():
+
+                if output_radiobutton_var.get() == 'existing':
+                    if combobox_existing_stream_output.get() in [*self.current_nice_names.values()]:
+                        for name, nice_name in self.current_nice_names.items():
+                            if nice_name == combobox_existing_stream_output.get():
+                                stream = name
+
+                        for n, stream_n in enumerate(self.current_outputs):
+                            if stream_n == output_stream_to_adjust:
+                                self.current_outputs[n] = stream
+                    else:
+                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_output.get())
+
+                        for n, stream_n in enumerate(self.current_outputs):
+                            if stream_n == output_stream_to_adjust:
+                                self.current_outputs[n] = stream
+
+                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
+                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
+
+                else:
+                    stream = output_stream_abbreviation_entry.get()
+                    for n, stream_n in enumerate(self.current_outputs):
+                        if stream_n == output_stream_to_adjust:
+                            self.current_outputs[n] = stream
+
+                    self.current_nice_names[stream] = output_stream_name_entry.get()
+                    self.current_units[stream] = output_unit_entry.get()
+
+                    self.streams_add_conversion_nice_names.append(output_stream_name_entry.get())
+
+                self.current_output_coefficients[stream] = coefficient_entry_var.get()
+
+                adjust_output_window.destroy()
+                update_me_balance_window()
+
+            def kill_only():
+
+                if output_radiobutton_var.get() == 'new':
+                    if output_stream_name_entry.get() in self.streams_add_conversion_nice_names:
+                        self.streams_add_conversion_nice_names.remove(output_stream_name_entry.get())
+
+                adjust_output_window.destroy()
+
+            adjust_output_window = Toplevel(self.root)
+            adjust_output_window.title('Adjust Output')
+            adjust_output_window.grab_set()
+
+            output_radiobutton_var = StringVar()
+            output_radiobutton_var.set('existing')
+            output_radiobutton_existing = ttk.Radiobutton(adjust_output_window, text='Existing stream',
+                                                         variable=output_radiobutton_var,
+                                                         value='existing', command=change_output_entry)
+            output_radiobutton_existing.grid(row=1, column=0, sticky='ew')
+
+            combobox_existing_stream_output = ttk.Combobox(adjust_output_window,
+                                                          values=self.streams_add_conversion_nice_names,
+                                                           state='readonly')
+            combobox_existing_stream_output.grid(row=2, column=0, sticky='ew')
+            combobox_existing_stream_output.set(output_stream_nice_name_to_adjust)
+
+            output_radiobutton_new = ttk.Radiobutton(adjust_output_window, text='New stream',
+                                                    variable=output_radiobutton_var, value='new',
+                                                    command=change_output_entry)
+            output_radiobutton_new.grid(row=3, column=0, sticky='ew')
+
+            output_stream_name_entry = ttk.Entry(adjust_output_window)
+            output_stream_name_entry.insert(END, 'Nice Name')
+            output_stream_name_entry.config(state=DISABLED)
+            output_stream_name_entry.grid(row=4, column=0, sticky='ew')
+
+            output_stream_abbreviation_entry = ttk.Entry(adjust_output_window)
+            output_stream_abbreviation_entry.insert(END, 'Abbreviation')
+            output_stream_abbreviation_entry.config(state=DISABLED)
+            output_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+
+            output_unit_entry = ttk.Entry(adjust_output_window)
+            output_unit_entry.insert(END, 'Unit')
+            output_unit_entry.config(state=DISABLED)
+            output_unit_entry.grid(row=6, column=0, sticky='ew')
+
+            coefficient_entry_var = StringVar()
+            coefficient_entry_var.set(coefficient_to_adjust)
+            tk.Label(adjust_output_window, text='Coefficient').grid(row=7, column=0, columnspan=3, sticky='ew')
+            coefficient_entry = Entry(adjust_output_window, text=coefficient_entry_var)
+            coefficient_entry.grid(row=8, column=0, columnspan=3, sticky='ew')
+
+            adjust_output_button_frame = ttk.Frame(adjust_output_window)
+
+            ttk.Button(adjust_output_button_frame, text='Ok', command=get_values_and_kill).grid(row=0, column=0)
+            ttk.Button(adjust_output_button_frame, text='Cancel', command=kill_only).grid(row=0, column=1)
+
+            adjust_output_button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+            adjust_output_button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+
+            adjust_output_button_frame.grid(row=9, column=0, sticky='ew')
+
+        def delete_input():
+
+            def delete_and_kill():
+
+                for ind_choice in [*choice.keys()]:
+                    if choice[ind_choice].get():
+                        self.current_inputs.remove(input_streams[ind_choice])
+
+                delete_input_window.destroy()
+                update_me_balance_window()
+
+            def kill_only():
+                delete_input_window.destroy()
+
+            delete_input_window = Toplevel(self.root)
+            delete_input_window.title('Delete Input')
+            delete_input_window.grab_set()
+
+            choice = {}
+
+            d = 0
+            for ind in [*input_nice_names.keys()]:
+                choice[ind] = BooleanVar()
+                ttk.Checkbutton(delete_input_window, text=input_nice_names[ind],
+                                variable=choice[ind]).grid(row=d, columnspan=2, sticky='ew')
+
+                d += 1
+
+            ttk.Button(delete_input_window, text='Delete', command=delete_and_kill).grid(row=d, column=0)
+            ttk.Button(delete_input_window, text='Cancel', command=kill_only).grid(row=d, column=1)
+
+        def delete_output():
+
+            def delete_and_kill():
+
+                for ind_choice in [*choice.keys()]:
+                    if choice[ind_choice].get():
+                        self.current_outputs.remove(output_streams[ind_choice])
+
+                delete_output_window.destroy()
+                update_me_balance_window()
+
+            def kill_only():
+                delete_output_window.destroy()
+
+            delete_output_window = Toplevel(self.root)
+            delete_output_window.title('Delete Output')
+            delete_output_window.grab_set()
+
+            choice = {}
+
+            d = 0
+            for ind in [*output_nice_names.keys()]:
+                choice[ind] = BooleanVar()
+                ttk.Checkbutton(delete_output_window, text=output_nice_names[ind],
+                                variable=choice[ind]).grid(row=d, columnspan=2, sticky='ew')
+
+                d += 1
+
+            ttk.Button(delete_output_window, text='Delete', command=delete_and_kill).grid(row=d, column=0)
+            ttk.Button(delete_output_window, text='Cancel', command=kill_only).grid(row=d, column=1)
+            
+        def add_input():
+
+            def change_input_entry():
+                if input_radiobutton_var.get() == 'existing':
+                    combobox_existing_stream_input.config(state=NORMAL)
+
+                    input_stream_name_entry.config(state=DISABLED)
+                    input_stream_abbreviation_entry.config(state=DISABLED)
+                    input_unit_entry.config(state=DISABLED)
+                else:
+                    combobox_existing_stream_input.config(state=DISABLED)
+                    input_stream_name_entry.config(state=NORMAL)
+                    input_stream_abbreviation_entry.config(state=NORMAL)
+                    input_unit_entry.config(state=NORMAL)
+
+            def get_values_and_kill():
+
+                if input_radiobutton_var.get() == 'existing':
+
+                    if combobox_existing_stream_input.get() in [*self.current_nice_names.values()]:
+                        for name, nice_name in self.current_nice_names.items():
+                            if nice_name == combobox_existing_stream_input.get():
+                                stream = name
+                    else:
+                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_input.get())
+
+                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
+                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
+
+                    self.current_inputs.append(stream)
+
+                else:
+                    stream = input_stream_abbreviation_entry.get()
+                    self.current_inputs.append(stream)
+                    self.current_units[stream] = input_unit_entry.get()
+                    self.current_nice_names[stream] = input_stream_name_entry.get()
+                    self.streams_add_conversion_nice_names.append(input_stream_name_entry.get())
+
+                self.current_input_coefficients[stream] = coefficient_entry_var.get()
+
+                add_input_window.destroy()
+                update_me_balance_window()
+
+            def kill_only():
+
+                if input_radiobutton_var.get() == 'new':
+                    if input_stream_name_entry.get() in self.streams_add_conversion_nice_names:
+                        self.streams_add_conversion_nice_names.remove(input_stream_name_entry.get())
+
+                add_input_window.destroy()
+
+            add_input_window = Toplevel(self.root)
+            add_input_window.title('Add Input')
+            add_input_window.grab_set()
+
+            input_radiobutton_var = StringVar()
+            input_radiobutton_var.set('existing')
+            input_radiobutton_existing = ttk.Radiobutton(add_input_window, text='Existing stream',
+                                                         variable=input_radiobutton_var,
+                                                         value='existing', command=change_input_entry)
+            input_radiobutton_existing.grid(row=1, column=0, sticky='ew')
+
+            combobox_existing_stream_input = ttk.Combobox(add_input_window,
+                                                          values=self.streams_add_conversion_nice_names,
+                                                          state='readonly')
+            combobox_existing_stream_input.grid(row=2, column=0, sticky='ew')
+            combobox_existing_stream_input.set('')
+
+            input_radiobutton_new = ttk.Radiobutton(add_input_window, text='New stream',
+                                                    variable=input_radiobutton_var, value='new',
+                                                    command=change_input_entry)
+            input_radiobutton_new.grid(row=3, column=0, sticky='ew')
+
+            input_stream_name_entry = ttk.Entry(add_input_window)
+            input_stream_name_entry.insert(END, 'Nice Name')
+            input_stream_name_entry.config(state=DISABLED)
+            input_stream_name_entry.grid(row=4, column=0, sticky='ew')
+
+            input_stream_abbreviation_entry = ttk.Entry(add_input_window)
+            input_stream_abbreviation_entry.insert(END, 'Abbreviation')
+            input_stream_abbreviation_entry.config(state=DISABLED)
+            input_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+
+            input_unit_entry = ttk.Entry(add_input_window)
+            input_unit_entry.insert(END, 'Unit')
+            input_unit_entry.config(state=DISABLED)
+            input_unit_entry.grid(row=6, column=0, sticky='ew')
+
+            coefficient_entry_var = StringVar()
+            coefficient_entry_var.set(1)
+            tk.Label(add_input_window, text='Coefficient').grid(row=7, column=0, columnspan=3, sticky='ew')
+            coefficient_entry = Entry(add_input_window, text=coefficient_entry_var)
+            coefficient_entry.grid(row=8, column=0, columnspan=3, sticky='ew')
+
+            add_input_button_frame = ttk.Frame(add_input_window)
+
+            ttk.Button(add_input_button_frame, text='Ok', command=get_values_and_kill).grid(row=0, column=0)
+            ttk.Button(add_input_button_frame, text='Cancel', command=kill_only).grid(row=0, column=1)
+
+            add_input_button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+            add_input_button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+
+            add_input_button_frame.grid(row=9, column=0, sticky='ew')
+            
+        def add_output():
+            
+            def change_output_entry():
+                if output_radiobutton_var.get() == 'existing':
+                    combobox_existing_stream_output.config(state=NORMAL)
+
+                    output_stream_name_entry.config(state=DISABLED)
+                    output_stream_abbreviation_entry.config(state=DISABLED)
+                    output_unit_entry.config(state=DISABLED)
+                else:
+                    combobox_existing_stream_output.config(state=DISABLED)
+                    output_stream_name_entry.config(state=NORMAL)
+                    output_stream_abbreviation_entry.config(state=NORMAL)
+                    output_unit_entry.config(state=NORMAL)
+
+            def get_values_and_kill():
+
+                if output_radiobutton_var.get() == 'existing':
+                    if combobox_existing_stream_output.get() in [*self.current_nice_names.values()]:
+                        for name, nice_name in self.current_nice_names.items():
+                            if nice_name == combobox_existing_stream_output.get():
+                                stream = name
+                    else:
+                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_output.get())
+
+                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
+                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
+
+                    self.current_outputs.append(stream)
+
+                else:
+                    stream = output_stream_abbreviation_entry.get()
+                    self.current_outputs.append(stream)
+                    self.current_units[stream] = output_unit_entry.get()
+                    self.current_nice_names[stream] = output_stream_name_entry.get()
+                    self.streams_add_conversion_nice_names.append(output_stream_name_entry.get())
+
+                self.current_output_coefficients[stream] = coefficient_entry_var.get()
+
+                add_output_window.destroy()
+                update_me_balance_window()
+
+            def kill_only():
+
+                if output_radiobutton_var.get() == 'new':
+                    if output_stream_name_entry.get() in self.streams_add_conversion_nice_names:
+                        self.streams_add_conversion_nice_names.remove(output_stream_name_entry.get())
+
+                add_output_window.destroy()
+
+            add_output_window = Toplevel(self.root)
+            add_output_window.title('Add Output')
+            add_output_window.grab_set()
+
+            output_radiobutton_var = StringVar()
+            output_radiobutton_var.set('existing')
+            output_radiobutton_existing = ttk.Radiobutton(add_output_window, text='Existing stream',
+                                                         variable=output_radiobutton_var,
+                                                         value='existing', command=change_output_entry)
+            output_radiobutton_existing.grid(row=1, column=0, sticky='ew')
+
+            combobox_existing_stream_output = ttk.Combobox(add_output_window,
+                                                          values=self.streams_add_conversion_nice_names,
+                                                           state='readonly')
+            combobox_existing_stream_output.grid(row=2, column=0, sticky='ew')
+            combobox_existing_stream_output.set('')
+
+            output_radiobutton_new = ttk.Radiobutton(add_output_window, text='New stream',
+                                                    variable=output_radiobutton_var, value='new',
+                                                    command=change_output_entry)
+            output_radiobutton_new.grid(row=3, column=0, sticky='ew')
+
+            output_stream_name_entry = ttk.Entry(add_output_window)
+            output_stream_name_entry.insert(END, 'Nice Name')
+            output_stream_name_entry.config(state=DISABLED)
+            output_stream_name_entry.grid(row=4, column=0, sticky='ew')
+
+            output_stream_abbreviation_entry = ttk.Entry(add_output_window)
+            output_stream_abbreviation_entry.insert(END, 'Abbreviation')
+            output_stream_abbreviation_entry.config(state=DISABLED)
+            output_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+
+            output_unit_entry = ttk.Entry(add_output_window)
+            output_unit_entry.insert(END, 'Unit')
+            output_unit_entry.config(state=DISABLED)
+            output_unit_entry.grid(row=6, column=0, sticky='ew')
+
+            coefficient_entry_var = StringVar()
+            coefficient_entry_var.set(1)
+            tk.Label(add_output_window, text='Coefficient').grid(row=7, column=0, columnspan=3, sticky='ew')
+            coefficient_entry = Entry(add_output_window, text=coefficient_entry_var)
+            coefficient_entry.grid(row=8, column=0, columnspan=3, sticky='ew')
+
+            add_output_button_frame = ttk.Frame(add_output_window)
+
+            ttk.Button(add_output_button_frame, text='Ok', command=get_values_and_kill).grid(row=0, column=0)
+            ttk.Button(add_output_button_frame, text='Cancel', command=kill_only).grid(row=0, column=1)
+
+            add_output_button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+            add_output_button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+
+            add_output_button_frame.grid(row=9, column=0, sticky='ew')
+
+        def update_me_balance_window():
+
+            # delete widgets
+            for child in me_balance_window.winfo_children():
+                child.destroy()
+
+            input_frame = ttk.Frame(me_balance_window)
+
+            # Inputs
+            ttk.Label(input_frame, text='Inputs', font='Helvetica 10 bold').grid(row=0, column=0, columnspan=5, sticky='ew')
+
+            ttk.Label(input_frame, text='Main').grid(row=1, column=1, sticky='ew')
+            ttk.Label(input_frame, text='Coefficient').grid(row=1, column=2, sticky='ew')
+            ttk.Label(input_frame, text='Unit').grid(row=1, column=3, sticky='ew')
+            ttk.Label(input_frame, text='Stream').grid(row=1, column=4, sticky='ew')
+
+            i = 2
+            for input_stream in self.current_inputs:
+                input_streams[i] = input_stream
+
+                ttk.Button(input_frame, text='Adjust',
+                           command=lambda i=i: adjust_input(i)).grid(row=i, column=0, sticky='ew')
+
+                coefficient = self.current_input_coefficients[input_stream]
+                input_coefficients[i] = coefficient
+
+                unit = self.current_units[input_stream]
+
+                stream_nice_name = self.current_nice_names[input_stream]
+                input_nice_names[i] = stream_nice_name
+
+                ttk.Radiobutton(input_frame, variable=current_main_input_var, value=input_stream).grid(row=i, column=1, sticky='ew')
+                ttk.Label(input_frame, text=coefficient).grid(row=i, column=2, sticky='ew')
+                ttk.Label(input_frame, text=unit).grid(row=i, column=3, sticky='ew')
+                ttk.Label(input_frame, text=stream_nice_name).grid(row=i, column=4, sticky='ew')
+
+                i += 1
+
+            input_frame.grid(row=0, column=0, sticky='new')
+
+            output_frame = ttk.Frame(me_balance_window)
+
+            # Outputs
+            ttk.Label(output_frame, text='Outputs', font='Helvetica 10 bold').grid(row=0, column=0, columnspan=5, sticky='ew')
+
+            ttk.Label(output_frame, text='Main').grid(row=1, column=1, sticky='ew')
+            ttk.Label(output_frame, text='Coefficient').grid(row=1, column=2, sticky='ew')
+            ttk.Label(output_frame, text='Unit').grid(row=1, column=3, sticky='ew')
+            ttk.Label(output_frame, text='Stream').grid(row=1, column=4, sticky='ew')
+
+            j = 2
+            for output_stream in self.current_outputs:
+                output_streams[j] = output_stream
+
+                ttk.Button(output_frame, text='Adjust',
+                           command=lambda j=j: adjust_output(j)).grid(row=j, column=0, sticky='ew')
+
+                coefficient = self.current_output_coefficients[output_stream]
+                output_coefficients[j] = coefficient
+
+                unit = self.current_units[output_stream]
+
+                stream_nice_name = self.current_nice_names[output_stream]
+                output_nice_names[j] = stream_nice_name
+
+                rb = ttk.Radiobutton(output_frame, variable=current_main_output_var, value=output_stream)
+                rb.grid(row=j, column=1, sticky='ew')
+                ttk.Label(output_frame, text=coefficient).grid(row=j, column=2, sticky='ew')
+                ttk.Label(output_frame, text=unit).grid(row=j, column=3, sticky='ew')
+                ttk.Label(output_frame, text=stream_nice_name).grid(row=j, column=4, sticky='ew')
+
+                j += 1
+
+            output_frame.grid(row=0, column=2, sticky='new')
+
+            if i >= j:
+                ttk.Separator(me_balance_window, orient='vertical').grid(row=0, rowspan=i + 1, column=1, sticky=N + S)
+            else:
+                ttk.Separator(me_balance_window, orient='vertical').grid(row=0, rowspan=j + 1, column=1, sticky=N + S)
+
+            me_balance_window.grid_columnconfigure(0, weight=1, uniform='a')
+            me_balance_window.grid_columnconfigure(1, weight=0)
+            me_balance_window.grid_columnconfigure(2, weight=1, uniform='a')
+
+            button_frame = ttk.Frame(me_balance_window)
+
+            button_frame.grid_columnconfigure(0, weight=1)
+            button_frame.grid_columnconfigure(1, weight=1)
+
+            ttk.Button(button_frame, text='Add Input',
+                       command=add_input).grid(row=0, column=0, sticky=W + E)
+            ttk.Button(button_frame, text='Add Output',
+                       command=add_output).grid(row=0, column=1, sticky=W + E)
+
+            ttk.Button(button_frame, text='Delete Input',
+                       command=delete_input).grid(row=1, column=0, sticky=W + E)
+            ttk.Button(button_frame, text='Delete Output',
+                       command=delete_output).grid(row=1, column=1, sticky=W + E)
+            ttk.Button(button_frame, text='Ok',
+                       command=get_values_and_kill_me_balance_window).grid(row=2, column=0, sticky=W + E)
+            ttk.Button(button_frame, text='Cancel',
+                       command=kill_only_me_balance_window).grid(row=2, column=1, sticky=W + E)
+
+            if i >= j:
+                button_frame.grid(row=i, column=0, columnspan=3, sticky='ew')
+            else:
+                button_frame.grid(row=j, column=0, columnspan=3, sticky='ew')
+
+        me_balance_window = Toplevel(self.root)
+        me_balance_window.title('Adjust Mass Energy Balance')
+        me_balance_window.grab_set()
+
+        input_frame = ttk.Frame(me_balance_window)
+
+        # Inputs
+        ttk.Label(input_frame, text='Inputs', font='Helvetica 10 bold').grid(row=0, column=0, columnspan=5)
+
+        ttk.Label(input_frame, text='Main').grid(row=1, column=1)
+        ttk.Label(input_frame, text='Coefficient').grid(row=1, column=2)
+        ttk.Label(input_frame, text='Unit').grid(row=1, column=3)
+        ttk.Label(input_frame, text='Stream').grid(row=1, column=4)
+
+        input_streams = {}
+        input_nice_names = {}
+        input_coefficients = {}
+
+        current_main_input_var = StringVar()
+        current_main_input_var.set(self.current_input_main)
+
+        i = 2
+        for input_stream in self.current_inputs:
+            input_streams[i] = input_stream
+
+            ttk.Button(input_frame, text='Adjust',
+                       command=lambda i=i: adjust_input(i)).grid(row=i, column=0)
+
+            coefficient = self.current_input_coefficients[input_stream]
+            input_coefficients[i] = coefficient
+
+            unit = self.current_units[input_stream]
+
+            stream_nice_name = self.current_nice_names[input_stream]
+            input_nice_names[i] = stream_nice_name
+
+            ttk.Radiobutton(input_frame, variable=current_main_input_var, value=input_stream).grid(row=i, column=1)
+            ttk.Label(input_frame, text=coefficient).grid(row=i, column=2)
+            ttk.Label(input_frame, text=unit).grid(row=i, column=3)
+            ttk.Label(input_frame, text=stream_nice_name).grid(row=i, column=4)
+
+            i += 1
+
+        input_frame.grid(row=0, column=0, sticky='new')
+
+        output_frame = ttk.Frame(me_balance_window)
+
+        # Outputs
+        ttk.Label(output_frame, text='Outputs', font='Helvetica 10 bold').grid(row=0, column=0, columnspan=5)
+
+        ttk.Label(output_frame, text='Main').grid(row=1, column=1)
+        ttk.Label(output_frame, text='Coefficient').grid(row=1, column=2)
+        ttk.Label(output_frame, text='Unit').grid(row=1, column=3)
+        ttk.Label(output_frame, text='Stream').grid(row=1, column=4)
+
+        output_streams = {}
+        output_nice_names = {}
+        output_coefficients = {}
+
+        current_main_output_var = StringVar()
+        current_main_output_var.set(self.current_output_main)
+
+        j = 2
+        for output_stream in self.current_outputs:
+            output_streams[j] = output_stream
+
+            ttk.Button(output_frame, text='Adjust',
+                       command=lambda j=j: adjust_output(j)).grid(row=j, column=0)
+
+            coefficient = self.current_output_coefficients[output_stream]
+            output_coefficients[j] = coefficient
+
+            unit = self.current_units[output_stream]
+
+            stream_nice_name = self.current_nice_names[output_stream]
+            output_nice_names[j] = stream_nice_name
+
+            rb = ttk.Radiobutton(output_frame, variable=current_main_output_var, value=output_stream)
+            rb.grid(row=j, column=1)
+            ttk.Label(output_frame, text=coefficient).grid(row=j, column=2)
+            ttk.Label(output_frame, text=unit).grid(row=j, column=3)
+            ttk.Label(output_frame, text=stream_nice_name).grid(row=j, column=4)
+
+            j += 1
+
+        output_frame.grid(row=0, column=2, sticky='new')
+
+        if i >= j:
+            ttk.Separator(me_balance_window, orient='vertical').grid(row=0, rowspan=i + 1, column=1, sticky=N + S)
+        else:
+            ttk.Separator(me_balance_window, orient='vertical').grid(row=0, rowspan=j + 1, column=1, sticky=N + S)
+
+        me_balance_window.grid_columnconfigure(0, weight=1, uniform='a')
+        me_balance_window.grid_columnconfigure(1, weight=0)
+        me_balance_window.grid_columnconfigure(2, weight=1, uniform='a')
+
+        button_frame = ttk.Frame(me_balance_window)
+
+        button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+
+        ttk.Button(button_frame, text='Add Input',
+                   command=add_input).grid(row=0, column=0, sticky=W + E)
+        ttk.Button(button_frame, text='Add Output',
+                   command=add_output).grid(row=0, column=1, sticky=W + E)
+
+        ttk.Button(button_frame, text='Delete Input',
+                   command=delete_input).grid(row=1, column=0, sticky=W + E)
+        ttk.Button(button_frame, text='Delete Output',
+                   command=delete_output).grid(row=1, column=1, sticky=W + E)
+        ttk.Button(button_frame, text='Ok',
+                   command=get_values_and_kill_me_balance_window).grid(row=2, column=0, sticky=W + E)
+        ttk.Button(button_frame, text='Cancel',
+                   command=kill_only_me_balance_window).grid(row=2, column=1, sticky=W + E)
+
+        if i >= j:
+            button_frame.grid(row=i, column=0, columnspan=3, sticky='ew')
+        else:
+            button_frame.grid(row=j, column=0, columnspan=3, sticky='ew')
+
+        me_balance_window.mainloop()
+
+    def __init__(self, parent, root, super_frame, component, pm_object, pm_object_original):
 
         self.parent = parent
         self.root = root
         self.pm_object = pm_object
         self.pm_object_original = pm_object_original
         self.component = component
-        self.conversion_type = conversion_type
 
         self.frame = ttk.Frame(super_frame)
 
-        if self.conversion_type == 'main':
-            self.conversions = self.pm_object.get_main_conversion_by_component(self.component).to_frame().transpose()
-            ttk.Label(self.frame, text='Conversions [Output / Input]', font='Helvetica 12 bold').grid(row=0, column=0,
-                                                                                                      columnspan=3)
-        else:
-            self.conversions = self.pm_object.get_side_conversions_by_component(self.component)
+        self.component_object = self.pm_object.get_component(self.component)
 
-        j = 1
-        k = j
+        self.streams_add_conversion_nice_names = []
+        for s in self.pm_object.get_all_streams():
+            self.streams_add_conversion_nice_names.append(self.pm_object.get_nice_name(s))
 
-        conversion_frame = ttk.Frame(self.frame)
+        self.input_frame = ttk.Frame(self.frame)
 
-        if not self.conversions.empty:
-            for i in self.conversions.index:
-                input_me = self.pm_object.get_nice_name(self.conversions.loc[i, 'input_me'])
-                input_me_unit = self.pm_object.get_stream(self.conversions.loc[i, 'input_me']).get_unit()
-                output_me = self.pm_object.get_nice_name(self.conversions.loc[i, 'output_me'])
-                output_me_unit = self.pm_object.get_stream(self.conversions.loc[i, 'output_me']).get_unit()
-                coefficient = round(float(self.conversions.loc[i, 'coefficient']), 2)
+        # Inputs
+        ttk.Label(self.input_frame, text='Inputs', font='Helvetica 10 bold').grid(row=0, column=0, columnspan=4, sticky='ew')
 
-                top = str(coefficient) + str(' ') + str(output_me_unit) + str(' ') + str(output_me)
-                bottom = str(1) + str(' ') + str(input_me_unit) + str(' ') + str(input_me)
+        ttk.Label(self.input_frame, text='Main').grid(row=1, column=0, sticky='ew')
+        ttk.Label(self.input_frame, text='Coefficient').grid(row=1, column=1, sticky='ew')
+        ttk.Label(self.input_frame, text='Unit').grid(row=1, column=2, sticky='ew')
+        ttk.Label(self.input_frame, text='Stream').grid(row=1, column=3, sticky='ew')
 
-                if self.conversion_type == 'main':
-                    ttk.Label(self.frame, text='Main conversion').grid(row=j + 1, rowspan=3, column=0, sticky='w')
-                else:
-                    ttk.Label(self.frame, text='Side conversion').grid(row=j + 1, rowspan=3, column=0, sticky='w')
+        self.main_input_var = StringVar()
+        self.current_inputs = []
+        self.current_input_main = str
+        self.current_nice_names = {}
+        self.current_input_coefficients = {}
+        self.current_units = {}
 
-                ttk.Label(conversion_frame, text=top).pack(expand=True)
-                ttk.Separator(conversion_frame, orient='horizontal').pack(fill='both', expand=True)
-                ttk.Label(conversion_frame, text=bottom).pack(expand=True)
+        for s in [*self.pm_object.get_all_streams().values()]:
+            self.current_nice_names.update({s.get_name(): s.get_nice_name()})
+            self.current_units.update({s.get_name(): s.get_unit()})
 
-                ttk.Button(self.frame, text='Adjust conversion',
-                          command=lambda i=i: self.adjust_conversion(i)).grid(row=j + 1, rowspan=3, column=2, sticky='e')
+        i = 2
+        inputs = self.component_object.get_inputs()
+        for input_stream in [*inputs.keys()]:
 
-                j += 3
+            coefficient = inputs[input_stream]
+            unit = self.pm_object.get_stream(input_stream).get_unit()
+            stream_nice_name = self.pm_object.get_nice_name(input_stream)
 
-            conversion_frame.grid(row=k + 1, rowspan=j-k, column=1, sticky='ew')
+            if input_stream == self.component_object.get_main_input():
+                self.main_input_var.set(input_stream)
+                self.current_input_main = input_stream
 
-            self.frame.grid_columnconfigure(0, weight=1)
-            self.frame.grid_columnconfigure(1, weight=2)
-            self.frame.grid_columnconfigure(2, weight=1)
+            self.current_inputs.append(input_stream)
+            self.current_input_coefficients.update({input_stream: coefficient})
 
-            if self.conversion_type == 'side':
-                button_frame = ttk.Frame(self.frame)
-
-                button_frame.grid_columnconfigure(0, weight=1)
-                button_frame.grid_columnconfigure(1, weight=1)
-                button_frame.grid_columnconfigure(2, weight=1)
-
-                if True:
-
-                    ttk.Button(button_frame, text='Add conversion',
-                               command=self.add_new_conversion).grid(row=0, column=0, sticky=W+E)
-                    ttk.Button(button_frame, text='Delete conversion',
-                               command=self.delete_conversion).grid(row=0, column=1, sticky=W+E)
-                    ttk.Button(button_frame, text='Reset conversions',
-                               command=self.set_component_conversions_to_default).grid(row=0, column=2, sticky=W+E)
-
-                button_frame.grid(row=j + 1, column=0, columnspan=3, sticky=N + S + E + W)
-
-            self.frame.grid_columnconfigure(0, weight=1)
-            self.frame.grid_columnconfigure(1, weight=1)
-        else:
-            if self.conversion_type == 'side':
-                button_frame = ttk.Frame(self.frame)
-
-                button_frame.grid_columnconfigure(0, weight=1)
-                button_frame.grid_columnconfigure(1, weight=1)
-                button_frame.grid_columnconfigure(2, weight=1)
-
-                if True:
-                    ttk.Button(button_frame, text='Add conversion',
-                               command=self.add_new_conversion).grid(row=0, column=0, sticky=W + E)
-                    ttk.Button(button_frame, text='Delete conversion',
-                               command=self.delete_conversion, state=DISABLED).grid(row=0, column=1, sticky=W + E)
-                    ttk.Button(button_frame, text='Reset conversions',
-                               command=self.set_component_conversions_to_default, state=DISABLED)\
-                        .grid(row=0, column=2, sticky=W + E)
-
-                button_frame.pack(fill='both', expand=True)
-
-
-class ConversionWindow:
-
-    def callbackFuncAddConversionInput(self, event):
-
-        stream = self.combobox_existing_stream_input.get()
-        self.input_unit_var.set(self.pm_object.get_stream(self.pm_object.get_abbreviation(stream)).get_unit())
-        self.input_unit_label.config(text=self.input_unit_var.get())
-
-    def change_input_entry(self):
-
-        if self.input_radiobutton_var.get() == 'existing':
-            self.combobox_existing_stream_input.config(state=NORMAL)
-            self.input_unit_label.config(state=NORMAL)
-            self.input_stream_name_entry.config(state=DISABLED)
-            self.input_stream_abbreviation_entry.config(state=DISABLED)
-            self.input_unit_entry.config(state=DISABLED)
-
-            self.input_unit_entry_var.set('Unit')
-            self.input_stream_name_entry_var.set('Nice Name')
-            self.input_stream_abbreviation_entry_var.set('Abbreviation')
-
-            self.final_input_var.set(self.combobox_existing_stream_input.get())
-            self.final_input_unit_var.set(self.input_unit_var.get())
-        else:
-            self.combobox_existing_stream_input.config(state=DISABLED)
-            self.input_unit_label.config(state=DISABLED)
-            self.input_stream_name_entry.config(state=NORMAL)
-            self.input_stream_abbreviation_entry.config(state=NORMAL)
-            self.input_unit_entry.config(state=NORMAL)
-
-            self.input_unit_entry_var.set('')
-            self.input_stream_name_entry_var.set('')
-            self.input_stream_abbreviation_entry_var.set('')
-
-            self.final_input_var.set(self.input_stream_name_entry.get())
-            self.final_input_unit_var.set(self.input_unit_entry_var.get())
-
-    def callbackFuncAddConversionOutput(self, event):
-
-        stream = self.combobox_existing_stream_output.get()
-        self.output_unit_var.set(self.pm_object.get_stream(self.pm_object.get_abbreviation(stream)).get_unit())
-        self.output_unit_label.config(text=self.output_unit_var.get())
-
-    def change_output_entry(self):
-
-        if self.output_radiobutton_var.get() == 'existing':
-            self.combobox_existing_stream_output.config(state=NORMAL)
-            self.output_unit_label.config(state=NORMAL)
-            self.output_stream_name_entry.config(state=DISABLED)
-            self.output_stream_abbreviation_entry.config(state=DISABLED)
-            self.output_unit_entry.config(state=DISABLED)
-
-            self.output_unit_entry_var.set('Unit')
-            self.output_stream_name_entry_var.set('Nice Name')
-            self.output_stream_abbreviation_entry_var.set('Abbreviation')
-
-            self.final_output_var.set(self.combobox_existing_stream_output.get())
-            self.final_output_unit_var.set(self.output_unit_var.get())
-        else:
-            self.combobox_existing_stream_output.config(state=DISABLED)
-            self.output_unit_label.config(state=DISABLED)
-            self.output_stream_name_entry.config(state=NORMAL)
-            self.output_stream_abbreviation_entry.config(state=NORMAL)
-            self.output_unit_entry.config(state=NORMAL)
-
-            self.output_unit_entry_var.set('')
-            self.output_stream_name_entry_var.set('')
-            self.output_stream_abbreviation_entry_var.set('')
-
-            self.final_output_var.set(self.output_stream_name_entry_var.get())
-            self.final_output_unit_var.set(self.output_unit_entry_var.get())
-
-    def check_format(self):
-        right_format = False
-
-        if self.input_radiobutton_var.get() == 'existing':
-            self.final_input_var.set(self.combobox_existing_stream_input.get())
-            self.final_input_unit_var.set(self.input_unit_var.get())
-        else:
-            self.final_input_var.set(self.input_stream_name_entry_var.get())
-            self.final_input_abbreviation_var.set(self.input_stream_abbreviation_entry_var.get())
-            self.final_input_unit_var.set(self.input_unit_entry_var.get())
-
-        if self.output_radiobutton_var.get() == 'existing':
-            self.final_output_var.set(self.combobox_existing_stream_output.get())
-            self.final_output_unit_var.set(self.output_unit_var.get())
-        else:
-            self.final_output_var.set(self.output_stream_name_entry_var.get())
-            self.final_output_abbreviation_var.set(self.output_stream_abbreviation_entry_var.get())
-            self.final_output_unit_var.set(self.output_unit_entry_var.get())
-
-        # Check Input
-        right_type_coefficient = False
-        right_type_output_unit = False
-        right_type_output_name = False
-        right_type_input_unit = False
-        right_type_input_name = False
-
-        try:
-            float(self.coefficient_entry.get())
-            right_type_coefficient = True
-        except:
-            pass
-
-        try:
-            float(self.final_output_unit_var.get())
-        except:
-            right_type_output_unit = True
-
-        try:
-            float(self.final_output_var.get())
-        except:
-            right_type_output_name = True
-
-        try:
-            float(self.final_input_unit_var.get())
-        except:
-            right_type_input_unit = True
-
-        try:
-            float(self.final_input_var.get())
-        except:
-            right_type_input_name = True
-
-        if right_type_coefficient & right_type_input_unit & right_type_input_name \
-                & right_type_output_name & right_type_output_unit:
-            right_format = True
-
-        return right_format
-
-    def create_conversion(self):
-
-        if self.check_format():
-
-            self.top.set(str(self.coefficient_entry_var.get()) + str(' ') + str(self.final_output_unit_var.get()) + str(
-                ' ') + str(self.final_output_var.get()))
-            self.bottom.set(str('1') + str(' ') + str(self.final_input_unit_var.get()) + str(' ') + str(
-                self.final_input_var.get()))
-
-            ttk.Separator(self.conversion_frame, orient='horizontal').grid(row=1, sticky='ew')
-
-            self.ok_button.config(text='Ok', state=NORMAL)
-            self.ok_button.grid(row=0, column=1, sticky='ew')
-
-            self.check_format_label.config(text='')
-        else:
-            self.check_format_label.config(text='Please insert the information in correct format')
-
-    def take_values_and_kill(self):
-
-        # Remove adjusted conversion completely
-        if self.conversion is not None:
-            if self.conversion_type != 'main':
-                self.pm_object.get_component(self.component).remove_side_conversion(self.conversion['input_me'],
-                                                                                    self.conversion['output_me'])
-
-        input_stream_nice_name = None
-        input_stream_stream_unit = None
-        if self.input_radiobutton_var.get() == 'existing':
-            input_stream_abbreviation = self.pm_object.get_abbreviation(self.final_input_var.get())
-            input_exists = True
-
-        else:
-            input_stream_nice_name = self.final_input_var.get()
-            input_stream_abbreviation = self.final_input_abbreviation_var.get()
-            input_stream_stream_unit = self.final_input_unit_var.get()
-
-            self.pm_object.set_nice_name(input_stream_abbreviation, input_stream_nice_name)
-            self.pm_object.set_abbreviation(input_stream_nice_name, input_stream_abbreviation)
-
-            input_exists = False
-
-        output_stream_nice_name = None
-        output_stream_stream_unit = None
-        if self.output_radiobutton_var.get() == 'existing':
-            output_stream_abbreviation = self.pm_object.get_abbreviation(self.final_output_var.get())
-            output_exists = True
-
-        else:
-            output_stream_nice_name = self.final_output_var.get()
-            output_stream_abbreviation = self.final_output_abbreviation_var.get()
-            output_stream_stream_unit = self.final_output_unit_var.get()
-
-            self.pm_object.set_nice_name(output_stream_abbreviation, output_stream_nice_name)
-            self.pm_object.set_abbreviation(output_stream_nice_name, output_stream_abbreviation)
-
-            output_exists = False
-
-        coefficient = self.coefficient_entry.get()
-
-        if self.conversion_type != 'main':
-            self.pm_object.get_component(self.component).add_side_conversion(input_stream_abbreviation,
-                                                                             output_stream_abbreviation, coefficient)
-
-        else:
-            self.pm_object.get_component(self.component).set_main_conversion(input_stream_abbreviation,
-                                                                             output_stream_abbreviation, coefficient)
-            # Change capex unit
-            unit = self.pm_object.get_stream(input_stream_abbreviation).get_unit()
-            if unit == 'MWh':
-                unit = 'MW'
-            self.pm_object.get_component(self.component).set_capex_unit('€/' + unit + ' '
-                                                                        + self.pm_object.get_nice_name(input_stream_abbreviation))
-
-        for stream in self.pm_object.get_specific_streams('final'):
-            self.pm_object.remove_stream(stream.get_name())
-
-        if input_exists | output_exists:
-            for stream in self.pm_object.get_all_streams():
-                stream_object = self.pm_object.get_stream(stream)
-                if input_exists:
-                    if stream_object.get_name() == input_stream_abbreviation:
-                        stream_object.set_final(True)
-
-                if output_exists:
-                    if stream_object.get_name() == output_stream_abbreviation:
-                        stream_object.set_final(True)
-
-        if not input_exists:
-            stream = Stream(input_stream_abbreviation, input_stream_nice_name, input_stream_stream_unit, final_stream=True)
-            self.pm_object.add_stream(input_stream_abbreviation, stream)
-
-        if not output_exists:
-            stream = Stream(output_stream_abbreviation, output_stream_nice_name, output_stream_stream_unit, final_stream=True)
-            self.pm_object.add_stream(output_stream_abbreviation, stream)
-
-        self.parent.parent.parent.parent.pm_object_copy = self.pm_object
-        self.parent.parent.parent.parent.update_widgets()
-
-        self.newWindow.destroy()
-
-    def kill_only(self):
-        self.newWindow.destroy()
-
-    def create_new_window(self):
-        self.newWindow = Toplevel(self.root)
-        self.newWindow.grab_set()
-
-        self.conversion_frame = ttk.Frame(self.newWindow)
-        button_frame = ttk.Frame(self.newWindow)
-
-        streams_add_conversion = self.pm_object.get_all_streams()
-        streams_add_conversion_nice_names = []
-        for s in streams_add_conversion:
-            streams_add_conversion_nice_names.append(self.pm_object.get_nice_name(s))
-
-        tk.Label(self.newWindow, text='Input').grid(row=0, column=0, sticky='ew')
-
-        self.input_radiobutton_var = StringVar()
-        self.input_radiobutton_existing = tk.Radiobutton(self.newWindow)
-        self.combobox_existing_stream_input = tk.ttk.Combobox(self.newWindow)
-        self.input_unit_var = StringVar()
-        self.input_unit_label = tk.Label(self.newWindow)
-        self.input_radiobutton_new = tk.Radiobutton(self.newWindow)
-        self.input_stream_name_entry_var = StringVar()
-        self.input_stream_name_entry = Entry(self.newWindow)
-        self.input_stream_abbreviation_entry_var = StringVar()
-        self.input_stream_abbreviation_entry = Entry(self.newWindow)
-        self.input_unit_entry_var = StringVar()
-        self.input_unit_entry = Entry(self.newWindow)
-
-        self.output_radiobutton_var = StringVar()
-        self.output_radiobutton_existing = tk.Radiobutton(self.newWindow)
-        self.combobox_existing_stream_output = ttk.Combobox(self.newWindow)
-        self.output_unit_var = StringVar()
-        self.output_unit_label = tk.Label(self.newWindow)
-        self.output_radiobutton_new = tk.Radiobutton(self.newWindow)
-        self.output_stream_name_entry_var = StringVar()
-        self.output_stream_name_entry = Entry(self.newWindow)
-        self.output_stream_abbreviation_entry_var = StringVar()
-        self.output_stream_abbreviation_entry = Entry(self.newWindow)
-        self.output_unit_entry_var = StringVar()
-        self.output_unit_entry = Entry(self.newWindow)
-        self.coefficient_entry_var = StringVar()
-        self.coefficient_entry = tk.Entry(self.newWindow)
-        self.check_format_label = tk.Label(self.newWindow)
-        self.top = StringVar()
-        self.bottom = StringVar()
-        self.top_label = tk.Label(self.conversion_frame)
-        self.bottom_label = tk.Label(self.conversion_frame)
-        self.ok_button = ttk.Button(button_frame)
-
-        self.input_radiobutton_var.set('existing')
-        self.input_radiobutton_existing.config(text='Existing stream', variable=self.input_radiobutton_var,
-                                               value='existing', command=self.change_input_entry)
-        self.input_radiobutton_existing.grid(row=1, column=0, sticky='ew')
-        self.combobox_existing_stream_input.config(values=streams_add_conversion_nice_names)
-        self.combobox_existing_stream_input.grid(row=2, column=0, sticky='ew')
-        self.combobox_existing_stream_input.bind("<<ComboboxSelected>>", self.callbackFuncAddConversionInput)
-
-        self.input_radiobutton_new.config(text='New stream', variable=self.input_radiobutton_var, value='new',
-                                          command=self.change_input_entry)
-        self.input_radiobutton_new.grid(row=3, column=0, sticky='ew')
-        self.input_stream_name_entry_var.set('Nice Name')
-        self.input_stream_name_entry.config(text=self.input_stream_name_entry_var, state=DISABLED)
-        self.input_stream_name_entry.grid(row=4, column=0, sticky='ew')
-        self.input_stream_abbreviation_entry_var.set('Abbreviation')
-        self.input_stream_abbreviation_entry.config(text=self.input_stream_abbreviation_entry_var,
-                                                    state=DISABLED)
-        self.input_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
-        self.input_unit_entry_var.set('Unit')
-        self.input_unit_entry.config(text=self.input_unit_entry_var, state=DISABLED)
-        self.input_unit_entry.grid(row=6, column=0, sticky='ew')
-
-        # Initialization of output widgets
-        tk.Label(self.newWindow, text='Output').grid(row=0, column=2, sticky='ew')
-
-        self.output_radiobutton_var.set('existing')
-        self.output_radiobutton_existing.config(text='Existing stream', variable=self.output_radiobutton_var,
-                                                value='existing', command=self.change_output_entry)
-        self.output_radiobutton_existing.grid(row=1, column=2, sticky='ew')
-        self.combobox_existing_stream_output.config(values=streams_add_conversion_nice_names)
-        self.combobox_existing_stream_output.grid(row=2, column=2, sticky='ew')
-        self.combobox_existing_stream_output.bind("<<ComboboxSelected>>", self.callbackFuncAddConversionOutput)
-
-        self.output_radiobutton_new.config(text='New stream', variable=self.output_radiobutton_var, value='new',
-                                           command=self.change_output_entry)
-        self.output_radiobutton_new.grid(row=3, column=2, sticky='ew')
-        self.output_stream_name_entry_var.set('Nice Name')
-        self.output_stream_name_entry.config(text=self.output_stream_name_entry_var, state=DISABLED)
-        self.output_stream_name_entry.grid(row=4, column=2, sticky='ew')
-
-        self.output_stream_abbreviation_entry_var.set('Abbreviation')
-        self.output_stream_abbreviation_entry.config(text=self.output_stream_abbreviation_entry_var,
+            main_input_radiobutton = ttk.Radiobutton(self.input_frame, variable=self.main_input_var, value=input_stream,
                                                      state=DISABLED)
-        self.output_stream_abbreviation_entry.grid(row=5, column=2, sticky='ew')
-        self.output_unit_entry_var.set('Unit')
-        self.output_unit_entry.config(text=self.output_unit_entry_var, state=DISABLED)
-        self.output_unit_entry.grid(row=6, column=2, sticky='ew')
+            main_input_radiobutton.grid(row=i, column=0, sticky='ew')
 
-        ttk.Separator(self.newWindow, orient='vertical').grid(row=0, rowspan=7, column=1, sticky='ns')
+            ttk.Label(self.input_frame, text=coefficient).grid(row=i, column=1, sticky='ew')
+            ttk.Label(self.input_frame, text=unit).grid(row=i, column=2, sticky='ew')
+            ttk.Label(self.input_frame, text=stream_nice_name).grid(row=i, column=3, sticky='ew')
 
-        tk.Label(self.newWindow, text='Coefficient').grid(row=7, column=0, columnspan=3, sticky='ew')
-        self.coefficient_entry.config(text=self.coefficient_entry_var)
-        self.coefficient_entry.grid(row=8, column=0, columnspan=3, sticky='ew')
+            i += 1
 
-        self.top_label.config(textvariable=self.top)
-        self.top_label.grid(row=0, sticky='ew')
+        # Outputs
+        self.output_frame = ttk.Frame(self.frame)
 
-        self.bottom_label.config(textvariable=self.bottom)
-        self.bottom_label.grid(row=2, sticky='ew')
+        ttk.Label(self.output_frame, text='Outputs', font='Helvetica 10 bold').grid(row=0, column=0, columnspan=4,
+                                                                                    sticky='ew')
 
-        self.conversion_frame.grid(row=9, columnspan=3, sticky='ew')
+        ttk.Label(self.output_frame, text='Main').grid(row=1, column=0, sticky='ew')
+        ttk.Label(self.output_frame, text='Coefficient').grid(row=1, column=1, sticky='ew')
+        ttk.Label(self.output_frame, text='Unit').grid(row=1, column=2, sticky='ew')
+        ttk.Label(self.output_frame, text='Stream').grid(row=1, column=3, sticky='ew')
 
-        ttk.Button(button_frame, text='Check conversion', command=self.create_conversion).grid(row=0, column=0, sticky='ew')
-        self.ok_button.config(text='Ok (Please check conversion first)',
-                              command=self.take_values_and_kill, state=DISABLED)
-        self.ok_button.grid(row=0, column=1, sticky='ew')
-        ttk.Button(button_frame, text='Cancel', command=self.kill_only).grid(row=0, column=2, sticky='ew')
+        self.main_output_var = StringVar()
+        self.current_outputs = []
+        self.current_output_main = str
+        self.current_output_coefficients = {}
 
-        button_frame.grid(row=10, columnspan=3, sticky='ew')
+        j = 2
+        outputs = self.component_object.get_outputs()
+        for output_stream in [*outputs.keys()]:
 
-        self.newWindow.grid_columnconfigure(0, weight=1)
-        self.newWindow.grid_columnconfigure(2, weight=1)
+            coefficient = outputs[output_stream]
+            unit = self.pm_object.get_stream(output_stream).get_unit()
+            stream_nice_name = self.pm_object.get_nice_name(output_stream)
+
+            if output_stream == self.component_object.get_main_output():
+                self.main_output_var.set(output_stream)
+                self.current_output_main = output_stream
+
+            self.current_outputs.append(output_stream)
+            self.current_output_coefficients.update({output_stream: coefficient})
+
+            main_output_radiobutton = ttk.Radiobutton(self.output_frame, variable=self.main_output_var,
+                                                      value=output_stream, state=DISABLED)
+            main_output_radiobutton.grid(row=j, column=0, sticky='ew')
+
+            ttk.Label(self.output_frame, text=coefficient).grid(row=j, column=1, sticky='ew')
+            ttk.Label(self.output_frame, text=unit).grid(row=j, column=2, sticky='ew')
+            ttk.Label(self.output_frame, text=stream_nice_name).grid(row=j, column=3, sticky='ew')
+
+            j += 1
+
+        self.frame.grid_columnconfigure(0, weight=1, uniform="a")
+        self.frame.grid_columnconfigure(1, weight=0)
+        self.frame.grid_columnconfigure(2, weight=1, uniform="a")
+
+        self.input_frame.grid_columnconfigure(0, weight=1)
+        self.input_frame.grid_columnconfigure(1, weight=1)
+        self.input_frame.grid_columnconfigure(2, weight=1)
+        self.input_frame.grid_columnconfigure(3, weight=1)
+
+        self.input_frame.grid(row=0, column=0, sticky='new')
+
+        if i >= j:
+            ttk.Separator(self.frame, orient='vertical').grid(row=0, rowspan=2, column=1, sticky=N+S)
+        else:
+            ttk.Separator(self.frame, orient='vertical').grid(row=0, rowspan=2, column=1, sticky=N+S)
+
+        self.output_frame.grid_columnconfigure(0, weight=1)
+        self.output_frame.grid_columnconfigure(1, weight=1)
+        self.output_frame.grid_columnconfigure(2, weight=1)
+        self.output_frame.grid_columnconfigure(3, weight=1)
+
+        self.output_frame.grid(row=0, column=2, sticky='new')
+
+        button_frame = ttk.Frame(self.frame)
 
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid_columnconfigure(2, weight=1)
 
-        self.conversion_frame.grid_columnconfigure(0, weight=1)
+        ttk.Button(button_frame, text='Adjust',
+                   command=self.create_me_balance_window).grid(row=0, column=0, sticky=W + E)
 
-        if self.conversion is not None:
-            input_me = self.pm_object.get_nice_name(self.conversion['input_me'])
-            input_me_unit = self.pm_object.get_stream(self.conversion['input_me']).get_unit()
-            output_me = self.pm_object.get_nice_name(self.conversion['output_me'])
-            output_me_unit = self.pm_object.get_stream(self.conversion['output_me']).get_unit()
-            coefficient = round(float(self.conversion['coefficient']), 2)
-
-            self.combobox_existing_stream_input.set(input_me)
-            self.input_unit_var.set(input_me_unit)
-            self.combobox_existing_stream_output.set(output_me)
-            self.output_unit_var.set(output_me_unit)
-            self.coefficient_entry_var.set(coefficient)
-
-    def __init__(self, parent, root, pm_object, component, conversion_type, conversion=None):
-
-        self.parent = parent
-        self.root = root
-        self.pm_object = pm_object
-        self.component = component
-        self.conversion_type = conversion_type
-
-        self.final_input_var = StringVar()
-        self.final_input_abbreviation_var = StringVar()
-        self.final_input_unit_var = StringVar()
-        self.final_output_var = StringVar()
-        self.final_output_abbreviation_var = StringVar()
-        self.final_output_unit_var = StringVar()
-
-        if conversion is not None:
-            self.conversion = conversion
+        if self.component_object.is_custom():
+            ttk.Button(button_frame, text='Reset',
+                       command=self.set_component_conversions_to_default, state=DISABLED) \
+                .grid(row=0, column=1, sticky=W + E)
         else:
-            self.conversion = None
+            ttk.Button(button_frame, text='Reset',
+                       command=self.set_component_conversions_to_default, state=NORMAL) \
+                .grid(row=0, column=1, sticky=W + E)
 
+        if i >= j:
+            button_frame.grid(row=2, column=0, columnspan=3, sticky='ew')
+        else:
+            button_frame.grid(row=2, column=0, columnspan=3, sticky='ew')

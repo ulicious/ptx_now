@@ -1,6 +1,5 @@
 import pandas as pd
-from prepare_data import load_data, calculate_investment
-from _helper_optimization import create_conversion_factor_matrix
+import copy
 
 idx = pd.IndexSlice
 
@@ -44,17 +43,11 @@ class Component:
     def get_maintenance(self):
         return self.maintenance
 
-    def set_default(self, status):
-        self.default_unit = status
-
     def set_final(self, status):
         self.final_unit = status
 
     def set_custom(self, status):
         self.custom_unit = status
-
-    def is_default(self):
-        return self.default_unit
 
     def is_final(self):
         return self.final_unit
@@ -67,11 +60,11 @@ class Component:
 
     def __copy__(self):
         return Component(name=self.name, nice_name=self.nice_name, final_unit=self.final_unit,
-                         default_unit=self.default_unit, custom_unit=self.custom_unit, capex=self.capex,
+                         custom_unit=self.custom_unit, capex=self.capex,
                          capex_unit=self.capex_unit, lifetime=self.lifetime, maintenance=self.maintenance)
 
     def __init__(self, name, nice_name, lifetime, maintenance, capex_unit, capex=None,
-                 final_unit=False, default_unit=False, custom_unit=False):
+                 final_unit=False, custom_unit=False):
 
         """
         Defines basic component class
@@ -83,15 +76,13 @@ class Component:
         :param capex_unit: [string] - Unit of CAPEX
         :param capex: [float] - Capex
         :param final_unit: [boolean] - if part of the final optimization problem
-        :param default_unit: [boolean] - if default component #todo: delete
-        :param custom_unit: [boolean] - if not default component #todo: delete
+        :param custom_unit: [boolean] - if not default component
         """
         self.name = name
         self.nice_name = nice_name
         self.component_type = None
 
         self.final_unit = bool(final_unit)
-        self.default_unit = bool(default_unit)
         self.custom_unit = bool(custom_unit)
 
         self.capex = capex
@@ -173,89 +164,39 @@ class ConversionComponent(Component):
     def get_start_up_time(self):
         return self.start_up_time
 
-    def set_main_conversion(self, input_me, output_me, coefficient):
+    def get_inputs(self):
+        return self.inputs
 
-        # Check if stream is attached in another way than the deleted conversion. If not, delete stream from component
-        if self.main_conversion is not None:
-            if not self.main_conversion.empty:
-                if (input_me not in self.main_conversion['input_me']) \
-                        | (input_me not in self.main_conversion['output_me']):
-                    if self.side_conversions.empty:
-                        self.remove_stream(input_me)
-                    else:
-                        if (input_me not in self.side_conversions['input_me']) | (
-                                input_me not in self.side_conversions['output_me']):
-                            self.remove_stream(input_me)
+    def add_input(self, input_stream, coefficient):
+        self.inputs.update({input_stream: coefficient})
+        self.add_stream(input_stream)
 
-                if (output_me not in self.main_conversion['input_me']) \
-                        | (output_me not in self.main_conversion['output_me']):
-                    if self.side_conversions.empty:
-                        self.remove_stream(output_me)
-                    else:
-                        if (output_me not in self.side_conversions['input_me']) | (
-                                output_me not in self.side_conversions['output_me']):
-                            self.remove_stream(output_me)
+    def remove_input(self, input_stream):
+        self.inputs.pop(input_stream)
+        self.remove_stream(input_stream)
 
-        stream = {'input_me': input_me,
-                  'output_me': output_me,
-                  'coefficient': float(coefficient)}
-        self.main_conversion = pd.Series(stream)
+    def set_main_input(self, input_stream):
+        self.main_input = input_stream
 
-        self.add_stream(input_me)
-        self.add_stream(output_me)
+    def get_main_input(self):
+        return self.main_input
 
-    def get_main_conversion(self):
-        return self.main_conversion
+    def get_outputs(self):
+        return self.outputs
 
-    def add_side_conversion(self, input_me, output_me, coefficient):
+    def add_output(self, output_stream, coefficient):
+        self.outputs.update({output_stream: coefficient})
+        self.add_stream(output_stream)
 
-        if self.side_conversions is None:
-            self.side_conversions = pd.DataFrame()
-            stream = {'input_me': input_me,
-                      'output_me': output_me,
-                      'coefficient': float(coefficient)}
-            self.side_conversions = self.side_conversions.append(stream, ignore_index=True)
-        else:
-            if self.side_conversions.empty:
-                stream = {'input_me': input_me,
-                          'output_me': output_me,
-                          'coefficient': float(coefficient)}
-                self.side_conversions = self.side_conversions.append(stream, ignore_index=True)
+    def remove_output(self, output_stream):
+        self.outputs.pop(output_stream)
+        self.remove_stream(output_stream)
 
-            else:
-                index = self.side_conversions[(self.side_conversions['input_me'] == input_me)
-                                              & (self.side_conversions['output_me'] == output_me)].index
+    def set_main_output(self, output_stream):
+        self.main_output = output_stream
 
-                if len(index) == 1:
-                    self.side_conversions.loc[index, 'coefficient'] = coefficient
-
-                else:
-                    stream = {'input_me': input_me,
-                              'output_me': output_me,
-                              'coefficient': float(coefficient)}
-                    self.side_conversions = self.side_conversions.append(stream, ignore_index=True)
-
-        self.add_stream(input_me)
-        self.add_stream(output_me)
-
-    def remove_side_conversion(self, in_stream, out_stream):
-        index = self.side_conversions[(self.side_conversions['input_me'] == in_stream)
-                                      & (self.side_conversions['output_me'] == out_stream)].index
-        self.side_conversions.drop(index, inplace=True)
-
-        # Check if stream is attached in another way than the deleted conversion. If not, delete stream from component
-        if ((out_stream not in self.main_conversion['input_me']) | (out_stream not in self.main_conversion['output_me'])
-                | (out_stream not in self.side_conversions['input_me']) | (
-                        out_stream not in self.side_conversions['output_me'])):
-            self.remove_stream(out_stream)
-
-        if ((in_stream not in self.main_conversion['input_me']) | (in_stream not in self.main_conversion['output_me'])
-                | (in_stream not in self.side_conversions['input_me']) | (
-                        in_stream not in self.side_conversions['output_me'])):
-            self.remove_stream(in_stream)
-
-    def get_side_conversions(self):
-        return self.side_conversions
+    def get_main_output(self):
+        return self.main_output
 
     def add_stream(self, stream):
         if stream not in self.streams:
@@ -287,6 +228,11 @@ class ConversionComponent(Component):
         if nice_name is None:
             nice_name = self.nice_name
 
+        # deepcopy mutable objects
+        inputs = copy.deepcopy(self.inputs)
+        outputs = copy.deepcopy(self.outputs)
+        streams = copy.deepcopy(self.streams)
+
         return ConversionComponent(name=name, nice_name=nice_name, lifetime=self.lifetime,
                                    maintenance=self.maintenance, capex=self.capex, capex_unit=self.capex_unit,
                                    scalable=self.scalable, base_investment=self.base_investment,
@@ -295,16 +241,16 @@ class ConversionComponent(Component):
                                    ramp_down=self.ramp_down, ramp_up=self.ramp_up,
                                    shut_down_ability=self.shut_down_ability, shut_down_time=self.shut_down_time,
                                    start_up_time=self.start_up_time, number_parallel_units=self.number_parallel_units,
-                                   main_conversion=self.main_conversion, side_conversions=self.side_conversions,
-                                   min_p=self.min_p, max_p=self.max_p, final_unit=self.final_unit,
-                                   default_unit=self.default_unit, custom_unit=self.custom_unit)
+                                   min_p=self.min_p, max_p=self.max_p, inputs=inputs, outputs=outputs,
+                                   main_input=self.main_input, main_output=self.main_output, streams=streams,
+                                   final_unit=self.final_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., capex_unit='€/MWh Electricity', scalable=False,
-                 base_investment=0., base_capacity=0., economies_of_scale=0.,
+    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., capex_unit='€/MWh Electricity',
+                 scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
                  max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1., shut_down_ability=False,
                  shut_down_time=0., start_up_time=0., number_parallel_units=1,
-                 main_conversion=pd.Series(), side_conversions=pd.DataFrame(), min_p=0., max_p=1., streams=None,
-                 final_unit=False, default_unit=False, custom_unit=False):
+                 min_p=0., max_p=1., inputs=None, outputs=None, main_input=None, main_output=None, streams=None,
+                 final_unit=False, custom_unit=False):
 
         """
         Class of conversion units
@@ -317,7 +263,6 @@ class ConversionComponent(Component):
         :param scalable: [boolean] - Boolean if scalable unit
         :param base_investment: [float] - If scalable, base investment of unit
         :param base_capacity: [float] - If scalable, base capacity of unit
-        :param base_year: [int] - If scalable, year of base investment of unit
         :param economies_of_scale: [float] - Economies of scale of investment and capacity
         :param max_capacity_economies_of_scale: [float] - Maximal capacity, where scaling factor is still applied. Above, constant investment follows
         :param ramp_down: [float] - Ramp down between time steps in % / h
@@ -326,41 +271,37 @@ class ConversionComponent(Component):
         :param shut_down_time: [int] - Time to shut down component
         :param start_up_time: [int] - Time to start up component
         :param number_parallel_units: [int] - Number parallel components with same parameters
-        :param main_conversion: [DataFrame] - Main conversion of unit
-        :param side_conversions: [DataFrame] - Side conversions of unit
+        :param inputs: [Dict] - inputs of component
+        :param outputs: [Dict] - outputs of component
+        :param main_input: [str] - main input of component
+        :param main_output: [str] - main output of component
         :param min_p: [float] - Minimal power of the unit when operating
         :param max_p: [float] - Maximal power of the unit when operating
         :param streams: [list] - Streams of the unit
         :param final_unit: [boolean] - if part of the final optimization problem
-        :param default_unit: [boolean] - if default component #todo: delete
-        :param custom_unit: [boolean] - if not default component #todo: delete
+        :param custom_unit: [boolean] - if unit is custom
         """
 
-        super().__init__(name, nice_name, lifetime, maintenance, capex_unit, capex,
-                         final_unit, default_unit, custom_unit)
+        super().__init__(name, nice_name, lifetime, maintenance, capex_unit, capex, final_unit, custom_unit)
 
         self.component_type = 'conversion'
         self.scalable = bool(scalable)
 
-        self.main_conversion = main_conversion
-        self.side_conversions = side_conversions
+        if inputs is None:
+            self.inputs = {}
+            self.outputs = {}
+            self.main_input = str
+            self.main_output = str
+        else:
+            self.inputs = inputs
+            self.outputs = outputs
+            self.main_input = main_input
+            self.main_output = main_output
+
         if streams is None:
             self.streams = []
         else:
             self.streams = streams
-
-        if main_conversion is not None:
-            if not main_conversion.empty:
-                self.add_stream(self.main_conversion.loc['input_me'])
-                self.add_stream(self.main_conversion.loc['output_me'])
-
-        if side_conversions is not None:
-            if not side_conversions.empty:
-                for stream in self.side_conversions['input_me'].tolist():
-                    self.add_stream(stream)
-
-                for stream in self.side_conversions['output_me'].tolist():
-                    self.add_stream(stream)
 
         self.min_p = min_p
         self.max_p = max_p
@@ -451,14 +392,13 @@ class StorageComponent(Component):
                                 limited_storage=self.limited_storage,
                                 storage_limiting_component=self.storage_limiting_component,
                                 storage_limiting_component_ratio=self.storage_limiting_component_ratio,
-                                final_unit=self.final_unit, default_unit=self.default_unit,
-                                custom_unit=self.custom_unit)
+                                final_unit=self.final_unit, custom_unit=self.custom_unit)
 
     def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex_unit='€/MWh', capex=0.,
                  charging_efficiency=1., discharging_efficiency=1., min_soc=0., max_soc=1.,
                  initial_soc=0.5, leakage=0., ratio_capacity_p=1.,
                  limited_storage=False, storage_limiting_component=None, storage_limiting_component_ratio=None,
-                 final_unit=False, default_unit=False, custom_unit=False):
+                 final_unit=False, custom_unit=False):
 
         """
         Class of Storage component
@@ -480,12 +420,11 @@ class StorageComponent(Component):
         :param storage_limiting_component: [string] - Component, which limits storage
         :param storage_limiting_component_ratio: [float] - Ratio between limiting component capacity and storage capacity
         :param final_unit: [boolean] - if part of the final optimization problem
-        :param default_unit: [boolean] - if default component #todo: delete
-        :param custom_unit: [boolean] - if not default component #todo: delete
+        :param custom_unit: [boolean] - if not default component
         """
 
         super().__init__(name, nice_name, lifetime, maintenance, capex_unit, capex,
-                         final_unit, default_unit, custom_unit)
+                         final_unit, custom_unit)
 
         self.component_type = 'storage'
 
@@ -526,12 +465,11 @@ class GenerationComponent(Component):
                                    maintenance=self.maintenance, capex_unit=self.capex_unit, capex=self.capex,
                                    generation_data=self.generation_data, generated_stream=self.generated_stream,
                                    generation_profile=self.generation_profile,
-                                   final_unit=self.final_unit, default_unit=self.default_unit,
-                                   custom_unit=self.custom_unit)
+                                   final_unit=self.final_unit, custom_unit=self.custom_unit)
 
     def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex_unit='€/MW', capex=0.,
                  generation_data=None, generated_stream='electricity', generation_profile=None,
-                 final_unit=False, default_unit=False, custom_unit=False):
+                 final_unit=False, custom_unit=False):
 
         """
         Class of Generator component
@@ -544,13 +482,12 @@ class GenerationComponent(Component):
         :param capex_unit: [string] -  Unit of capex
         :param generation_data: [string] -  Path to csv file which contains normalized capacity factor
         :param generated_stream: [string] - Stream, which is generated by generator
-        :param generation_profile: [list] - contains timeseries of normalized capacity factor
+        :param generation_profile: [list] - contains time series of normalized capacity factor
         :param final_unit: [boolean] - if part of the final optimization problem
-        :param default_unit: [boolean] - if default component #todo: delete
-        :param custom_unit: [boolean] - if not default component #todo: delete
+        :param custom_unit: [boolean] - if not default component
         """
         super().__init__(name, nice_name, lifetime, maintenance, capex_unit, capex,
-                         final_unit, default_unit, custom_unit)
+                         final_unit, custom_unit)
 
         self.component_type = 'generator'
 
@@ -645,12 +582,6 @@ class Stream:
     def is_total_demand(self):
         return self.total_demand
 
-    def set_storable(self, status):
-        self.storable = status
-
-    def is_storable(self):
-        return self.storable
-
     def set_default(self, status):
         self.default_stream = status
 
@@ -671,16 +602,14 @@ class Stream:
 
     def __copy__(self):
         return Stream(name=self.name, nice_name=self.nice_name, stream_unit=self.stream_unit,
-                      default_stream=self.default_stream, final_stream=self.final_stream,
-                      custom_stream=self.custom_stream, emittable=self.emittable, available=self.available,
-                      storable=self.storable, purchasable=self.purchasable, purchase_price=self.purchase_price,
+                      final_stream=self.final_stream, custom_stream=self.custom_stream, emittable=self.emittable,
+                      available=self.available, purchasable=self.purchasable, purchase_price=self.purchase_price,
                       purchase_price_type=self.purchase_price_type, saleable=self.saleable, sale_price=self.sale_price,
                       sale_price_type=self.sale_price_type, demanded=self.demanded, demand=self.demand,
                       total_demand=self.total_demand)
 
-    def __init__(self, name, nice_name, stream_unit,
-                 default_stream=False, final_stream=False, custom_stream=False,
-                 emittable=False, available=False, storable=False,
+    def __init__(self, name, nice_name, stream_unit, final_stream=False, custom_stream=False,
+                 emittable=False, available=False,
                  purchasable=False, purchase_price=None, purchase_price_type='fixed',
                  saleable=False, sale_price=None, sale_price_type='fixed',
                  demanded=False, demand=0, total_demand=False):
@@ -690,12 +619,10 @@ class Stream:
         :param name: [string] - Abbreviation of stream
         :param nice_name: [string] - Nice name of stream
         :param stream_unit: [string] - Unit of stream
-        :param default_stream: [boolean] - Is a default stream?
         :param final_stream: [boolean] - Is used in the final optimization?
         :param custom_stream: [boolean] - Is a custom stream?
         :param emittable: [boolean] - can be emitted?
         :param available: [boolean] - is freely available without limitation or price?
-        :param storable: [boolean] - can be stored?
         :param purchasable: [boolean] - can be purchased?
         :param purchase_price: [float or list] - fixed price or time varying price
         :param purchase_price_type: [string] - fixed price or time varying price
@@ -711,13 +638,11 @@ class Stream:
         self.nice_name = nice_name
         self.stream_unit = stream_unit
 
-        self.default_stream = default_stream
         self.final_stream = final_stream
         self.custom_stream = custom_stream
 
         self.emittable = emittable
         self.available = available
-        self.storable = storable
         self.purchasable = purchasable
         self.purchase_price = purchase_price
         self.purchase_price_type = purchase_price_type
@@ -766,8 +691,14 @@ class ParameterObject:
     def set_applied_parameter_for_component(self, general_parameter, component, status):
         self.applied_parameter_for_component[general_parameter][component] = status
 
+    def set_all_applied_parameters(self, applied_parameters):
+        self.applied_parameter_for_component = applied_parameters
+
     def get_applied_parameter_for_component(self, general_parameter, component):
         return self.applied_parameter_for_component[general_parameter][component]
+
+    def get_all_applied_parameters(self):
+        return self.applied_parameter_for_component
 
     # Components
     def add_component(self, abbreviation, component):  # checked
@@ -826,18 +757,36 @@ class ParameterObject:
                         component_type_components.append(self.get_component(c))
                 return component_type_components
 
-    def get_specific_streams(self, stream_type):
+    def get_specific_streams(self, final_stream=None, custom_stream=None):
         streams = []
         for stream in self.get_all_streams():
-            if stream_type == 'final':
-                if self.get_stream(stream).is_final():
-                    streams.append(self.get_stream(stream))
-            elif stream_type == 'default':
-                if self.get_stream(stream).is_default():
-                    streams.append(self.get_stream(stream))
-            elif stream_type == 'custom':
-                if self.get_stream(stream).is_custom():
-                    streams.append(self.get_stream(stream))
+
+            if final_stream is not None:
+                if final_stream:
+                    if self.get_stream(stream).is_final():
+                        streams.append(self.get_stream(stream))
+                else:
+                    if not self.get_stream(stream).is_final():
+                        streams.append(self.get_stream(stream))
+
+        if custom_stream is not None:
+            if streams:
+                for stream in streams:
+                    if custom_stream:
+                        if self.get_stream(stream).is_custom():
+                            streams.append(self.get_stream(stream))
+                    else:
+                        if not self.get_stream(stream).is_custom():
+                            streams.append(self.get_stream(stream))
+
+            else:
+                for stream in self.get_all_streams():
+                    if custom_stream:
+                        if self.get_stream(stream).is_custom():
+                            streams.append(self.get_stream(stream))
+                    else:
+                        if not self.get_stream(stream).is_custom():
+                            streams.append(self.get_stream(stream))
 
         return streams
 
@@ -854,7 +803,11 @@ class ParameterObject:
         return self.streams
 
     def get_all_stream_names(self):  # checked
-        return [*self.streams.keys()]
+        all_streams = []
+        for s in [*self.get_all_streams().keys()]:
+            if s not in all_streams:
+                all_streams.append(s)
+        return all_streams
 
     def get_stream(self, name):  # checked
         return self.streams[name]
@@ -862,61 +815,6 @@ class ParameterObject:
     def get_stream_by_nice_name(self, nice_name):
         abbreviation = self.get_abbreviation(nice_name)
         return self.get_stream(abbreviation)
-
-    def get_main_conversion_by_component(self, component):  # checked
-        return self.get_component(component).get_main_conversion()
-
-    def get_main_conversion_streams_by_component(self, component):  # checked
-        main_conversion = self.get_main_conversion_by_component(component)
-
-        if not main_conversion.empty:
-            in_stream = main_conversion.loc['input_me']
-            out_stream = main_conversion.loc['output_me']
-            return [in_stream, out_stream]
-        else:
-            return []
-
-    def get_all_main_conversion(self):  # checked
-        main_conversions = pd.DataFrame()
-        for c in self.get_specific_components('final', 'conversion'):
-            main_conversion_c = self.get_main_conversion_by_component(c.get_name())
-            main_conversion_c.loc['component'] = c.get_name()
-            main_conversions = main_conversions.append(main_conversion_c, ignore_index=True)
-
-        return main_conversions
-
-    def get_side_conversions_by_component(self, component):  # checked
-        return self.get_component(component).get_side_conversions()
-
-    def get_all_side_conversions(self):  # checked
-        side_conversions = pd.DataFrame()
-        for c in self.get_specific_components('final', 'conversion'):
-            side_conversions_c = self.get_side_conversions_by_component(c.get_name())
-            if not side_conversions_c.empty:
-                side_conversions_c.loc[:, 'component'] = c.get_name()
-                side_conversions = side_conversions.append(side_conversions_c, ignore_index=True)
-
-        return side_conversions
-
-    def check_number_of_side_conversions_per_stream_and_component(self, component, stream):
-        """ Checks if stream is attached to several conversions. If so, the stream is still needed after deleting
-        one conversion and the stream cannot be deleted"""
-        several_conversions = False
-
-        side_conversions = self.get_side_conversions_by_component(component)
-
-        one_input = True
-        if len(side_conversions[side_conversions['input_me'] == stream].index) > 1:
-            one_input = False
-
-        one_output = True
-        if len(side_conversions[side_conversions['output_me'] == stream].index) > 1:
-            one_output = False
-
-        if (not one_input) | (not one_output):
-            several_conversions = True
-
-        return several_conversions
 
     def get_stream_by_component(self, component):  # checked
         return self.components[component].get_streams()
@@ -931,29 +829,10 @@ class ParameterObject:
         return components
 
     def remove_stream(self, stream):
-        """ Remove streams if it is not attached to more than on conversion """
+        self.get_stream(stream).set_final(False)
 
-        number_conversions = 0
-
-        for component in self.get_specific_components('final', 'conversion'):
-            if component.is_final():
-
-                side_conversions = component.get_side_conversions()
-                if side_conversions is not None:
-                    if not side_conversions.empty:
-                        side_conversions = component.get_side_conversions()
-                        number_conversions += len(side_conversions[side_conversions['input_me'] == stream].index)
-                        number_conversions += len(side_conversions[side_conversions['output_me'] == stream].index)
-
-                main_conversion = component.get_main_conversion()
-                if stream == main_conversion.loc['input_me']:
-                    number_conversions += 1
-
-                if stream == main_conversion.loc['output_me']:
-                    number_conversions += 1
-
-        if number_conversions == 0:
-            self.get_stream(stream).set_final(False)
+    def activate_stream(self, stream):
+        self.get_stream(stream).set_final(True)
 
     def set_integer_steps(self, integer_steps):
         self.integer_steps = integer_steps
@@ -1003,9 +882,12 @@ class ParameterObject:
         c = 'dummy'
         input_stream = 'electricity'
         output_stream = 'electricity'
-        coeff = 1
 
-        self.get_component(c).set_main_conversion(input_stream, output_stream, coeff)
+        self.get_component(c).add_input(input_stream, 1)
+        self.get_component(c).add_output(output_stream, 1)
+
+        self.get_component(c).set_main_input(input_stream)
+        self.get_component(c).set_main_output(output_stream)
 
         s = Stream('electricity', 'Electricity', 'MWh', final_stream=True)
         self.add_stream('electricity', s)
@@ -1066,7 +948,7 @@ class ParameterObject:
                                                            shut_down_ability=shut_down_ability,
                                                            ramp_down=ramp_down, shut_down_time=shut_down_time,
                                                            start_up_time=start_up_time,
-                                                           final_unit=final_unit, default_unit=True)
+                                                           final_unit=final_unit, custom_unit=False)
 
                 self.add_component(name, conversion_component)
 
@@ -1091,7 +973,7 @@ class ParameterObject:
                                                      initial_soc, leakage=leakage, ratio_capacity_p=ratio_capacity_p,
                                                      storage_limiting_component=storage_limiting_component,
                                                      storage_limiting_component_ratio=storage_limiting_component_ratio,
-                                                     final_unit=final_unit, default_unit=True, limited_storage=limited)
+                                                     final_unit=final_unit, custom_unit=False, limited_storage=limited)
                 self.add_component(name, storage_component)
 
             elif component_df.loc[i, 'component_type'] == 'generator':
@@ -1100,7 +982,7 @@ class ParameterObject:
 
                 generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
                                                 generated_stream=generated_stream, generation_data=generation_data,
-                                                final_unit=final_unit, default_unit=True)
+                                                final_unit=final_unit, custom_unit=False)
                 self.add_component(name, generator)
 
             try:
@@ -1119,22 +1001,47 @@ class ParameterObject:
 
         """ Conversions """
         main_conversions = case_data[case_data['type'] == 'main_conversion']
-        for i in main_conversions.index:
-            component = main_conversions.loc[i, 'component']
-            in_stream = main_conversions.loc[i, 'input_stream']
-            out_stream = main_conversions.loc[i, 'output_stream']
-            coefficient = float(main_conversions.loc[i, 'coefficient'])
+        if not main_conversions.empty:
+            components = main_conversions.loc[:, 'component'].tolist()
+            for c in components:
+                component = self.get_component(c)
 
-            self.get_component(component).set_main_conversion(in_stream, out_stream, coefficient)
+                comp_index = main_conversions[main_conversions['component'] == c].index
+                main_in_stream = main_conversions.loc[comp_index, 'input_stream'].values[0]
+                main_out_stream = main_conversions.loc[comp_index, 'output_stream'].values[0]
+                main_coefficient = float(main_conversions.loc[comp_index, 'coefficient'].values[0])
 
-        side_conversions = case_data[case_data['type'] == 'side_conversion']
-        for i in side_conversions.index:
-            component = side_conversions.loc[i, 'component']
-            in_stream = side_conversions.loc[i, 'input_stream']
-            out_stream = side_conversions.loc[i, 'output_stream']
-            coefficient = float(side_conversions.loc[i, 'coefficient'])
+                component.add_input(main_in_stream, 1)
+                component.set_main_input(main_in_stream)
+                component.add_output(main_out_stream, main_coefficient)
+                component.set_main_output(main_out_stream)
 
-            self.get_component(component).add_side_conversion(in_stream, out_stream, coefficient)
+                side_conversions = case_data[(case_data['type'] == 'side_conversion') & (case_data['component'] == c)]
+                for i in side_conversions.index:
+                    in_stream = side_conversions.loc[i, 'input_stream']
+                    out_stream = side_conversions.loc[i, 'output_stream']
+                    coefficient = float(side_conversions.loc[i, 'coefficient'])
+
+                    if in_stream == main_in_stream:
+                        component.add_output(out_stream, coefficient)
+                    else:
+                        component.add_input(in_stream, round(main_coefficient / coefficient, 3))
+        else:
+            inputs_index = case_data[case_data['type'] == 'input'].index
+            for i in inputs_index:
+                component = self.get_component(case_data.loc[i, 'component'])
+                component.add_input(case_data.loc[i, 'input_stream'], case_data.loc[i, 'coefficient'])
+
+                if case_data.loc[i, 'main_input']:
+                    component.set_main_input(case_data.loc[i, 'input_stream'])
+
+            outputs_index = case_data[case_data['type'] == 'output'].index
+            for o in outputs_index:
+                component = self.get_component(case_data.loc[o, 'component'])
+                component.add_output(case_data.loc[o, 'output_stream'], case_data.loc[o, 'coefficient'])
+
+                if case_data.loc[o, 'main_output']:
+                    component.set_main_output(case_data.loc[o, 'output_stream'])
 
         """ Streams """
         streams = case_data[case_data['type'] == 'stream']
@@ -1150,7 +1057,6 @@ class ParameterObject:
             demanded = case_data.loc[i, 'demanded']
             total_demand = case_data.loc[i, 'total_demand']
             final_stream = case_data.loc[i, 'final']
-            storable_stream = case_data.loc[i, 'storable']
 
             # Purchasable streams
             purchase_price_type = case_data.loc[i, 'purchase_price_type']
@@ -1163,12 +1069,11 @@ class ParameterObject:
             # Demand
             demand = case_data.loc[i, 'demand']
 
-            stream = Stream(abbreviation, nice_name, stream_unit, final_stream=final_stream,
+            stream = Stream(abbreviation, nice_name, stream_unit, final_stream=final_stream, custom_stream=False,
                             available=available, purchasable=purchasable, saleable=saleable, emittable=emittable,
                             demanded=demanded, total_demand=total_demand,
                             purchase_price=purchase_price, purchase_price_type=purchase_price_type,
-                            sale_price=selling_price, sale_price_type=selling_price_type, demand=demand,
-                            storable=storable_stream)
+                            sale_price=selling_price, sale_price_type=selling_price_type, demand=demand)
             self.add_stream(abbreviation, stream)
 
         """ Set nice names and abbreviations """
@@ -1182,10 +1087,18 @@ class ParameterObject:
             self.set_abbreviation(nice_name, abbreviation)
 
     def __copy__(self):
+
+        # deepcopy mutable objects
+        general_parameters = copy.deepcopy(self.general_parameters)
+        general_parameter_values = copy.deepcopy(self.general_parameter_values)
+        nice_names = copy.deepcopy(self.nice_names)
+        abbreviations_dict = copy.deepcopy(self.abbreviations_dict)
+        streams = copy.deepcopy(self.streams)
+
         return ParameterObject(name=self.name,
-                               integer_steps=self.integer_steps, general_parameters=self.general_parameters,
-                               general_parameter_values=self.general_parameter_values, nice_names=self.nice_names,
-                               abbreviations_dict=self.abbreviations_dict, streams=self.streams,
+                               integer_steps=self.integer_steps, general_parameters=general_parameters,
+                               general_parameter_values=general_parameter_values, nice_names=nice_names,
+                               abbreviations_dict=abbreviations_dict, streams=streams,
                                components=self.components, copy_object=True)
 
     def __init__(self, name=None, path_custom=None, integer_steps=5,

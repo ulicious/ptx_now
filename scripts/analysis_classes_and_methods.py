@@ -186,9 +186,17 @@ class Result:
 
             # Calculate total stream availability
             for stream in self.model.ME_STREAMS:
-                self.total_availability[stream] = (self.purchased_stream[stream] + self.generated_stream[stream]
-                                                   + self.conversed_stream[stream] - self.emitted_stream[stream]
-                                                   - self.sold_stream[stream])
+                is_input = False
+                for input_tuples in self.optimization_problem.input_tuples:
+                    if input_tuples[1] == stream:
+                        is_input = True
+
+                if is_input:
+                    self.total_availability[stream] = (self.purchased_stream[stream] + self.generated_stream[stream]
+                                                       + self.conversed_stream[stream] - self.emitted_stream[stream]
+                                                       - self.sold_stream[stream])
+                else:
+                    self.total_availability[stream] = self.conversed_stream[stream]
 
             not_used_streams = []
             for key in [*self.total_availability]:
@@ -207,10 +215,9 @@ class Result:
                 self.maintenance.update({stream: 0})
 
             # Get fix costs for each stream
-            main_conversions = self.pm_object.get_all_main_conversion()
-            for i in main_conversions.index:
-                out_stream = main_conversions.loc[i, 'output_me']
-                c = main_conversions.loc[i, 'component']
+            for component in self.pm_object.get_specific_components('final', 'conversion'):
+                c = component.get_name()
+                out_stream = component.get_main_output()
                 self.conversion_component_costs[out_stream] = (self.conversion_component_costs[out_stream]
                                                                + self.all_variables_dict['annuity'][c]
                                                                + self.all_variables_dict['maintenance_costs'][c]
@@ -272,65 +279,38 @@ class Result:
             # Important: The coefficients have to be weighted regarding the amount of stream which is actually produced
             # by the component
 
+            all_components = self.pm_object.get_specific_components('final', 'conversion')
+
             for out_stream in self.model.ME_STREAMS:
                 outstream_instream_coefficient_dict = {}
                 stream_equation_list = []
 
-                # First, main conversion from main input to main output
-                main_conversions = self.pm_object.get_all_main_conversion()
-                index_stream_main_conversions = main_conversions[main_conversions['output_me'] == out_stream].index
-                components_for_outstream_production = main_conversions.loc[index_stream_main_conversions, 'component'].tolist()
-                if len(index_stream_main_conversions) > 0:
-                    for i in index_stream_main_conversions:
-                        c = main_conversions.loc[i, 'component']
+                for c in all_components:
+                    if c.get_main_output() == out_stream:
+                        c_name = c.get_name()
+                        inputs = c.get_inputs()
+                        outputs = c.get_outputs()
+                        main_input = c.get_main_input()
 
-                        in_stream = main_conversions.loc[i, 'input_me']
-                        if in_stream not in [*outstream_instream_coefficient_dict.keys()]:
-                            outstream_instream_coefficient_dict[in_stream] = 0
-
-                        coefficient = (main_conversions.loc[i, 'coefficient']
-                                       * self.conversed_stream_per_component[c][out_stream]
-                                       / self.conversed_stream[out_stream])
-
-                        outstream_instream_coefficient_dict.update({in_stream: outstream_instream_coefficient_dict[in_stream] + coefficient})
-
-                    # Second, side conversions from side input to main output
-                    side_conversions = self.pm_object.get_all_side_conversions()
-                    index_stream_side_conversions = side_conversions[side_conversions['output_me'] == out_stream].index
-                    if len(index_stream_side_conversions) > 0:
-                        for i in index_stream_side_conversions:
-                            c = side_conversions.loc[i, 'component']
-
-                            in_stream = side_conversions.loc[i, 'input_me']
+                        # First, inputs to main output
+                        for in_stream in [*inputs.keys()]:
                             if in_stream not in [*outstream_instream_coefficient_dict.keys()]:
                                 outstream_instream_coefficient_dict[in_stream] = 0
 
-                            coefficient = (side_conversions.loc[i, 'coefficient']
-                                           * self.conversed_stream_per_component[c][out_stream]
+                            coefficient = (outputs[out_stream] / inputs[in_stream]
+                                           * self.conversed_stream_per_component[c_name][out_stream]
                                            / self.conversed_stream[out_stream])
 
-                            outstream_instream_coefficient_dict.update(
-                                {in_stream: outstream_instream_coefficient_dict[in_stream] + coefficient})
+                            outstream_instream_coefficient_dict.update({in_stream: outstream_instream_coefficient_dict[in_stream] + coefficient})
 
-                    # Third, side conversions from side output to main output
-                    # From side output to main input to main output
-                    index_stream_side_conversions = side_conversions[(side_conversions['output_me'] != out_stream)
-                                                                     & side_conversions['component'].isin(components_for_outstream_production)].index
-                    if len(index_stream_side_conversions) > 0:
-                        for i in index_stream_side_conversions:
-                            c = side_conversions.loc[i, 'component']
-                            output = side_conversions.loc[i, 'output_me']
+                        # Second, from side output to main output
+                        for output in [*outputs.keys()]:
                             if output not in [*outstream_instream_coefficient_dict.keys()]:
                                 outstream_instream_coefficient_dict[output] = 0
 
-                            coefficient_1 = side_conversions.loc[i, 'coefficient']
-                            input_me = side_conversions.loc[i, 'input_me']
-                            ind = main_conversions[(main_conversions['output_me'] == out_stream)
-                                                   & (main_conversions['input_me'] == input_me)].index
-                            coefficient_2 = main_conversions.loc[ind, 'coefficient'].values[0]
                             coefficient = (outstream_instream_coefficient_dict[output]
-                                           + 1 / coefficient_1 / coefficient_2
-                                           * self.conversed_stream_per_component[c][output]
+                                           + outputs[out_stream] / outputs[output]
+                                           * self.conversed_stream_per_component[c_name][output]
                                            / self.conversed_stream[output])
 
                             outstream_instream_coefficient_dict.update({output: coefficient})
@@ -440,6 +420,10 @@ class Result:
             nice_name = component_object.get_nice_name()
 
             capacity = self.all_variables_dict['nominal_cap'][key]
+
+            if capacity == 0:
+                continue
+
             investment = self.all_variables_dict['investment'][key]
             annuity = self.all_variables_dict['annuity'][key]
             maintenance = self.all_variables_dict['maintenance_costs'][key]
@@ -449,18 +433,20 @@ class Result:
             working_capital = self.all_variables_dict['working_capital_costs'][key]
 
             if component_object.get_component_type() == 'conversion':
-                main_conversions = self.pm_object.get_main_conversion_streams_by_component(key)
-                stream_object_input = self.pm_object.get_stream(main_conversions[0])
+                main_input = component_object.get_main_input()
+                stream_object_input = self.pm_object.get_stream(main_input)
                 nice_name_stream = stream_object_input.get_nice_name()
                 unit = stream_object_input.get_unit()
 
-                stream_object_output = self.pm_object.get_stream(main_conversions[1])
+                main_output = component_object.get_main_output()
+                stream_object_output = self.pm_object.get_stream(main_output)
                 nice_name_stream_output = stream_object_output.get_nice_name()
                 unit_output = stream_object_output.get_unit()
 
-                main_conversions = self.pm_object.get_all_main_conversion()
-                c_main_conversion = main_conversions[main_conversions['component'] == key].index
-                coefficient = main_conversions.loc[c_main_conversion, 'coefficient'].values[0]
+                inputs = component_object.get_inputs()
+                outputs = component_object.get_outputs()
+
+                coefficient = outputs[main_output] / inputs[main_input]
 
                 capacity_df.loc[nice_name, 'Capacity [input]'] = capacity
                 if unit == 'MWh':
@@ -628,7 +614,8 @@ class Result:
             for i, elem in enumerate(time_depending_variables[key]):
                 time_depending_variables_df.loc[key, i] = elem
 
-        time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_binaries.xlsx')
+        if len(time_depending_variables_df.index) > 0:
+            time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_binaries.xlsx')
 
     def create_and_print_vector(self, plots=False):
 

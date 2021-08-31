@@ -12,7 +12,7 @@ from streams_classes_and_methods import StreamFrame
 from storage_classes_and_methods import StorageFrame
 from generators_classes_and_methods import GeneratorFrame
 
-from objects_formulation import GenerationComponent
+from objects_formulation import GenerationComponent, StorageComponent
 
 import os
 
@@ -88,12 +88,11 @@ class ToggledFrame(tk.Frame):
             button_frame.grid_columnconfigure(1, weight=1)
             button_frame.grid_columnconfigure(2, weight=1)
 
-            self.components_combo = ttk.Combobox(self.sub_frame)
-
             entries = []
             for c in self.pm_object_copy.get_specific_components(component_group='final', component_type='conversion'):
                 entries.append(c.get_nice_name())
-            self.components_combo.config(values=entries)
+
+            self.components_combo = ttk.Combobox(self.sub_frame, values=entries, state='readonly')
             self.components_combo.bind("<<ComboboxSelected>>", self.callbackFuncDecideComponent)
             self.components_combo.delete(0, 'end')
 
@@ -103,36 +102,77 @@ class ToggledFrame(tk.Frame):
 
         elif self.frame_type == 'stream':
 
+            unused_streams = self.pm_object_copy.get_specific_streams(final_stream=False)
+            if unused_streams:
+                self.delete_stream_button = ttk.Button(self.sub_frame, text='Delete unused streams',
+                                                       command=self.delete_unused_streams)
+                self.delete_stream_button.pack(fill='both', expand=True)
+            else:
+                self.delete_stream_button = ttk.Button(self.sub_frame, text='Delete unused streams',
+                                                       command=self.delete_unused_streams, state=DISABLED)
+                self.delete_stream_button.pack(fill='both', expand=True)
+
             self.nice_names = []
-            for stream in self.pm_object_copy.get_specific_streams('final'):
+            for stream in self.pm_object_copy.get_specific_streams(final_stream=True):
                 self.nice_names.append(stream.get_nice_name())
 
-            self.combobox_stream = ttk.Combobox(self.sub_frame, values=self.nice_names)
+            self.combobox_stream = ttk.Combobox(self.sub_frame, values=self.nice_names, state='readonly')
             self.combobox_stream.pack(fill="both", expand=True)
             self.combobox_stream.bind("<<ComboboxSelected>>", self.callbackFuncDecideStream)
             self.combobox_stream.set('Choose stream')
 
         elif self.frame_type == 'storage':
 
-            self.storage_components_nice_names = []
-            for s in self.pm_object_copy.get_specific_components(component_group='final', component_type='storage'):
-                self.storage_components_nice_names.append(s.get_nice_name())
+            # Add storages to collection of existing storages
+            self.storages_nice_names = []
+            for s in self.pm_object_copy.get_specific_components('final', 'storage'):
+                self.storages_nice_names.append(s.get_nice_name())
 
-            self.combobox_storage = ttk.Combobox(self.sub_frame, values=self.storage_components_nice_names)
+            # Add dummy storages for not yet existing storages
+            for s in self.pm_object_copy.get_specific_streams(final_stream=True):
+
+                if s.get_nice_name() not in self.storages_nice_names:
+
+                    self.storages_nice_names.append(s.get_nice_name())
+
+                    storage = StorageComponent(s.get_name(), s.get_nice_name(),
+                                               final_unit=False, custom_unit=True)
+                    self.pm_object_copy.add_component(s.get_name(), storage)
+
+                    for p in self.pm_object_copy.get_general_parameters():
+                        self.pm_object_copy.set_applied_parameter_for_component(p, s.get_name(), True)
+
+            self.combobox_storage = ttk.Combobox(self.sub_frame, values=self.storages_nice_names, state='readonly')
             self.combobox_storage.pack(fill='both', expand=True)
             self.combobox_storage.set('Choose storage')
             self.combobox_storage.bind("<<ComboboxSelected>>", self.callbackFuncStorage)
 
         elif self.frame_type == 'generator':
 
-            self.add_generator_button = ttk.Button(self.sub_frame, text='Add generator', command=self.add_generator)
-            self.add_generator_button.pack(fill='both', expand=True)
+            button_frame = tk.Frame(self.sub_frame)
+
+            self.add_generator_button = ttk.Button(button_frame, text='Add Generator', command=self.add_generator)
+            self.add_generator_button.grid(row=0, column=0, sticky='ew')
+
+            self.delete_generator_button = ttk.Button(button_frame, text='Delete Generator',
+                                                      command=self.delete_generator)
+            self.delete_generator_button.grid(row=0, column=1, sticky='ew')
+
+            button_frame.grid_columnconfigure(0, weight=1)
+            button_frame.grid_columnconfigure(1, weight=1)
+
+            button_frame.pack(fill='both', expand=True)
 
             generators = []
             for generator in self.pm_object_copy.get_specific_components(component_type='generator'):
                 generators.append(generator.get_nice_name())
 
-            self.components_generator_combo = ttk.Combobox(self.sub_frame, values=generators)
+            if len(generators) == 0:
+                self.delete_generator_button.config(state=DISABLED)
+            else:
+                self.delete_generator_button.config(state=NORMAL)
+
+            self.components_generator_combo = ttk.Combobox(self.sub_frame, values=generators, state='readonly')
             self.components_generator_combo.pack(fill='both', expand=True)
             self.components_generator_combo.set('Choose generator')
             self.components_generator_combo.bind("<<ComboboxSelected>>", self.callbackFuncDecideGenerator)
@@ -194,12 +234,18 @@ class ToggledFrame(tk.Frame):
 
         elif frame_type == 'stream':
 
-            self.stream = self.combobox_stream.get()
+            unused_streams = self.pm_object_copy.get_specific_streams(final_stream=False)
+            if unused_streams:
+                self.delete_stream_button.config(state=NORMAL)
+            else:
+                self.delete_stream_button.config(state=DISABLED)
 
             self.nice_names = []
-            for stream in self.pm_object_copy.get_specific_streams('final'):
+            for stream in self.pm_object_copy.get_specific_streams(final_stream=True):
                 self.nice_names.append(stream.get_nice_name())
             self.combobox_stream.config(values=self.nice_names)
+
+            self.stream = self.combobox_stream.get()
 
             if self.frame_update:
                 self.stream_frame.frame.destroy()
@@ -216,32 +262,42 @@ class ToggledFrame(tk.Frame):
 
         elif frame_type == 'storage':
 
-            self.storage_components_nice_names = []
-            for s in self.pm_object_copy.get_specific_components('final', 'storage'):
-                self.storage_components_nice_names.append(s.get_nice_name())
+            # Add storages to collection of existing storages
+            self.storages_nice_names = []
+            for s in self.pm_object_copy.get_specific_components(component_type='storage'):
+                self.storages_nice_names.append(s.get_nice_name())
 
-            self.combobox_storage.config(values=self.storage_components_nice_names)
+            # Add dummy storages for not yet existing storages
+            for s in self.pm_object_copy.get_specific_streams(final_stream=True):
 
+                if s.get_nice_name() not in self.storages_nice_names:
+
+                    self.storages_nice_names.append(s.get_nice_name())
+
+                    storage = StorageComponent(s.get_name(), s.get_nice_name(),
+                                               final_unit=False, custom_unit=True)
+                    self.pm_object_copy.add_component(s.get_name(), storage)
+
+                    for p in self.pm_object_copy.get_general_parameters():
+                        self.pm_object_copy.set_applied_parameter_for_component(p, s.get_name(), True)
+
+            self.combobox_storage.config(values=self.storages_nice_names)
+
+            # Check if stream still in system and set combobox to stream or to "choose storage"
             if self.frame_update:
 
                 self.storage_frame.frame.destroy()
 
-                final_storages = []
-                for storage in self.pm_object_copy.get_specific_components('final', 'storage'):
-                    final_storages.append(storage.get_name())
+                if self.pm_object_copy.get_nice_name(self.storage_stream) in self.storages_nice_names:
 
-                if self.storage_stream in final_storages:
-                    self.combobox_storage.set(self.pm_object_copy.get_component(self.storage_stream).get_nice_name())
+                    self.combobox_storage.set(self.pm_object_copy.get_nice_name(self.storage_stream))
 
                     self.storage_frame = StorageFrame(self, self.root, self.storage_stream,
                                           self.pm_object_copy, self.pm_object_original)
                     self.storage_frame.frame.pack(fill='both', expand=True)
 
                 else:
-                    self.storage_stream = 'Choose storage'
-                    self.combobox_storage.set(self.storage_stream)
-
-                    self.frame_update = False
+                    self.combobox_storage.set('Choose Storage')
 
         elif frame_type == 'generator':
             no_new_frame = False
@@ -249,8 +305,10 @@ class ToggledFrame(tk.Frame):
             if self.box_update:
 
                 generators = []
+                generators_abbreviations = []
                 for generator in self.pm_object_copy.get_specific_components(component_type='generator'):
                     generators.append(generator.get_nice_name())
+                    generators_abbreviations.append(generator.get_name())
 
                 self.components_generator_combo.config(values=generators)
 
@@ -258,9 +316,14 @@ class ToggledFrame(tk.Frame):
                     no_new_frame = True
                     self.components_generator_combo.set('Choose generator')
                 else:
-                    if self.pm_object_copy.get_component(self.generator).get_nice_name() not in generators:  # Case chosen generator was deleted
+                    if self.generator not in generators_abbreviations:
                         self.components_generator_combo.set('Choose generator')
                         no_new_frame = True
+
+                if len(generators) == 0:
+                    self.delete_generator_button.config(state=DISABLED)
+                else:
+                    self.delete_generator_button.config(state=NORMAL)
 
             if self.frame_update:
                 self.generator_frame.frame.destroy()
@@ -367,10 +430,41 @@ class ToggledFrame(tk.Frame):
             self.pm_object_copy.remove_component_entirely(component.get_name())
 
         for component in self.pm_object_original.get_specific_components(component_type='conversion'):
-            self.pm_object_copy.add_component(component.get_name(), component.__copy__())
+            copied_component = component.__copy__()
+            self.pm_object_copy.add_component(component.get_name(), copied_component)
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
+
+    def delete_unused_streams(self):
+
+        def delete_chosen_streams():
+            for s in [*check_stream.keys()]:
+                if check_stream[s].get():
+                    self.pm_object_copy.remove_stream_entirely(s)
+            delete_streams.destroy()
+
+            self.parent.pm_object_copy = self.pm_object_copy
+            self.parent.update_widgets()
+
+        def kill_only():
+            delete_streams.destroy()
+
+        delete_streams = Toplevel(self.root)
+        delete_streams.title('')
+        delete_streams.grab_set()
+
+        unused_streams = self.pm_object_copy.get_specific_streams(final_stream=False)
+        i = 0
+        check_stream = {}
+        for stream in unused_streams:
+            check_stream[stream.get_name()] = BooleanVar()
+            ttk.Checkbutton(delete_streams, text=stream.get_nice_name(), variable=check_stream[stream.get_name()])\
+                .grid(row=i, columnspan=2, sticky='w')
+            i += 1
+
+        ttk.Button(delete_streams, text='Delete', command=delete_chosen_streams).grid(row=i, column=0, sticky='ew')
+        ttk.Button(delete_streams, text='Cancel', command=kill_only).grid(row=i, column=1, sticky='ew')
 
     def add_generator(self):
         # Adds dummy generator, which then can be adjusted
@@ -379,7 +473,7 @@ class ToggledFrame(tk.Frame):
             nice_name = nice_name_entry.get()
             abbreviation = abbreviation_entry.get()
 
-            generator = GenerationComponent(abbreviation, nice_name, final_unit=True)
+            generator = GenerationComponent(abbreviation, nice_name, final_unit=True, custom_unit=True)
             self.pm_object_copy.add_component(abbreviation, generator)
 
             for p in self.pm_object_copy.get_general_parameters():
@@ -395,16 +489,60 @@ class ToggledFrame(tk.Frame):
 
         newWindow = Toplevel(self.root)
 
-        Label(newWindow, text='Nice name').grid(row=0, column=0)
+        ttk.Label(newWindow, text='Nice name').grid(row=0, column=0, sticky='ew')
         nice_name_entry = ttk.Entry(newWindow)
-        nice_name_entry.grid(row=0, column=1)
+        nice_name_entry.grid(row=0, column=1, sticky='ew')
 
-        Label(newWindow, text='Abbreviation').grid(row=1, column=0)
+        ttk.Label(newWindow, text='Abbreviation').grid(row=1, column=0, sticky='ew')
         abbreviation_entry = ttk.Entry(newWindow)
-        abbreviation_entry.grid(row=1, column=1)
+        abbreviation_entry.grid(row=1, column=1, sticky='ew')
 
-        Button(newWindow, text='OK', command=get_generator_and_kill).grid(row=2, column=0)
-        Button(newWindow, text='Cancel', command=kill_only).grid(row=2, column=1)
+        newWindow.grid_columnconfigure(0, weight=1, uniform='a')
+        newWindow.grid_columnconfigure(1, weight=1, uniform='a')
+
+        button_frame = ttk.Frame(newWindow)
+
+        ttk.Button(button_frame, text='OK', command=get_generator_and_kill).grid(row=0, column=0, sticky='ew')
+        ttk.Button(button_frame, text='Cancel', command=kill_only).grid(row=0, column=1, sticky='ew')
+
+        button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+        button_frame.grid(row=2, column=0, columnspan=2, sticky='ew')
+
+    def delete_generator(self):
+
+        def delete_checked_generators():
+            for g in generators:
+                if checked_generators[g]:
+                    self.pm_object_copy.remove_component_entirely(g)
+
+            self.parent.pm_object_copy = self.pm_object_copy
+            self.parent.update_widgets()
+
+            delete_generators_window.destroy()
+
+        def kill_delete_generators():
+
+            delete_generators_window.destroy()
+
+        delete_generators_window = Toplevel()
+        delete_generators_window.grab_set()
+        delete_generators_window.title('Delete Generators')
+
+        generators = []
+        for gen in self.pm_object_copy.get_specific_components(component_type='generator'):
+            generators.append(gen.get_name())
+
+        checked_generators = {}
+        i = 0
+        for gen in generators:
+            checked_generators[gen] = BooleanVar()
+            ttk.Checkbutton(delete_generators_window, text=self.pm_object_copy.get_nice_name(gen),
+                            variable=checked_generators[gen]).grid(row=i, columnspan=2, sticky='w')
+            i += 1
+
+        ttk.Button(delete_generators_window, text='Delete', command=delete_checked_generators).grid(row=i, column=0)
+        ttk.Button(delete_generators_window, text='Cancel', command=kill_delete_generators).grid(row=i, column=1)
 
     def create_new_component_window(self):
         # Adds dummy component which then can be adjusted
@@ -464,24 +602,34 @@ class ToggledFrame(tk.Frame):
 class SettingWindow:
 
     def getFolderData(self):
-        self.folder_data = filedialog.askdirectory() + '/'
-        self.choose_data_folder_var.set(self.folder_data)
+        folder_path = filedialog.askdirectory() + '/'
+        if folder_path != '/':
+            self.folder_data = folder_path
+            self.choose_data_folder_var.set(self.folder_data)
 
     def getFolderResult(self):
-        self.folder_result = filedialog.askdirectory() + '/'
-        self.choose_result_folder_var.set(self.folder_result)
+        folder_path = filedialog.askdirectory() + '/'
+        if folder_path != '/':
+            self.folder_result = folder_path
+            self.choose_result_folder_var.set(self.folder_result)
 
     def getFolderSettings(self):
-        self.folder_settings = filedialog.askdirectory() + '/'
-        self.choose_saved_settings_folder_var.set(self.folder_settings)
+        folder_path = filedialog.askdirectory() + '/'
+        if folder_path != '/':
+            self.folder_settings = folder_path
+            self.choose_saved_settings_folder_var.set(self.folder_settings)
 
     def getFolderPathCustom(self):
-        self.selected_custom = filedialog.askopenfilename()
-        self.choose_custom_path_label_var.set(self.selected_custom)
+        folder_path = filedialog.askopenfilename()
+        if folder_path != '':
+            self.selected_custom = folder_path
+            self.choose_custom_path_label_var.set(self.selected_custom)
 
     def getFolderPathOptimize(self):
-        self.folder_optimize = filedialog.askdirectory() + '/'
-        self.choose_optimize_folder_var.set(self.folder_optimize)
+        folder_path = filedialog.askdirectory() + '/'
+        if folder_path != '/':
+            self.folder_optimize = folder_path
+            self.choose_optimize_folder_var.set(self.folder_optimize)
 
     def radiobutton_command(self):
 
@@ -571,6 +719,7 @@ class SettingWindow:
     def __init__(self):
 
         self.window = Tk()
+        self.window.title('')
         self.frame = Frame(self.window)
         self.frame.pack()
         self.go_on = False
@@ -686,7 +835,7 @@ class SettingWindow:
 
         tk.Label(self.frame, text='Solver').grid(row=6, column=0, sticky='w')
         solvers = ['gurobi', 'cplex']
-        self.solver_combobox = ttk.Combobox(self.frame, values=solvers)
+        self.solver_combobox = ttk.Combobox(self.frame, values=solvers, state='readonly')
         self.solver_combobox.set(self.choose_solver_var.get())
         self.solver_combobox.grid(row=6, column=1, sticky='ew')
 

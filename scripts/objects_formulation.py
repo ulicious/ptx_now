@@ -168,7 +168,7 @@ class ConversionComponent(Component):
         return self.inputs
 
     def add_input(self, input_stream, coefficient):
-        self.inputs.update({input_stream: coefficient})
+        self.inputs.update({input_stream: float(coefficient)})
         self.add_stream(input_stream)
 
     def remove_input(self, input_stream):
@@ -185,7 +185,7 @@ class ConversionComponent(Component):
         return self.outputs
 
     def add_output(self, output_stream, coefficient):
-        self.outputs.update({output_stream: coefficient})
+        self.outputs.update({output_stream: float(coefficient)})
         self.add_stream(output_stream)
 
     def remove_output(self, output_stream):

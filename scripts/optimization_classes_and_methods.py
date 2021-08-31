@@ -504,7 +504,7 @@ class OptimizationProblem:
         # Calculate annuity factor of each component
         anf_dict = {}
         for c in model.COMPONENTS:
-            if model.lifetime[c] != 0:
+            if self.pm_object.get_component(c).get_lifetime() != 0:
                 anf_component = (1 + model.wacc) ** model.lifetime[c] * model.wacc \
                                 / ((1 + model.wacc) ** model.lifetime[c] - 1)
                 anf_dict.update({c: anf_component})

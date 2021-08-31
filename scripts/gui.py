@@ -62,12 +62,8 @@ class Interface:
 
         def _configure_interior(event):
             # update the scrollbars to match the size of the inner frame
-            #size = (self.scrollable_frame.winfo_reqwidth(), self.scrollable_frame.winfo_reqheight())
-            #self.canvas.config(scrollregion="0 0 %s %s" % size)
-            self.canvas.config(scrollregion=self.canvas.bbox('all'))
-            if self.scrollable_frame.winfo_reqwidth() != self.canvas.winfo_width():
-                # update the canvas's width to fit the inner frame
-                self.canvas.config(width=self.scrollable_frame.winfo_reqwidth())
+            size = (self.scrollable_frame.winfo_reqwidth(), self.scrollable_frame.winfo_reqheight())
+            self.canvas.config(scrollregion="0 0 %s %s" % size)
         self.scrollable_frame.bind('<Configure>', _configure_interior)
 
         def _configure_canvas(event):
@@ -75,6 +71,10 @@ class Interface:
                 # update the inner frame's width to fill the canvas
                 self.canvas.itemconfigure(interior_id, width=self.canvas.winfo_width())
         self.canvas.bind('<Configure>', _configure_canvas)
+
+        def _on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         self.general_assumptions = ToggledFrame(self, self.root, self.scrollable_frame, text='General assumptions',
                                pm_object_original=self.pm_object_original, pm_object_copy=self.pm_object_copy,

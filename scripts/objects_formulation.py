@@ -198,6 +198,12 @@ class ConversionComponent(Component):
     def get_main_output(self):
         return self.main_output
 
+    def set_capex_basis(self, basis):
+        self.capex_basis = basis
+
+    def get_capex_basis(self):
+        return self.capex_basis
+
     def add_stream(self, stream):
         if stream not in self.streams:
             self.streams.append(stream)
@@ -235,8 +241,9 @@ class ConversionComponent(Component):
 
         return ConversionComponent(name=name, nice_name=nice_name, lifetime=self.lifetime,
                                    maintenance=self.maintenance, capex=self.capex, capex_unit=self.capex_unit,
-                                   scalable=self.scalable, base_investment=self.base_investment,
-                                   base_capacity=self.base_capacity, economies_of_scale=self.economies_of_scale,
+                                   capex_basis=self.capex_basis, scalable=self.scalable,
+                                   base_investment=self.base_investment, base_capacity=self.base_capacity,
+                                   economies_of_scale=self.economies_of_scale,
                                    max_capacity_economies_of_scale=self.max_capacity_economies_of_scale,
                                    ramp_down=self.ramp_down, ramp_up=self.ramp_up,
                                    shut_down_ability=self.shut_down_ability, shut_down_time=self.shut_down_time,
@@ -246,7 +253,7 @@ class ConversionComponent(Component):
                                    final_unit=self.final_unit)
 
     def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., capex_unit='€/MWh Electricity',
-                 scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
+                 capex_basis='input', scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
                  max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1., shut_down_ability=False,
                  shut_down_time=0., start_up_time=0., number_parallel_units=1,
                  min_p=0., max_p=1., inputs=None, outputs=None, main_input=None, main_output=None, streams=None,
@@ -260,6 +267,7 @@ class ConversionComponent(Component):
         :param maintenance: [float] - maintenance of unit in % of investment
         :param capex: [float] - CAPEX of component
         :param capex_unit: [string] - Unit of capex
+        :param capex_basis: [str] - Decide if input or output sets basis of capex
         :param scalable: [boolean] - Boolean if scalable unit
         :param base_investment: [float] - If scalable, base investment of unit
         :param base_capacity: [float] - If scalable, base capacity of unit
@@ -312,6 +320,7 @@ class ConversionComponent(Component):
         self.start_up_time = start_up_time
 
         self.capex = capex
+        self.capex_basis = capex_basis
         self.base_investment = base_investment
         self.base_capacity = base_capacity
         self.economies_of_scale = economies_of_scale

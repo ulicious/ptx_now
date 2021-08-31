@@ -446,23 +446,47 @@ class Result:
                 inputs = component_object.get_inputs()
                 outputs = component_object.get_outputs()
 
-                coefficient = outputs[main_output] / inputs[main_input]
+                if component_object.get_capex_basis() == 'input':
 
-                capacity_df.loc[nice_name, 'Capacity [input]'] = capacity
-                if unit == 'MWh':
-                    unit = 'MW'
-                else:
-                    unit = unit + ' / h'
-                capacity_df.loc[nice_name, 'Capacity Unit [input]'] = unit + ' ' + nice_name_stream
-                capacity_df.loc[nice_name, 'Investment [per input]'] = investment / capacity
+                    coefficient = outputs[main_output] / inputs[main_input]
 
-                capacity_df.loc[nice_name, 'Capacity [output]'] = capacity * coefficient
-                if unit_output == 'MWh':
-                    unit_output = 'MW'
+                    capacity_df.loc[nice_name, 'Capacity [input]'] = capacity
+                    if unit == 'MWh':
+                        unit = 'MW'
+                    else:
+                        unit = unit + ' / h'
+
+                    capacity_df.loc[nice_name, 'Capacity Unit [input]'] = unit + ' ' + nice_name_stream
+                    capacity_df.loc[nice_name, 'Investment [per input]'] = investment / capacity
+
+                    capacity_df.loc[nice_name, 'Capacity [output]'] = capacity * coefficient
+                    if unit_output == 'MWh':
+                        unit_output = 'MW'
+                    else:
+                        unit_output = unit_output + ' / h'
+                    capacity_df.loc[nice_name, 'Capacity Unit [output]'] = unit_output + ' ' + nice_name_stream_output
+                    capacity_df.loc[nice_name, 'Investment [per output]'] = investment / capacity_df.loc[nice_name, 'Capacity [output]'] 
+
                 else:
-                    unit_output = unit_output + ' / h'
-                capacity_df.loc[nice_name, 'Capacity Unit [output]'] = unit_output + ' ' + nice_name_stream_output
-                capacity_df.loc[nice_name, 'Investment [per output]'] = investment / (capacity * coefficient)
+
+                    coefficient = inputs[main_input] / outputs[main_output]
+
+                    capacity_df.loc[nice_name, 'Capacity [input]'] = capacity
+                    if unit == 'MWh':
+                        unit = 'MW'
+                    else:
+                        unit = unit + ' / h'
+
+                    capacity_df.loc[nice_name, 'Capacity Unit [input]'] = unit + ' ' + nice_name_stream
+                    capacity_df.loc[nice_name, 'Investment [per input]'] = investment / capacity
+
+                    capacity_df.loc[nice_name, 'Capacity [output]'] = capacity * outputs[main_output] / inputs[main_input]
+                    if unit_output == 'MWh':
+                        unit_output = 'MW'
+                    else:
+                        unit_output = unit_output + ' / h'
+                    capacity_df.loc[nice_name, 'Capacity Unit [output]'] = unit_output + ' ' + nice_name_stream_output
+                    capacity_df.loc[nice_name, 'Investment [per output]'] = investment / capacity_df.loc[nice_name, 'Capacity [output]']
 
             elif component_object.get_component_type() == 'generator':
                 stream_object = self.pm_object.get_stream(component_object.get_generated_stream())

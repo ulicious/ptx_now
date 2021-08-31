@@ -14,10 +14,17 @@ idx = pd.IndexSlice
 def calculate_economies_of_scale_steps(component_object, pm_object, plot=False):
 
     component_name = component_object.get_name()
+
+    i = component_object.get_main_input()  # todo:check
+    i_coefficient = component_object.get_inputs()[i]
+    o = component_object.get_main_output()
+    o_coefficient = component_object.get_outputs()[o]
+    ratio = o_coefficient / i_coefficient
+
     base_capacity = component_object.get_base_capacity()
     economies_of_scale = component_object.get_economies_of_scale()
     max_capacity_economies_of_scale = component_object.get_max_capacity_economies_of_scale()
-    base_investment = component_object.get_base_investment()
+    base_investment = component_object.get_base_investment() * ratio
 
     # First, calculate the investment curve based on the economies of scale
 

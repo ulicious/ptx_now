@@ -311,7 +311,14 @@ class OptimizationProblem:
 
             lifetime_dict[component_name] = component_object.get_lifetime()
             maintenance_dict[component_name] = component_object.get_maintenance()
-            capex_var_dict[component_name] = component_object.get_capex()
+
+            i = component_object.get_main_input()
+            i_coefficient = component_object.get_inputs()[i]
+            o = component_object.get_main_output()
+            o_coefficient = component_object.get_outputs()[o]
+            ratio = o_coefficient / i_coefficient
+
+            capex_var_dict[component_name] = component_object.get_capex() * ratio
             capex_fix_dict[component_name] = 0
 
             if component_object.get_component_type() == 'conversion':
@@ -534,45 +541,6 @@ class OptimizationProblem:
                     self.input_conversion_tuples.append((c, main_input, current_input))
                     self.conversion_tuples_dict.update(
                         {(c, main_input, current_input): float(inputs[current_input]) / float(inputs[main_input])})
-
-        if False:
-
-            main_conversions = pm_object.get_all_main_conversion()
-            for i in main_conversions.index:
-                conversion_component = main_conversions.loc[i, 'component']
-                input_stream = main_conversions.loc[i, 'input_me']
-                output_stream = main_conversions.loc[i, 'output_me']
-                coefficient = float(main_conversions.loc[i, 'coefficient'])
-
-                if conversion_component in model.CONVERSION_COMPONENTS:
-                    self.conversion_tuples.append((conversion_component, input_stream, output_stream))
-                    self.conversion_tuples_dict.update({(conversion_component, input_stream, output_stream): coefficient})
-
-                    self.main_tuples.append((conversion_component, input_stream))
-                    self.main_out_streams.append(output_stream)
-                    self.input_tuples.append((conversion_component, input_stream))
-                    self.output_tuples.append((conversion_component, output_stream))
-
-            side_conversions = pm_object.get_all_side_conversions()
-            if not side_conversions.empty:
-                for i in side_conversions.index:
-                    conversion_component = side_conversions.loc[i, 'component']
-                    input_stream = side_conversions.loc[i, 'input_me']
-                    output_stream = side_conversions.loc[i, 'output_me']
-                    coefficient = float(side_conversions.loc[i, 'coefficient'])
-
-                    if conversion_component in model.CONVERSION_COMPONENTS:
-                        self.conversion_tuples.append((conversion_component, input_stream, output_stream))
-                        self.conversion_tuples_dict.update(
-                            {(conversion_component, input_stream, output_stream): coefficient})
-
-                        self.side_tuples.append((conversion_component, input_stream))
-
-                        self.input_tuples.append((conversion_component, input_stream))
-                        self.output_tuples.append((conversion_component, output_stream))
-
-            model.CONVERSION_FACTOR = Param(model.COMPONENTS, model.ME_STREAMS, model.ME_STREAMS,
-                                            initialize=self.conversion_tuples_dict)
 
         # Attach data to vector parameters, e.g., purchase price
         purchase_price_dict = {}

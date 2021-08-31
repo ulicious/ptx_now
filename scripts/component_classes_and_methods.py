@@ -52,6 +52,22 @@ class ComponentParametersFrame:
     def adjust_component_value(self):
         def get_value_and_kill_window():
 
+            self.capex_basis_var.set(capex_basis_var.get())
+            self.component_object.set_capex_basis(capex_basis_var.get())
+
+            if capex_basis_var.get() == 'input':
+                main_input = self.component_object.get_main_input()
+                main_input_nice_name = self.pm_object.get_nice_name(main_input)
+                unit_new = self.pm_object.get_stream(main_input).get_unit()
+
+                self.component_object.set_capex_unit('€/' + unit_new + ' ' + main_input_nice_name)
+            else:
+                main_output = self.component_object.get_main_output()
+                main_output_nice_name = self.pm_object.get_nice_name(main_output)
+                unit_new = self.pm_object.get_stream(main_output).get_unit()
+
+                self.component_object.set_capex_unit('€/' + unit_new + ' ' + main_output_nice_name)
+
             if not self.scalable_var.get():
                 self.component_object.set_scalable(False)
                 self.component_object.set_capex(float(self.label_capex_value_str.get()))
@@ -83,9 +99,6 @@ class ComponentParametersFrame:
 
             newWindow.destroy()
 
-        def kill_window():
-            newWindow.destroy()
-
         def activate_scale_no_scale():
             if self.scalable_var.get():
                 entry_capex_var.config(state=DISABLED)
@@ -112,6 +125,27 @@ class ComponentParametersFrame:
                 entry_shut_down.config(state=DISABLED)
                 entry_start_up.config(state=DISABLED)
 
+        def change_capex_basis():
+            if capex_basis_var.get() == 'input':
+                main_input = self.component_object.get_main_input()
+                main_input_nice_name = self.pm_object.get_nice_name(main_input)
+                unit_new = self.pm_object.get_stream(main_input).get_unit()
+
+                capex_unit.set('Capex [€/' + unit_new + ' ' + main_input_nice_name + ']')
+                base_investment_var.set('Base Investment [€/' + unit_new + ' ' + main_input_nice_name + ']')
+                base_capacity_var.set('Base Capacity [' + unit_new + ' ' + main_input_nice_name + ']')
+                max_capacity_var.set('Maximal Capacity [' + unit_new + ' ' + main_input_nice_name + ']')
+
+            else:
+                main_output = self.component_object.get_main_output()
+                main_output_nice_name = self.pm_object.get_nice_name(main_output)
+                unit_new = self.pm_object.get_stream(main_output).get_unit()
+
+                capex_unit.set('Capex [€/' + unit_new + ' ' + main_output_nice_name + ']')
+                base_investment_var.set('Base Investment [€/' + unit_new + ' ' + main_output_nice_name + ']')
+                base_capacity_var.set('Base Capacity [' + unit_new + ' ' + main_output_nice_name + ']')
+                max_capacity_var.set('Maximal Capacity [' + unit_new + ' ' + main_output_nice_name + ']')
+
         # Toplevel object which will
         # be treated as a new window
         newWindow = Toplevel(self.root)
@@ -134,92 +168,122 @@ class ComponentParametersFrame:
             status_scale = DISABLED
             status_no_scale = NORMAL
 
-        tk.Label(newWindow, text='Capex [' + self.component_object.get_capex_unit() + ']').grid(row=1, column=0,
-                                                                                                sticky='w')
-        entry_capex_var = ttk.Entry(newWindow, text=self.label_capex_value_str, state=status_no_scale)
-        entry_capex_var.grid(row=1, column=1, sticky='w')
+        ttk.Label(newWindow, text='Investment Basis').grid(row=1, column=0, sticky='w')
+
+        capex_basis_frame = ttk.Frame(newWindow)
+
+        capex_basis_var = StringVar()
+        capex_basis_var.set(self.capex_basis_var.get())
+
+        capex_basis_input_rb = ttk.Radiobutton(capex_basis_frame, text='Main Input', value='input',
+                                               variable=capex_basis_var, state=NORMAL, command=change_capex_basis)
+        capex_basis_input_rb.grid(row=0, column=0)
+        capex_basis_output_rb = ttk.Radiobutton(capex_basis_frame, text='Main Output', value='output',
+                                                variable=capex_basis_var, state=NORMAL, command=change_capex_basis)
+        capex_basis_output_rb.grid(row=0, column=1)
+
+        capex_basis_frame.grid(row=1, column=1, sticky='ew')
 
         unit = self.label_capex_unit_str.get().split('/')[-1]
         if unit == 'MWh':
             unit = 'MW'
 
+        capex_unit = StringVar()
+        capex_unit.set('Capex [' + self.label_capex_unit_str.get() + ']')
+
+        base_investment_var = StringVar()
+        base_investment_var.set('Base Investment [' + self.label_capex_unit_str.get() + ']')
+
+        base_capacity_var = StringVar()
+        base_capacity_var.set('Base Capacity [' + unit + ']')
+
+        max_capacity_var = StringVar()
+        max_capacity_var.set('Maximal Capacity [' + unit + ']')
+
+        capex_label = ttk.Label(newWindow, textvariable=capex_unit).grid(row=2, column=0, sticky='w')
+        entry_capex_var = ttk.Entry(newWindow, text=self.label_capex_value_str, state=status_no_scale)
+        entry_capex_var.grid(row=2, column=1, sticky='w')
+
         label_base_investment = ttk.Label(newWindow,
-                                          text='Base investment [' + self.label_capex_unit_str.get() + ']')
-        label_base_investment.grid(column=0, row=2, sticky='w')
+                                          textvariable=base_investment_var)
+        label_base_investment.grid(column=0, row=3, sticky='w')
         label_base_investment_value = ttk.Entry(newWindow,
                                                 text=self.label_base_investment_value_str,
                                                 state=status_scale)
-        label_base_investment_value.grid(column=1, row=2, sticky='w')
+        label_base_investment_value.grid(column=1, row=3, sticky='w')
 
-        label_base_capacity = ttk.Label(newWindow, text='Base capacity [' + unit + ']')
-        label_base_capacity.grid(column=0, row=3, sticky='w')
+        label_base_capacity = ttk.Label(newWindow, textvariable=base_capacity_var)
+        label_base_capacity.grid(column=0, row=4, sticky='w')
         label_base_capacity_value = ttk.Entry(newWindow, text=self.label_base_capacity_value_str, state=status_scale)
-        label_base_capacity_value.grid(column=1, row=3, sticky='w')
+        label_base_capacity_value.grid(column=1, row=4, sticky='w')
 
         label_scaling_factor = ttk.Label(newWindow, text='Scaling factor')
-        label_scaling_factor.grid(column=0, row=4, sticky='w')
+        label_scaling_factor.grid(column=0, row=5, sticky='w')
         label_scaling_factor_value = ttk.Entry(newWindow,
                                                text=self.label_scaling_factor_value_str,
                                                state=status_scale)
-        label_scaling_factor_value.grid(column=1, row=4, sticky='w')
+        label_scaling_factor_value.grid(column=1, row=5, sticky='w')
 
-        label_max_capacity_eoc = ttk.Label(newWindow, text='Max capacity [' + unit + ']')
-        label_max_capacity_eoc.grid(column=0, row=5, sticky='w')
+        label_max_capacity_eoc = ttk.Label(newWindow, textvariable=max_capacity_var)
+        label_max_capacity_eoc.grid(column=0, row=6, sticky='w')
         label_max_capacity_eoc_value = ttk.Entry(newWindow,
                                                  text=self.label_max_capacity_eoc_value_str,
                                                  state=status_scale)
-        label_max_capacity_eoc_value.grid(column=1, row=5, sticky='w')
+        label_max_capacity_eoc_value.grid(column=1, row=6, sticky='w')
 
-        tk.Label(newWindow, text='Lifetime [Years]').grid(row=6, column=0, sticky='w')
+        ttk.Label(newWindow, text='Lifetime [Years]').grid(row=7, column=0, sticky='w')
         entry_lifetime = ttk.Entry(newWindow, text=self.label_lifetime_value_str)
-        entry_lifetime.grid(row=6, column=1, sticky='w')
+        entry_lifetime.grid(row=7, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Maintenance [%]').grid(row=7, column=0, sticky='w')
+        ttk.Label(newWindow, text='Maintenance [%]').grid(row=8, column=0, sticky='w')
         entry_maintenance = ttk.Entry(newWindow, text=self.label_maintenance_value_str)
-        entry_maintenance.grid(row=7, column=1, sticky='w')
+        entry_maintenance.grid(row=8, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Minimal power [%]').grid(row=8, column=0, sticky='w')
+        ttk.Label(newWindow, text='Minimal power [%]').grid(row=9, column=0, sticky='w')
         entry_min_capacity = ttk.Entry(newWindow, text=self.label_min_capacity_value_str)
-        entry_min_capacity.grid(row=8, column=1, sticky='w')
+        entry_min_capacity.grid(row=9, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Maximal power [%]').grid(row=9, column=0, sticky='w')
+        ttk.Label(newWindow, text='Maximal power [%]').grid(row=10, column=0, sticky='w')
         entry_max_capacity = ttk.Entry(newWindow, text=self.label_max_capacity_value_str)
-        entry_max_capacity.grid(row=9, column=1, sticky='w')
+        entry_max_capacity.grid(row=10, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Ramp down [%/h]').grid(row=10, column=0, sticky='w')
+        ttk.Label(newWindow, text='Ramp down [%/h]').grid(row=11, column=0, sticky='w')
         entry_ramp_down = ttk.Entry(newWindow, text=self.label_ramp_down_value_str)
-        entry_ramp_down.grid(row=10, column=1, sticky='w')
+        entry_ramp_down.grid(row=11, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Ramp up [%/h]').grid(row=11, column=0, sticky='w')
+        ttk.Label(newWindow, text='Ramp up [%/h]').grid(row=12, column=0, sticky='w')
         entry_ramp_up = ttk.Entry(newWindow, text=self.label_ramp_up_value_str)
-        entry_ramp_up.grid(row=11, column=1, sticky='w')
+        entry_ramp_up.grid(row=12, column=1, sticky='w')
 
-        tk.Checkbutton(newWindow, text='Shut down possible?',
+        ttk.Checkbutton(newWindow, text='Shut down possible?',
                        variable=self.shut_down_ability_var,
-                       command=activate_shut_down).grid(row=12, column=0, columnspan=2, sticky='w')
+                       command=activate_shut_down).grid(row=13, column=0, columnspan=2, sticky='w')
 
         if self.component_object.get_shut_down_ability():
             shut_down_state = NORMAL
         else:
             shut_down_state = DISABLED
 
-        tk.Label(newWindow, text='Shut down [h]').grid(row=13, column=0, sticky='w')
+        tk.Label(newWindow, text='Shut down [h]').grid(row=14, column=0, sticky='w')
         entry_shut_down = ttk.Entry(newWindow, text=self.label_shut_down_value_str, state=shut_down_state)
-        entry_shut_down.grid(row=13, column=1, sticky='w')
+        entry_shut_down.grid(row=14, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Start up [h]').grid(row=14, column=0, sticky='w')
+        tk.Label(newWindow, text='Start up [h]').grid(row=15, column=0, sticky='w')
         entry_start_up = ttk.Entry(newWindow, text=self.label_start_up_value_str, state=shut_down_state)
-        entry_start_up.grid(row=14, column=1, sticky='w')
+        entry_start_up.grid(row=15, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Number of units in system').grid(row=15, column=0, sticky='w')
+        tk.Label(newWindow, text='Number of units in system').grid(row=16, column=0, sticky='w')
         entry_number_units = ttk.Entry(newWindow, text=self.label_number_parallel_units_str)
-        entry_number_units.grid(row=15, column=1, sticky='w')
+        entry_number_units.grid(row=16, column=1, sticky='w')
 
         button = ttk.Button(newWindow, text='Adjust values', command=get_value_and_kill_window)
-        button.grid(row=16, column=0, sticky='ew')
+        button.grid(row=17, column=0, sticky='ew')
 
-        button = ttk.Button(newWindow, text='Cancel', command=kill_window)
-        button.grid(row=16, column=1, sticky='ew')
+        button = ttk.Button(newWindow, text='Cancel', command=newWindow.destroy)
+        button.grid(row=17, column=1, sticky='ew')
+
+        newWindow.grid_columnconfigure(0, weight=1, uniform='a')
+        newWindow.grid_columnconfigure(1, weight=1, uniform='a')
 
         newWindow.mainloop()
 
@@ -232,6 +296,7 @@ class ComponentParametersFrame:
         component_copy = self.pm_object.get_component(self.component)
 
         component_copy.set_scalable(component_original.is_scalable())
+        component_copy.set_capex_basis(component_original.get_capex_basis())
         component_copy.set_capex(component_original.get_capex())
         component_copy.set_base_investment(component_original.get_base_investment())
         component_copy.set_base_capacity(component_original.get_base_capacity())
@@ -291,6 +356,7 @@ class ComponentParametersFrame:
             self.value_label = ttk.Label(self.frame, text='Value', font='Helvetica 10 bold')
             self.value_label.grid(column=1, row=0, sticky='w')
 
+            capex_basis = self.component_object.get_capex_basis()
             capex_unit = self.component_object.get_capex_unit()
             lifetime = self.component_object.get_lifetime()
             maintenance = round(float(self.component_object.get_maintenance() * 100), 2)
@@ -303,6 +369,8 @@ class ComponentParametersFrame:
             self.label_capex_value_str = StringVar()
             self.label_capex_unit_str = StringVar()
             self.label_capex_unit_str.set(capex_unit)
+            self.capex_basis_var = StringVar()
+            self.capex_basis_var.set(capex_basis)
 
             self.scalable_var = BooleanVar()
             self.scalable_var.set(False)
@@ -332,6 +400,20 @@ class ComponentParametersFrame:
             self.label_number_parallel_units_str = StringVar()
             self.label_number_parallel_units_str.set(number_parallel_units)
 
+            # Capex Basis
+            ttk.Label(self.frame, text='Investment Basis').grid(row=1, column=0, sticky='ew')
+
+            self.capex_basis_frame = ttk.Frame(self.frame)
+
+            self.capex_basis_input_rb = ttk.Radiobutton(self.capex_basis_frame, text='Main Input', value='input',
+                                                        variable=self.capex_basis_var, state=DISABLED)
+            self.capex_basis_input_rb.grid(row=0, column=0)
+            self.capex_basis_output_rb = ttk.Radiobutton(self.capex_basis_frame, text='Main Output', value='output',
+                                                         variable=self.capex_basis_var, state=DISABLED)
+            self.capex_basis_output_rb.grid(row=0, column=1)
+
+            self.capex_basis_frame.grid(row=1, column=1, sticky='ew')
+
             if not self.component_object.is_scalable():
 
                 # The parameters below only exist if component is not scalable
@@ -340,9 +422,9 @@ class ComponentParametersFrame:
                 self.label_capex_value_str.set(capex)
 
                 self.label_capex = ttk.Label(self.frame, text='CAPEX [' + self.label_capex_unit_str.get() + ']')
-                self.label_capex.grid(column=0, row=1, sticky='w')
+                self.label_capex.grid(column=0, row=2, sticky='w')
                 self.label_capex_value = ttk.Label(self.frame, text=self.label_capex_value_str.get())
-                self.label_capex_value.grid(column=1, row=1, sticky='w')
+                self.label_capex_value.grid(column=1, row=2, sticky='w')
 
                 i = 0
 
@@ -362,63 +444,63 @@ class ComponentParametersFrame:
                 self.label_max_capacity_eoc_value_str.set(max_capacity_eoc)
 
                 self.label_base_investment = ttk.Label(self.frame, text='Base investment [' + self.label_capex_unit_str.get() + ']')
-                self.label_base_investment.grid(column=0, row=1, sticky='w')
+                self.label_base_investment.grid(column=0, row=2, sticky='w')
                 self.label_base_investment_value = ttk.Label(self.frame,
                                                              text=self.label_base_investment_value_str.get())
-                self.label_base_investment_value.grid(column=1, row=1, sticky='w')
+                self.label_base_investment_value.grid(column=1, row=2, sticky='w')
 
                 unit = self.label_capex_unit_str.get().split('/')[-1]
                 if unit == 'MWh':
                     unit = 'MW'
 
                 self.label_base_capacity = ttk.Label(self.frame, text='Base capacity [' + unit + ']')
-                self.label_base_capacity.grid(column=0, row=2, sticky='w')
+                self.label_base_capacity.grid(column=0, row=3, sticky='w')
                 self.label_base_capacity_value = ttk.Label(self.frame, text=self.label_base_capacity_value_str.get())
-                self.label_base_capacity_value.grid(column=1, row=2, sticky='w')
+                self.label_base_capacity_value.grid(column=1, row=3, sticky='w')
 
                 self.label_scaling_factor = ttk.Label(self.frame, text='Scaling factor')
-                self.label_scaling_factor.grid(column=0, row=3, sticky='w')
+                self.label_scaling_factor.grid(column=0, row=4, sticky='w')
                 self.label_scaling_factor_value = ttk.Label(self.frame,
                                                             text=self.label_scaling_factor_value_str.get())
-                self.label_scaling_factor_value.grid(column=1, row=3, sticky='w')
+                self.label_scaling_factor_value.grid(column=1, row=4, sticky='w')
 
                 self.label_max_capacity_eoc = ttk.Label(self.frame, text='Max capacity [' + unit + ']')
-                self.label_max_capacity_eoc.grid(column=0, row=4, sticky='w')
+                self.label_max_capacity_eoc.grid(column=0, row=5, sticky='w')
                 self.label_max_capacity_eoc_value = ttk.Label(self.frame,
                                                               text=self.label_max_capacity_eoc_value_str.get())
-                self.label_max_capacity_eoc_value.grid(column=1, row=4, sticky='w')
+                self.label_max_capacity_eoc_value.grid(column=1, row=5, sticky='w')
 
                 i = 3
 
             self.label_lifetime = ttk.Label(self.frame, text='Lifetime [Years]')
-            self.label_lifetime.grid(column=0, row=2+i, sticky='w')
+            self.label_lifetime.grid(column=0, row=3+i, sticky='w')
             self.label_lifetime_value = ttk.Label(self.frame, text=self.label_lifetime_value_str.get())
-            self.label_lifetime_value.grid(column=1, row=2+i, sticky='w')
+            self.label_lifetime_value.grid(column=1, row=3+i, sticky='w')
 
             self.label_maintenance = ttk.Label(self.frame, text='Maintenance [%]')
-            self.label_maintenance.grid(column=0, row=3+i, sticky='w')
+            self.label_maintenance.grid(column=0, row=4+i, sticky='w')
             self.label_maintenance_value = ttk.Label(self.frame, text=self.label_maintenance_value_str.get())
-            self.label_maintenance_value.grid(column=1, row=3+i, sticky='w')
+            self.label_maintenance_value.grid(column=1, row=4+i, sticky='w')
 
             self.label_min_capacity = ttk.Label(self.frame, text='Minimal power [%]')
-            self.label_min_capacity.grid(column=0, row=4+i, sticky='w')
+            self.label_min_capacity.grid(column=0, row=5+i, sticky='w')
             self.label_min_capacity_value = ttk.Label(self.frame, text=self.label_min_capacity_value_str.get())
-            self.label_min_capacity_value.grid(column=1, row=4+i, sticky='w')
+            self.label_min_capacity_value.grid(column=1, row=5+i, sticky='w')
 
             self.label_max_capacity = ttk.Label(self.frame, text='Maximal power [%]')
-            self.label_max_capacity.grid(column=0, row=5+i, sticky='w')
+            self.label_max_capacity.grid(column=0, row=6+i, sticky='w')
             self.label_max_capacity_value = ttk.Label(self.frame, text=self.label_max_capacity_value_str.get())
-            self.label_max_capacity_value.grid(column=1, row=5+i, sticky='w')
+            self.label_max_capacity_value.grid(column=1, row=6+i, sticky='w')
 
             self.label_ramp_down = ttk.Label(self.frame, text='Ramp down time [%/h]')
-            self.label_ramp_down.grid(column=0, row=6 + i, sticky='w')
+            self.label_ramp_down.grid(column=0, row=7 + i, sticky='w')
             self.label_ramp_down_value = ttk.Label(self.frame, text=self.label_ramp_down_value_str.get())
-            self.label_ramp_down_value.grid(column=1, row=6 + i, sticky='w')
+            self.label_ramp_down_value.grid(column=1, row=7 + i, sticky='w')
 
             self.label_ramp_up = ttk.Label(self.frame, text='Ramp up time [%/h]')
-            self.label_ramp_up.grid(column=0, row=7 + i, sticky='w')
+            self.label_ramp_up.grid(column=0, row=8 + i, sticky='w')
             self.label_ramp_up_value = ttk.Label(self.frame, text=self.label_ramp_up_value_str.get())
-            self.label_ramp_up_value.grid(column=1, row=7 + i, sticky='w')
+            self.label_ramp_up_value.grid(column=1, row=8 + i, sticky='w')
 
             j = 0
 
@@ -431,35 +513,35 @@ class ComponentParametersFrame:
                 self.label_start_up_value_str.set(start_up)
 
                 self.label_shut_down = ttk.Label(self.frame, text='Shut down time [h]')
-                self.label_shut_down.grid(column=0, row=8 + i, sticky='w')
+                self.label_shut_down.grid(column=0, row=9 + i, sticky='w')
                 self.label_shut_down_value = ttk.Label(self.frame, text=self.label_shut_down_value_str.get())
-                self.label_shut_down_value.grid(column=1, row=8 + i, sticky='w')
+                self.label_shut_down_value.grid(column=1, row=9 + i, sticky='w')
 
                 self.label_start_up = ttk.Label(self.frame, text='Start up time [h]')
-                self.label_start_up.grid(column=0, row=9 + i, sticky='w')
+                self.label_start_up.grid(column=0, row=10 + i, sticky='w')
                 self.label_start_up_value = ttk.Label(self.frame, text=self.label_start_up_value_str.get())
-                self.label_start_up_value.grid(column=1, row=9 + i, sticky='w')
+                self.label_start_up_value.grid(column=1, row=10 + i, sticky='w')
 
                 j = 2
 
             self.label_number_parallel_units = ttk.Label(self.frame, text='Number of units in system')
-            self.label_number_parallel_units.grid(column=0, row=10 + i + j, sticky='w')
+            self.label_number_parallel_units.grid(column=0, row=11 + i + j, sticky='w')
             self.label_number_parallel_units_value = ttk.Label(self.frame,
                                                                text=self.label_number_parallel_units_str.get())
-            self.label_number_parallel_units_value.grid(column=1, row=10 + i + j, sticky='w')
+            self.label_number_parallel_units_value.grid(column=1, row=11 + i + j, sticky='w')
 
             self.delete_component_dict = {}
 
             ttk.Button(self.frame, text='Adjust parameters',
-                       command=self.adjust_component_value).grid(column=0, row=11+i+j, sticky='ew')
+                       command=self.adjust_component_value).grid(column=0, row=12+i+j, sticky='ew')
 
             if self.component_object.is_custom():
                 ttk.Button(self.frame, text='Default parameters',
                            command=self.set_component_parameters_to_default,
-                           state=DISABLED).grid(column=1, row=11 + i + j, sticky='ew')
+                           state=DISABLED).grid(column=1, row=12 + i + j, sticky='ew')
             else:
                 ttk.Button(self.frame, text='Default parameters',
-                           command=self.set_component_parameters_to_default).grid(column=1, row=11+i+j, sticky='ew')
+                           command=self.set_component_parameters_to_default).grid(column=1, row=12+i+j, sticky='ew')
 
             self.frame.grid_columnconfigure(0, weight=1, uniform="a")
             self.frame.grid_columnconfigure(1, weight=1, uniform="a")
@@ -635,11 +717,14 @@ class ConversionFrame:
 
                 # set main input and output, and adjust capex unit depending on main input
                 self.component_object.set_main_input(main_input)
-
-                capex_unit = '€/' + self.current_units[main_input] + ' ' + self.current_nice_names[main_input]
-                self.component_object.set_capex_unit(capex_unit)
-
                 self.component_object.set_main_output(main_output)
+
+                if self.component_object.get_capex_basis() == 'input':
+                    capex_unit = '€/' + self.current_units[main_input] + ' ' + self.current_nice_names[main_input]
+                else:
+                    capex_unit = '€/' + self.current_units[main_output] + ' ' + self.current_nice_names[main_output]
+
+                self.component_object.set_capex_unit(capex_unit)
 
                 # Check if streams are not used anymore and delete them from all streams
                 for stream in self.pm_object.get_all_streams():

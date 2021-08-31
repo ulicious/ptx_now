@@ -94,24 +94,23 @@ class GeneratorFrame:
         path = filedialog.askopenfilename()
         file_name = path.split('/')[-1]
 
-        if file_name.split('.')[-1] == 'xlsx':
-            self.textvar_profile.set(file_name)
-            self.pm_object.get_component(self.generator).set_generation_data(file_name)
+        if file_name != '':
+            if file_name.split('.')[-1] == 'xlsx':
+                self.textvar_profile.set(file_name)
+                self.pm_object.get_component(self.generator).set_generation_data(file_name)
 
-            self.parent.parent.pm_object_copy = self.pm_object
-            self.parent.parent.update_widgets()
+                self.parent.parent.pm_object_copy = self.pm_object
+                self.parent.parent.update_widgets()
 
-        else:
-            window_wrong_file = Tk()
-            frame_wrong_file = Frame(window_wrong_file)
-            frame_wrong_file.pack()
+            else:
+                wrong_file_window = Toplevel()
+                wrong_file_window.title('')
+                wrong_file_window.grab_set()
 
-            tk.Label(frame_wrong_file, text='File is not xlsx format').pack()
+                ttk.Label(wrong_file_window, text='File is not xlsx format').pack(fill='both', expand=True)
 
-            def kill_window():
-                window_wrong_file.destroy()
-
-            tk.Button(frame_wrong_file, text='OK', command=kill_window).pack()
+                ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
+                                                                                                 expand=True)
 
     def set_generator_settings_to_default(self):
 

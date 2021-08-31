@@ -491,9 +491,6 @@ class AddNewComponentWindow:
 
         self.newWindow.destroy()
 
-    def kill_window(self):
-        self.newWindow.destroy()
-
     def __init__(self, parent, root, pm_object):
 
         """
@@ -515,13 +512,18 @@ class AddNewComponentWindow:
         self.nice_name = StringVar()
         self.name = StringVar()
 
-        ttk.Label(self.newWindow, text='Nice name').grid(row=0, column=0)
-        ttk.Entry(self.newWindow, text=self.nice_name).grid(row=0, column=1)
-        ttk.Label(self.newWindow, text='Name').grid(row=1, column=0)
-        ttk.Entry(self.newWindow, text=self.name).grid(row=1, column=1)
+        ttk.Label(self.newWindow, text='Nice name').grid(row=0, column=0, sticky='ew')
+        ttk.Entry(self.newWindow, text=self.nice_name).grid(row=0, column=1, sticky='ew')
+        ttk.Label(self.newWindow, text='Name').grid(row=1, column=0, sticky='ew')
+        ttk.Entry(self.newWindow, text=self.name).grid(row=1, column=1, sticky='ew')
 
-        ttk.Button(self.newWindow, text='Add component', command=self.add_component_and_kill_window).grid(row=2, column=0)
-        ttk.Button(self.newWindow, text='Cancel', command=self.kill_window).grid(row=2, column=1)
+        ttk.Button(self.newWindow, text='Add component',
+                   command=self.add_component_and_kill_window).grid(row=2, column=0, sticky='ew')
+        ttk.Button(self.newWindow, text='Cancel',
+                   command=self.newWindow.destroy).grid(row=2, column=1, sticky='ew')
+
+        self.newWindow.grid_columnconfigure(0, weight=1, uniform='a')
+        self.newWindow.grid_columnconfigure(1, weight=1, uniform='a')
 
 
 class ConversionFrame:
@@ -742,6 +744,7 @@ class ConversionFrame:
                 self.current_input_coefficients[stream] = coefficient_entry_var.get()
 
                 adjust_input_window.destroy()
+                me_balance_window.grab_set()
                 update_me_balance_window()
 
             def kill_only():
@@ -751,6 +754,7 @@ class ConversionFrame:
                         self.streams_add_conversion_nice_names.remove(input_stream_name_entry.get())
 
                 adjust_input_window.destroy()
+                me_balance_window.grab_set()
 
             adjust_input_window = Toplevel(self.root)
             adjust_input_window.title('Adjust Input')
@@ -859,6 +863,7 @@ class ConversionFrame:
                 self.current_output_coefficients[stream] = coefficient_entry_var.get()
 
                 adjust_output_window.destroy()
+                me_balance_window.grab_set()
                 update_me_balance_window()
 
             def kill_only():
@@ -868,6 +873,7 @@ class ConversionFrame:
                         self.streams_add_conversion_nice_names.remove(output_stream_name_entry.get())
 
                 adjust_output_window.destroy()
+                me_balance_window.grab_set()
 
             adjust_output_window = Toplevel(self.root)
             adjust_output_window.title('Adjust Output')
@@ -931,10 +937,12 @@ class ConversionFrame:
                         self.current_inputs.remove(input_streams[ind_choice])
 
                 delete_input_window.destroy()
+                me_balance_window.grab_set()
                 update_me_balance_window()
 
             def kill_only():
                 delete_input_window.destroy()
+                me_balance_window.grab_set()
 
             delete_input_window = Toplevel(self.root)
             delete_input_window.title('Delete Input')
@@ -962,10 +970,12 @@ class ConversionFrame:
                         self.current_outputs.remove(output_streams[ind_choice])
 
                 delete_output_window.destroy()
+                me_balance_window.grab_set()
                 update_me_balance_window()
 
             def kill_only():
                 delete_output_window.destroy()
+                me_balance_window.grab_set()
 
             delete_output_window = Toplevel(self.root)
             delete_output_window.title('Delete Output')
@@ -1025,6 +1035,7 @@ class ConversionFrame:
                 self.current_input_coefficients[stream] = coefficient_entry_var.get()
 
                 add_input_window.destroy()
+                me_balance_window.grab_set()
                 update_me_balance_window()
 
             def kill_only():
@@ -1034,6 +1045,7 @@ class ConversionFrame:
                         self.streams_add_conversion_nice_names.remove(input_stream_name_entry.get())
 
                 add_input_window.destroy()
+                me_balance_window.grab_set()
 
             add_input_window = Toplevel(self.root)
             add_input_window.title('Add Input')
@@ -1128,6 +1140,7 @@ class ConversionFrame:
                 self.current_output_coefficients[stream] = coefficient_entry_var.get()
 
                 add_output_window.destroy()
+                me_balance_window.grab_set()
                 update_me_balance_window()
 
             def kill_only():
@@ -1137,6 +1150,7 @@ class ConversionFrame:
                         self.streams_add_conversion_nice_names.remove(output_stream_name_entry.get())
 
                 add_output_window.destroy()
+                me_balance_window.grab_set()
 
             add_output_window = Toplevel(self.root)
             add_output_window.title('Add Output')

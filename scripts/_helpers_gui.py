@@ -488,6 +488,8 @@ class ToggledFrame(tk.Frame):
             newWindow.destroy()
 
         newWindow = Toplevel(self.root)
+        newWindow.title('Add Generator')
+        newWindow.grab_set()
 
         ttk.Label(newWindow, text='Nice name').grid(row=0, column=0, sticky='ew')
         nice_name_entry = ttk.Entry(newWindow)

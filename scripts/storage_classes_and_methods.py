@@ -45,6 +45,7 @@ class StorageFrame:
 
         newWindow = Toplevel(self.root)
         newWindow.title('Adjust Storage')
+        newWindow.grab_set()
 
         newWindow.grid_columnconfigure(0, weight=1)
         newWindow.grid_columnconfigure(1, weight=1)

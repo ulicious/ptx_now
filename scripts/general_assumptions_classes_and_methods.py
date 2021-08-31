@@ -66,6 +66,7 @@ class GeneralAssumptionsFrame:
     def set_applied_general_parameters(self):
         newWindow = Toplevel(self.root)
         newWindow.title('Choose Applied Parameters')
+        newWindow.grab_set()
 
         def get_values_and_kill_window():
             for comp in self.pm_object.get_specific_components('final'):

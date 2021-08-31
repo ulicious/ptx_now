@@ -328,7 +328,8 @@ class Interface:
 
         Label(newWindow, text='Enter name of settings file').grid(row=0, column=0, sticky='ew')
 
-        name_entry = Entry(newWindow).grid(row=0, column=1, sticky='ew')
+        name_entry = Entry(newWindow)
+        name_entry.grid(row=0, column=1, sticky='ew')
 
         ttk.Button(newWindow, text='Save', command=kill_window_and_save).grid(row=1, column=0, sticky='ew')
         ttk.Button(newWindow, text='Cancel', command=kill_only).grid(row=1, column=1, sticky='ew')

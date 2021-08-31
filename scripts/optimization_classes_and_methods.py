@@ -85,7 +85,7 @@ class OptimizationProblem:
                                         instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
 
                             if component_object.get_shut_down_ability():
-                                # if component is able for shutdown, it will set the binaries s.t. no shutdown is initiated
+                                #  if component is able for shutdown, it will set the binaries s.t. no shutdown is initiated
                                 for t in model.TIME:
 
                                     # Time depending variables
@@ -504,9 +504,12 @@ class OptimizationProblem:
         # Calculate annuity factor of each component
         anf_dict = {}
         for c in model.COMPONENTS:
-            anf_component = (1 + model.wacc) ** model.lifetime[c] * model.wacc \
-                            / ((1 + model.wacc) ** model.lifetime[c] - 1)
-            anf_dict.update({c: anf_component})
+            if model.lifetime[c] != 0:
+                anf_component = (1 + model.wacc) ** model.lifetime[c] * model.wacc \
+                                / ((1 + model.wacc) ** model.lifetime[c] - 1)
+                anf_dict.update({c: anf_component})
+            else:
+                anf_dict.update({c: 0})
         model.ANF = Param(model.COMPONENTS, initialize=anf_dict)
 
         # Define conversion tuples which will be used to set main conversion and side conversion
@@ -531,10 +534,6 @@ class OptimizationProblem:
                     self.input_conversion_tuples.append((c, main_input, current_input))
                     self.conversion_tuples_dict.update(
                         {(c, main_input, current_input): float(inputs[current_input]) / float(inputs[main_input])})
-
-        print(self.output_conversion_tuples)
-        print(self.input_conversion_tuples)
-        print(self.conversion_tuples_dict)
 
         if False:
 

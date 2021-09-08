@@ -1,7 +1,7 @@
 from gui import Interface
 from _helpers_gui import SettingWindow
 from os import walk
-from objects_formulation import ParameterObject
+from parameter_object import ParameterObject
 from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
 

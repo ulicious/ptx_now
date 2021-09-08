@@ -10,6 +10,46 @@ from _helper_optimization import calculate_economies_of_scale_steps
 
 class OptimizationProblem:
 
+    def pre_adjustments(self, pm_object):
+
+        """ Copies components in the case that multiple parallel components exist """
+
+        # Create deepcopy so that the original pm_object is not influenced by copying single components
+        # Otherwise, GUI would add the copied components
+        pm_object_copy = deepcopy(pm_object)
+
+        # Copy components if number of components in system is higher than 1
+        for component_object in pm_object_copy.get_specific_components('final', 'conversion'):
+            if component_object.get_number_parallel_units() > 1:
+                # Simply rename first component
+                component_name = component_object.get_name()
+                component_nice_name = component_object.get_nice_name()
+                component_object.set_name(component_name + '_0')
+                component_object.set_nice_name(component_nice_name + ' Parallel Unit 0')
+                pm_object_copy.remove_component_entirely(component_name)
+                pm_object_copy.add_component(component_name + '_0', component_object)
+
+                for i in range(1, int(component_object.get_number_parallel_units())):
+                    # Add other components as copy
+                    parallel_unit_component_name = component_name + '_' + str(i)
+                    parallel_unit_component_nice_name = component_nice_name + ' Parallel Unit ' + str(i)
+                    component_copy = component_object.__copy__()
+                    component_copy.set_name(parallel_unit_component_name)
+                    component_copy.set_nice_name(parallel_unit_component_nice_name)
+                    pm_object_copy.add_component(parallel_unit_component_name, component_copy)
+
+                for i in range(0, int(component_object.get_number_parallel_units())):
+                    exclude = ['wacc', 'covered_period']
+                    parallel_unit_component_name = component_name + '_' + str(i)
+                    for p in pm_object.get_general_parameters():
+                        if p in exclude:
+                            continue
+                        pm_object_copy.set_applied_parameter_for_component(p,
+                                                                           parallel_unit_component_name,
+                                                                           pm_object.get_applied_parameter_for_component(p, component_name))
+
+        return pm_object_copy
+
     def create_initial_solution(self, pm_object):
         """ Especially the shutdown ability and parallel units
         create a large problem due to the large amount of binaries.
@@ -85,6 +125,8 @@ class OptimizationProblem:
                                         instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
 
                             if component_object.get_shut_down_ability():
+                                if component_object.get_name() not in model.SHUT_DOWN_COMPONENTS:
+                                    continue
                                 #  if component is able for shutdown, it will set the binaries s.t. no shutdown is initiated
                                 for t in model.TIME:
 
@@ -95,18 +137,20 @@ class OptimizationProblem:
                                     instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
                         else:
                             # component_x will have no capacity
-                            instance_adjusted.nominal_cap[parallel_unit_component_name] = 0
-                            for j in range(pm_object_adjusted.get_integer_steps()):
-                                if j == 0:
-                                    instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
-                                    instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 1
-                                else:
-                                    instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
-                                    instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
+                            if component_object.is_scalable():
+                                instance_adjusted.nominal_cap[parallel_unit_component_name] = 0
+                                for j in range(pm_object_adjusted.get_integer_steps()):
+                                    if j == 0:
+                                        instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
+                                        instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 1
+                                    else:
+                                        instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
+                                        instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
 
                             if component_object.get_shut_down_ability():
+                                if component_object.get_name() not in model.SHUT_DOWN_COMPONENTS:
+                                    continue
                                 for t in model.TIME:
-
                                     # Time depending variables
                                     #instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 1
                                     instance_adjusted.component_status[(parallel_unit_component_name, t)] = 0
@@ -129,10 +173,12 @@ class OptimizationProblem:
                                 instance_adjusted.capacity_binary[(component_name, j)] = 0
 
                     if component_object.get_shut_down_ability():
+                        if component_object.get_name() not in model.SHUT_DOWN_COMPONENTS:
+                            continue
                         # Time depending binaries
                         for t in model.TIME:
 
-                            #instance_adjusted.component_correct_p[(component_name, t)] = 0
+                            # instance_adjusted.component_correct_p[(component_name, t)] = 0
                             instance_adjusted.component_status[(component_name, t)] = 1
                             instance_adjusted.status_switch_on[(component_name, t)] = 0
                             instance_adjusted.status_switch_off[(component_name, t)] = 0
@@ -146,46 +192,6 @@ class OptimizationProblem:
         else:
 
             return solved_feasible
-
-    def pre_adjustments(self, pm_object):
-
-        """ Copies components in the case that multiple parallel components exist """
-
-        # Create deepcopy so that the original pm_object is not influenced by copying single components
-        # Otherwise, GUI would add the copied components
-        pm_object_copy = deepcopy(pm_object)
-
-        # Copy components if number of components in system is higher than 1
-        for component_object in pm_object_copy.get_specific_components('final', 'conversion'):
-            if component_object.get_number_parallel_units() > 1:
-                # Simply rename first component
-                component_name = component_object.get_name()
-                component_nice_name = component_object.get_nice_name()
-                component_object.set_name(component_name + '_0')
-                component_object.set_nice_name(component_nice_name + ' Parallel Unit 0')
-                pm_object_copy.remove_component_entirely(component_name)
-                pm_object_copy.add_component(component_name + '_0', component_object)
-
-                for i in range(1, int(component_object.get_number_parallel_units())):
-                    # Add other components as copy
-                    parallel_unit_component_name = component_name + '_' + str(i)
-                    parallel_unit_component_nice_name = component_nice_name + ' Parallel Unit ' + str(i)
-                    component_copy = component_object.__copy__()
-                    component_copy.set_name(parallel_unit_component_name)
-                    component_copy.set_nice_name(parallel_unit_component_nice_name)
-                    pm_object_copy.add_component(parallel_unit_component_name, component_copy)
-
-                for i in range(0, int(component_object.get_number_parallel_units())):
-                    exclude = ['wacc', 'covered_period']
-                    parallel_unit_component_name = component_name + '_' + str(i)
-                    for p in pm_object.get_general_parameters():
-                        if p in exclude:
-                            continue
-                        pm_object_copy.set_applied_parameter_for_component(p,
-                                                                           parallel_unit_component_name,
-                                                                           pm_object.get_applied_parameter_for_component(p, component_name))
-
-        return pm_object_copy
 
     def initialize_problem(self, pm_object):
 
@@ -290,14 +296,13 @@ class OptimizationProblem:
         capex_fix_dict = {}
         capex_var_pre_dict = {}
         capex_fix_pre_dict = {}
-        self.lower_bound_dict = {}
         upper_bound_dict = {}
         min_p_dict = {}
         max_p_dict = {}
         ramp_up_dict = {}
         ramp_down_dict = {}
-        shut_down_time_dict = {}
-        start_up_time_dict = {}
+        down_time_dict = {}
+        standby_time_dict = {}
 
         scalable_components = []
         not_scalable_components = []
@@ -306,22 +311,30 @@ class OptimizationProblem:
         shut_down_components = []
         no_shut_down_components = []
 
+        standby_components = []
+        no_standby_components = []
+
         for component_object in pm_object.get_specific_components('final'):
             component_name = component_object.get_name()
 
             lifetime_dict[component_name] = component_object.get_lifetime()
             maintenance_dict[component_name] = component_object.get_maintenance()
-
-            i = component_object.get_main_input()
-            i_coefficient = component_object.get_inputs()[i]
-            o = component_object.get_main_output()
-            o_coefficient = component_object.get_outputs()[o]
-            ratio = o_coefficient / i_coefficient
-
-            capex_var_dict[component_name] = component_object.get_capex() * ratio
+            capex_var_dict[component_name] = component_object.get_capex()
             capex_fix_dict[component_name] = 0
 
             if component_object.get_component_type() == 'conversion':
+
+                if component_object.get_capex_basis() == 'output':
+                    i = component_object.get_main_input()
+                    i_coefficient = component_object.get_inputs()[i]
+                    o = component_object.get_main_output()
+                    o_coefficient = component_object.get_outputs()[o]
+                    ratio = o_coefficient / i_coefficient
+                else:
+                    ratio = 1
+
+                capex_var_dict[component_name] = capex_var_dict[component_name] * ratio
+
                 min_p_dict[component_name] = component_object.get_min_p()
                 max_p_dict[component_name] = component_object.get_max_p()
                 ramp_up_dict[component_name] = component_object.get_ramp_up()
@@ -352,11 +365,24 @@ class OptimizationProblem:
                             capex_var_dict[key[0]] = 0
 
                 if component_object.get_shut_down_ability():
+                    if int(component_object.get_start_up_time()) == 0:
+                        # shut down time of 0 is not possible. Therefore, set it to 1
+                        down_time_dict[component_name] = 1
+                    else:
+                        down_time_dict[component_name] = int(component_object.get_start_up_time())
                     shut_down_components.append(component_name)
-                    shut_down_time_dict[component_name] = component_object.get_shut_down_time()
-                    start_up_time_dict[component_name] = component_object.get_start_up_time()
                 else:
                     no_shut_down_components.append(component_name)
+
+                if component_object.get_hot_standby_ability():
+                    if int(component_object.get_hot_standby_startup_time()) == 0:
+                        # shut down time of 0 is not possible. Therefore, set it to 1
+                        standby_time_dict[component_name] = 1
+                    else:
+                        standby_time_dict[component_name] = int(component_object.get_hot_standby_startup_time())
+                    standby_components.append(component_name)
+                else:
+                    no_standby_components.append(component_name)
 
             elif component_object.get_component_type() == 'storage':
                 not_scalable_components.append(component_name)
@@ -378,9 +404,9 @@ class OptimizationProblem:
                 not_scalable_components.append(component_name)
 
         # Attach parameters to optimization problem
-
         model.SCALABLE_COMPONENTS = Set(initialize=scalable_components)
         model.SHUT_DOWN_COMPONENTS = Set(initialize=shut_down_components)
+        model.STANDBY_COMPONENTS = Set(initialize=standby_components)
         model.LIMITED_STORAGES = Set(initialize=limited_storages)
 
         # Parameters of components
@@ -447,12 +473,21 @@ class OptimizationProblem:
         model.capacity_binary = Var(model.SCALABLE_COMPONENTS, model.INTEGER_STEPS, within=Binary)
 
         # Shutdown parameters and variables
-        model.shut_down_time = Param(model.SHUT_DOWN_COMPONENTS, initialize=shut_down_time_dict)
-        model.start_up_time = Param(model.SHUT_DOWN_COMPONENTS, initialize=start_up_time_dict)
+        model.down_time = Param(model.SHUT_DOWN_COMPONENTS, initialize=down_time_dict)
+        model.standby_time = Param(model.STANDBY_COMPONENTS, initialize=standby_time_dict)
 
-        model.component_status = Var(model.SHUT_DOWN_COMPONENTS, model.TIME, within=Binary)
-        model.status_switch_on = Var(model.SHUT_DOWN_COMPONENTS, model.TIME, within=Binary)
-        model.status_switch_off = Var(model.SHUT_DOWN_COMPONENTS, model.TIME, within=Binary)
+        model.status_on = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+        model.status_off = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+        model.status_standby = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+
+        model.status_on_switch_on = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+        model.status_on_switch_off = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+
+        model.status_off_switch_on = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+        model.status_off_switch_off = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+
+        model.status_standby_switch_on = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
+        model.status_standby_switch_off = Var(model.CONVERSION_COMPONENTS, model.TIME, within=Binary)
 
         # STORAGE binaries (charging and discharging)
         model.storage_charge_binary = Var(model.STORAGES, model.TIME, within=Binary)
@@ -461,8 +496,10 @@ class OptimizationProblem:
         # -------------------------------------
         # Stream variables
         # Input and output stream
-        model.mass_energy_component_in_streams = Var(model.COMPONENTS, model.ME_STREAMS, model.TIME, bounds=(0, None))
-        model.mass_energy_component_out_streams = Var(model.COMPONENTS, model.ME_STREAMS, model.TIME, bounds=(0, None))
+        model.mass_energy_component_in_streams = Var(model.CONVERSION_COMPONENTS, model.ME_STREAMS,
+                                                     model.TIME, bounds=(0, None))
+        model.mass_energy_component_out_streams = Var(model.CONVERSION_COMPONENTS, model.ME_STREAMS,
+                                                      model.TIME, bounds=(0, None))
 
         # Freely available streams
         model.mass_energy_available = Var(model.ME_STREAMS, model.TIME, bounds=(0, None))
@@ -483,6 +520,10 @@ class OptimizationProblem:
         # Demanded streams
         model.mass_energy_demand = Var(model.ME_STREAMS, model.TIME, bounds=(0, None))
 
+        # Hot standby demand
+        model.mass_energy_hot_standby_demand = Var(model.CONVERSION_COMPONENTS, model.ME_STREAMS,
+                                                   model.TIME, bounds=(0, None))
+
         # ----------------------------------
         # Financial variables
         model.investment = Var(model.COMPONENTS, bounds=(0, None))  # calculates investment
@@ -498,9 +539,9 @@ class OptimizationProblem:
         model.total_personnel_costs = Var(bounds=(0, None))  # calculates total personal costs
         model.working_capital_costs = Var(model.COMPONENTS, bounds=(0, None))  # calculates total personal costs
         model.total_working_capital_costs = Var(bounds=(0, None))  # calculates total personal costs
-        model.purchase_costs = Var(model.PURCHASABLE_STREAMS, bounds=(0, None))  # calculates purchase costs of each stream
+        model.purchase_costs = Var(model.PURCHASABLE_STREAMS, bounds=(0, None))  # calculates purchase costs of streams
         model.total_purchase_costs = Var(bounds=(0, None))  # sum purchase costs
-        model.revenue = Var(model.SALEABLE_STREAMS, bounds=(None, None))  # calculates revenue of each stream
+        model.revenue = Var(model.SALEABLE_STREAMS, bounds=(None, None))  # calculates revenue of streams
         model.total_revenue = Var(bounds=(None, None))  # sums revenues
 
         return model
@@ -511,7 +552,7 @@ class OptimizationProblem:
         # Calculate annuity factor of each component
         anf_dict = {}
         for c in model.COMPONENTS:
-            if self.pm_object.get_component(c).get_lifetime() != 0:
+            if pm_object.get_component(c).get_lifetime() != 0:
                 anf_component = (1 + model.wacc) ** model.lifetime[c] * model.wacc \
                                 / ((1 + model.wacc) ** model.lifetime[c] - 1)
                 anf_dict.update({c: anf_component})
@@ -522,7 +563,7 @@ class OptimizationProblem:
         # Define conversion tuples which will be used to set main conversion and side conversion
         # All other conversions will be set to 0 if not in conversion tuples
         for c in model.CONVERSION_COMPONENTS:
-            component = self.pm_object.get_component(c)
+            component = pm_object.get_component(c)
             inputs = component.get_inputs()
             outputs = component.get_outputs()
 
@@ -530,7 +571,7 @@ class OptimizationProblem:
             for current_output in [*outputs.keys()]:
 
                 self.output_conversion_tuples.append((c, main_input, current_output))
-                self.conversion_tuples_dict.update(
+                self.output_conversion_tuples_dict.update(
                     {(c, main_input, current_output): float(outputs[current_output]) / float(inputs[main_input])})
 
                 self.output_tuples.append((c, current_output))
@@ -539,7 +580,7 @@ class OptimizationProblem:
                 self.input_tuples.append((c, current_input))
                 if current_input != main_input:
                     self.input_conversion_tuples.append((c, main_input, current_input))
-                    self.conversion_tuples_dict.update(
+                    self.input_conversion_tuples_dict.update(
                         {(c, main_input, current_input): float(inputs[current_input]) / float(inputs[main_input])})
 
         # Attach data to vector parameters, e.g., purchase price
@@ -595,12 +636,12 @@ class OptimizationProblem:
     def attach_constraints(self, pm_object, model):
         """ Method attaches all constraints to optimization problem """
 
-        def _set_available_streams_rule(model, me, t):
+        def _set_available_streams_rule(m, me, t):
             # Sets streams, which are available without limit and price
-            if me in model.AVAILABLE_STREAMS:
-                return model.mass_energy_available[me, t] >= 0
+            if me in m.AVAILABLE_STREAMS:
+                return m.mass_energy_available[me, t] >= 0
             else:
-                return model.mass_energy_available[me, t] == 0
+                return m.mass_energy_available[me, t] == 0
 
         model.set_available_streams_con = Constraint(model.ME_STREAMS, model.TIME, rule=_set_available_streams_rule)
 
@@ -684,6 +725,13 @@ class OptimizationProblem:
                 if (c, me_out) in self.input_tuples:
                     equation_rhs.append(model.mass_energy_component_in_streams[c, me_out, t])
 
+                # hot standby demand
+                if True:
+                    if c in model.STANDBY_COMPONENTS:
+                        hot_standby_stream = [*pm_object.get_component(c).get_hot_standby_demand().keys()][0]
+                        if me_out == hot_standby_stream:
+                            equation_rhs.append(model.mass_energy_hot_standby_demand[c, me_out, t])
+
             return sum(equation_lhs) == sum(equation_rhs)
         model._mass_energy_balance_con = Constraint(model.ME_STREAMS, model.TIME, rule=_mass_energy_balance_rule)
 
@@ -703,69 +751,52 @@ class OptimizationProblem:
                                                                     for g in model.GENERATORS)
         model.total_power_generation_con = Constraint(model.ME_STREAMS, model.TIME, rule=total_power_generation_rule)
 
-        if False:
+        def _stream_conversion_output_rule(model, c, me_out, t):
+            # Define ratio between main input and output streams for all conversion tuples
+            main_input = pm_object.get_component(c).get_main_input()
+            if (c, main_input, me_out) in self.output_conversion_tuples:
+                return model.mass_energy_component_out_streams[c, me_out, t] == \
+                       model.mass_energy_component_in_streams[c, main_input, t] \
+                       * self.output_conversion_tuples_dict[c, main_input, me_out]
+            else:
+                return model.mass_energy_component_out_streams[c, me_out, t] == 0
+        model._stream_conversion_output_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                         rule=_stream_conversion_output_rule)
 
-            def _stream_conversion_rule(model, c, me_in, me_out, t):
-                # Define ratio between input and output streams for all conversion tuples
-                if (c, me_in, me_out) in self.conversion_tuples:
-                    return model.mass_energy_component_out_streams[c, me_out, t] == \
-                           model.mass_energy_component_in_streams[c, me_in, t] \
-                           * model.CONVERSION_FACTOR[c, me_in, me_out]
-                else:
-                    return Constraint.Skip
-            model.stream_conversion_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.ME_STREAMS, model.TIME,
-                                                     rule=_stream_conversion_rule)
-
-            def _stream_conversion_input_rule(model, c, me_in, t):
-                # Sets all inputs to 0 if not in conversion tuples
-                if (c, me_in) not in self.input_tuples:
-                    return model.mass_energy_component_in_streams[c, me_in, t] == 0
-                else:
-                    return Constraint.Skip
-            model._stream_conversion_input_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
-                                                            rule=_stream_conversion_input_rule)
-
-            def _stream_conversion_output_rule(model, c, me_out, t):
-                # Sets all outputs to 0 if not in conversion tuples
-                if (c, me_out) not in self.output_tuples:
-                    return model.mass_energy_component_out_streams[c, me_out, t] == 0
-                else:
-                    return Constraint.Skip
-            model._stream_conversion_output_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
-                                                             rule=_stream_conversion_output_rule)
-
-        else:
-            def _stream_conversion_output_rule(model, c, me_out, t):
-                # Define ratio between main input and output streams for all conversion tuples
-                main_input = self.pm_object.get_component(c).get_main_input()
-                if (c, main_input, me_out) in self.output_conversion_tuples:
-                    return model.mass_energy_component_out_streams[c, me_out, t] == \
+        def _stream_conversion_input_rule(model, c, me_in, t):
+            # Define ratio between main input and other input streams for all conversion tuples
+            main_input = pm_object.get_component(c).get_main_input()
+            if me_in == main_input:
+                return Constraint.Skip
+            else:
+                if (c, main_input, me_in) in self.input_conversion_tuples:
+                    return model.mass_energy_component_in_streams[c, me_in, t] == \
                            model.mass_energy_component_in_streams[c, main_input, t] \
-                           * self.conversion_tuples_dict[c, main_input, me_out]
+                           * self.input_conversion_tuples_dict[c, main_input, me_in]
                 else:
-                    return model.mass_energy_component_out_streams[c, me_out, t] == 0
-            model._stream_conversion_output_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
-                                                             rule=_stream_conversion_output_rule)
+                    return model.mass_energy_component_in_streams[c, me_in, t] == 0
+        model._stream_conversion_input_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                        rule=_stream_conversion_input_rule)
 
-            def _stream_conversion_input_rule(model, c, me_in, t):
-                # Define ratio between main input and other input streams for all conversion tuples
-                main_input = self.pm_object.get_component(c).get_main_input()
-                if me_in == main_input:
-                    return Constraint.Skip
-                else:
-                    if (c, main_input, me_in) in self.input_conversion_tuples:
-                        return model.mass_energy_component_in_streams[c, me_in, t] == \
-                               model.mass_energy_component_in_streams[c, main_input, t] \
-                               * self.conversion_tuples_dict[c, main_input, me_in]
+        if True:
+            def hot_standby_demand_rule(model, c, me_in, t):
+                # Defines demand for hot standby
+                if c in model.STANDBY_COMPONENTS:
+                    hot_standby_stream = [*pm_object.get_component(c).get_hot_standby_demand().keys()][0]
+                    hot_standby_demand = pm_object.get_component(c).get_hot_standby_demand()[hot_standby_stream]
+                    if me_in == hot_standby_stream:
+                        return model.mass_energy_hot_standby_demand[c, me_in, t] == model.status_standby[c, t] * hot_standby_demand
                     else:
-                        return model.mass_energy_component_in_streams[c, me_in, t] == 0
-            model._stream_conversion_input_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
-                                                            rule=_stream_conversion_input_rule)
+                        return model.mass_energy_hot_standby_demand[c, me_in, t] == 0
+                else:
+                    return model.mass_energy_hot_standby_demand[c, me_in, t] == 0
+            model.hot_standby_demand_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                      rule=hot_standby_demand_rule)
 
         def _conversion_maximal_component_capacity_rule(model, c, me_in, t):
             # Limits conversion on capacity of conversion unit and defines conversions
             # Important: Capacity is always matched with input
-            main_input = self.pm_object.get_component(c).get_main_input()
+            main_input = pm_object.get_component(c).get_main_input()
             if me_in == main_input:
                 return model.mass_energy_component_in_streams[c, me_in, t] <= model.nominal_cap[c] * model.max_p[c]
             else:
@@ -774,121 +805,189 @@ class OptimizationProblem:
                                                                       model.TIME,
                                                                       rule=_conversion_maximal_component_capacity_rule)
 
-        def _conversion_minimal_component_capacity_rule(model, c, me_in, t):
-            # Limits conversion on capacity of conversion unit and defines conversions
-            # Important: Capacity is always matched with input
-            main_input = self.pm_object.get_component(c).get_main_input()
-            if c not in model.SHUT_DOWN_COMPONENTS:
-                if me_in == main_input:
-                    return model.mass_energy_component_in_streams[c, me_in, t] >= model.nominal_cap[c] * model.min_p[c]
-                else:
-                    return Constraint.Skip
-            else:
+        if True:
+            def _conversion_minimal_component_capacity_rule(model, c, me_in, t):
+                # Limits conversion on capacity of conversion unit and defines conversions
+                main_input = pm_object.get_component(c).get_main_input()
                 if me_in == main_input:
                     return model.mass_energy_component_in_streams[c, me_in, t] \
-                           >= model.nominal_cap[c] * model.min_p[c] + (model.component_status[c, t] - 1) * 10000
+                           >= model.nominal_cap[c] * model.min_p[c] + (model.status_on[c, t] - 1) * 10000
                 else:
                     return Constraint.Skip
-        model._conversion_minimal_component_capacity_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS,
-                                                                      model.TIME,
-                                                                      rule=_conversion_minimal_component_capacity_rule)
+            model._conversion_minimal_component_capacity_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS,
+                                                                          model.TIME,
+                                                                          rule=_conversion_minimal_component_capacity_rule)
 
-        def _ramp_up_rule(model, c, me_in, t):
-            # Sets limits of change based on ramp up
-            main_input = self.pm_object.get_component(c).get_main_input()
-            if c in model.SHUT_DOWN_COMPONENTS:
+        if True:
+            def _ramp_up_rule(model, c, me_in, t):
+                # Sets limits of change based on ramp up
+                main_input = pm_object.get_component(c).get_main_input()
                 if me_in == main_input:
                     if t > 0:
                         return (model.mass_energy_component_in_streams[c, me_in, t]
                                 - model.mass_energy_component_in_streams[c, me_in, t - 1]) <= \
-                               model.nominal_cap[c] * model.ramp_up[c] + model.status_switch_on[c, t] * 10000
+                               model.nominal_cap[c] * model.ramp_up[c] + model.status_on_switch_on[c, t] * 10000
                     else:
                         return Constraint.Skip
                 else:
                     return Constraint.Skip
-            else:
-                if me_in == main_input:
-                    if t > 0:
-                        return (model.mass_energy_component_in_streams[c, me_in, t]
-                                - model.mass_energy_component_in_streams[c, me_in, t - 1]) <= \
-                               model.nominal_cap[c] * model.ramp_up[c]
-                    else:
-                        return Constraint.Skip
-                else:
-                    return Constraint.Skip
-        model._ramp_up_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME, rule=_ramp_up_rule)
+            model._ramp_up_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME, rule=_ramp_up_rule)
 
-        def _ramp_down_rule(model, c, me_in, t):
-            # Sets limits of change based on ramp down
-            main_input = self.pm_object.get_component(c).get_main_input()
-            if c in model.SHUT_DOWN_COMPONENTS:
-                # If shut down is possible, the change is unlimited
+        if True:
+            def _ramp_down_rule(model, c, me_in, t):
+                # Sets limits of change based on ramp down
+                main_input = pm_object.get_component(c).get_main_input()
                 if me_in == main_input:
                     if t > 0:
                         return (model.mass_energy_component_in_streams[c, me_in, t]
                                 - model.mass_energy_component_in_streams[c, me_in, t - 1]) >= \
-                               - model.nominal_cap[c] * model.ramp_down[c] - model.status_switch_off[c, t] * 10000
+                               - model.nominal_cap[c] * model.ramp_down[c] - model.status_on_switch_off[c, t] * 10000
                     else:
                         return Constraint.Skip
                 else:
                     return Constraint.Skip
-            else:
-                if me_in == main_input:
-                    if t > 0:
-                        return (model.mass_energy_component_in_streams[c, me_in, t]
-                                - model.mass_energy_component_in_streams[c, me_in, t - 1]) >= \
-                               - model.nominal_cap[c] * model.ramp_down[c]
-                    else:
-                        return Constraint.Skip
-                else:
-                    return Constraint.Skip
-        model._ramp_down_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
-                                          rule=_ramp_down_rule)
+            model._ramp_down_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                              rule=_ramp_down_rule)
 
         """ Component shut down and start up constraints """
-        def _active_component_rule(model, c, me_in, t):
-            # Set binary to 1 if component is active
-            main_input = self.pm_object.get_component(c).get_main_input()
-            if me_in == main_input:
-                return model.mass_energy_component_in_streams[c, me_in, t] \
-                       - model.component_status[c, t] * 10000 <= 0
-            else:
-                return Constraint.Skip
-        model._active_component_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.ME_STREAMS, model.TIME,
-                                                 rule=_active_component_rule)
+        if True:
+            def balance_component_status_rule(model, c, t):
+                # The component is either on, off or in hot standby
+                return model.status_on[c, t] + model.status_off[c, t] + model.status_standby[c, t] == 1
+            model.balance_component_status_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                            rule=balance_component_status_rule)
 
-        def _balance_switch_rule(model, c, t):
-            # forbids simultaneous switch on and off
-            return model.status_switch_off[c, t] + model.status_switch_on[c, t] <= 1
-        model._balance_switch_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
-                                               rule=_balance_switch_rule)
+        if True:
+            def component_no_shutdown_or_standby_rule(model, c, t):
+                # If component can not be shut off or put in hot standby, the status is always on
+                if (c not in model.SHUT_DOWN_COMPONENTS) & (c not in model.STANDBY_COMPONENTS):
+                    return model.status_on[c, t] == 1
+                else:
+                    return Constraint.Skip
+            model.component_no_shutdown_or_standby_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                                    rule=component_no_shutdown_or_standby_rule)
 
-        def _define_status_rule(model, c, t):
-            # status is either 1 or 0 and can be changed with switch on (0 -> 1) or switch off (1 -> 0)
-            if t > 0:
-                return model.component_status[c, t] == model.component_status[c, t - 1] + \
-                       model.status_switch_on[c, t] - model.status_switch_off[c, t]
-            else:
-                return Constraint.Skip
-        model._define_status_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
-                                              rule=_define_status_rule)
+        if True:
+            def component_no_shutdown_rule(model, c, t):
+                # If component can not be shut off or put in hot standby, the status is always on
+                if c not in model.SHUT_DOWN_COMPONENTS:
+                    return model.status_off[c, t] == 0
+                else:
+                    return Constraint.Skip
+            model.component_no_shutdown_rule = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                          rule=component_no_shutdown_rule)
 
-        def _deactivate_component_rule(model, c, t):
-            # if component is shut off, it can not be turned on again
-            # without waiting for time = shut down time + start up time
-            range_time = int(min(max(model.TIME) - t, model.shut_down_time[c] + model.start_up_time[c]))
-            if t < max(model.TIME):
-                return (model.status_switch_off[c, t]
-                        - sum(model.status_switch_on[c, t + i + 1] for i in range(0, range_time))) == 0
-            else:
-                return Constraint.Skip
-        model._deactivate_component_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
-                                                     rule=_deactivate_component_rule)
+        if True:
+            def component_no_standby_rule(model, c, t):
+                # If component can not be shut off or put in hot standby, the status is always on
+                if c not in model.STANDBY_COMPONENTS:
+                    return model.status_standby[c, t] == 0
+                else:
+                    return Constraint.Skip
+            model.component_no_standby_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                        rule=component_no_standby_rule)
+
+        if True:
+
+            def _active_component_rule(model, c, me_in, t):
+                # Set binary to 1 if component is active
+                main_input = pm_object.get_component(c).get_main_input()
+                if me_in == main_input:
+                    return model.mass_energy_component_in_streams[c, me_in, t] \
+                           - model.status_on[c, t] * 10000 <= 0
+                else:
+                    return Constraint.Skip
+            model._active_component_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
+                                                     rule=_active_component_rule)
+
+        if True:
+
+            def _balance_status_on_switch_rule(model, c, t):
+                # forbids simultaneous switch on and off
+                return model.status_on_switch_off[c, t] + model.status_on_switch_on[c, t] <= 1
+            model._balance_status_on_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                             rule=_balance_status_on_switch_rule)
+
+            def define_status_on_switch_rule(model, c, t):
+                # status is either 1 or 0 and can be changed with switch on (0 -> 1) or switch off (1 -> 0)
+                if t > 0:
+                    return model.status_on[c, t] == model.status_on[c, t - 1] + \
+                           model.status_on_switch_on[c, t] - model.status_on_switch_off[c, t]
+                else:
+                    return Constraint.Skip
+            model.define_status_on_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                           rule=define_status_on_switch_rule)
+
+        if True:
+
+            def _balance_status_off_switch_rule(model, c, t):
+                # forbids simultaneous switch on and off
+                return model.status_off_switch_off[c, t] + model.status_off_switch_on[c, t] <= 1
+            model._balance_status_off_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                              rule=_balance_status_off_switch_rule)
+
+            def define_shutdown_switch_rule(m, c, t):
+                if t > 0:
+                    return m.status_off[c, t] == m.status_off[c, t - 1] + \
+                           m.status_off_switch_on[c, t] - m.status_off_switch_off[c, t]
+                else:
+                    return Constraint.Skip
+            model.define_shutdown_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                          rule=define_shutdown_switch_rule)
+
+            def _balance_status_standby_switch_rule(model, c, t):
+                # forbids simultaneous switch on and off
+                return model.status_standby_switch_off[c, t] + model.status_standby_switch_on[c, t] <= 1
+            model._balance_status_standby_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                                  rule=_balance_status_standby_switch_rule)
+
+            def define_standby_switch_rule(m, c, t):
+                if t > 0:
+                    return m.status_standby[c, t] == m.status_standby[c, t - 1] + \
+                           m.status_standby_switch_on[c, t] - m.status_standby_switch_off[c, t]
+                else:
+                    return Constraint.Skip
+            model.define_standby_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                         rule=define_standby_switch_rule)
+        if True:
+            def _deactivate_component_rule(model, c, t):
+                # if component is shut off, it can not be turned on again
+                # without waiting for down_time
+                if c in model.SHUT_DOWN_COMPONENTS:
+                    if model.down_time[c] + t > max(model.TIME):
+                        dt = max(model.TIME) - t + 1
+                    else:
+                        dt = model.down_time[c]
+
+                    return (dt - model.status_off_switch_on[c, t] * dt) >= sum(model.status_on_switch_on[c, t + i]
+                                                                            for i in range(0, dt))
+                else:
+                    return Constraint.Skip
+            model._deactivate_component_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                         rule=_deactivate_component_rule)
+
+        if True:
+
+            def go_into_standby_rule(model, c, t):
+                # if component is shut off, it can not be turned on again
+                # without waiting for down_time
+                if c in model.STANDBY_COMPONENTS:
+                    if model.standby_time[c] + t > max(model.TIME):
+                        st = max(model.TIME) - t + 1
+                    else:
+                        st = model.standby_time[c]
+
+                    return (st - model.status_standby_switch_on[c, t] * st) >= sum(model.status_on_switch_on[c, t + i]
+                                                                                   for i in range(0, st))
+                else:
+                    return Constraint.Skip
+            model.go_into_standby_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                   rule=go_into_standby_rule)
 
         """ Capacity of scalable units """
         def capacity_binary_sum_rule(model, c):
             # For each component, only one capacity over all integer steps can be 1
-            return sum(model.capacity_binary[c, i] for i in model.INTEGER_STEPS) <= 1
+            return sum(model.capacity_binary[c, i] for i in model.INTEGER_STEPS) <= 1  # todo: == 1?
         model.capacity_binary_sum_con = Constraint(model.SCALABLE_COMPONENTS,
                                                    rule=capacity_binary_sum_rule)
 
@@ -900,6 +999,8 @@ class OptimizationProblem:
 
         def set_lower_bound_rule(model, c, i):
             # capacity binary sets lower bound. Lower bound is not predefined as each capacity step can be 0
+            # if capacity binary = 0 -> nominal_cap_pre has no lower bound
+            # if capacity binary = 1 -> nominal_cap_pre needs to be at least lower bound
             return model.nominal_cap_pre[c, i] >= self.lower_bound_dict[c, i] * model.capacity_binary[c, i]
         model.set_lower_bound_con = Constraint(model.SCALABLE_COMPONENTS, model.INTEGER_STEPS,
                                                rule=set_lower_bound_rule)
@@ -908,21 +1009,6 @@ class OptimizationProblem:
             # Final capacity of component is sum of capacity over all integer steps
             return model.nominal_cap[c] == sum(model.nominal_cap_pre[c, i] for i in model.INTEGER_STEPS)
         model.final_capacity_con = Constraint(model.SCALABLE_COMPONENTS, rule=final_capacity_rule)
-
-        if False:
-
-            def lower_bound_adherence_rule(model, c, i):
-                # To allow the capacity steps to be 0, they have no lower bound.
-                # Therefore, it is ensured that the lower bound is adhered
-                # Activates binary if the capacity is lower than the lower bound of the integer step
-                # This binary is later used to penalize the objective function
-                if i == 0:
-                    return model.penalty_binary_lower_bound[c, i] == 1
-                else:
-                    return model.penalty_binary_lower_bound[c, i] >= (self.lower_bound_dict[c, i] - model.nominal_cap_pre[c, i]) / 1000
-            model.lower_bound_adherence_con = Constraint(model.SCALABLE_COMPONENTS,
-                                                              model.INTEGER_STEPS,
-                                                              rule=lower_bound_adherence_rule)
 
         """ Storage constraints """
         def storage_balance_rule(model, me, t):
@@ -994,7 +1080,7 @@ class OptimizationProblem:
                 # E.g., if battery should be able to store max a 24 hour supply for electrolysis
                 c = model.storage_limiting_component[s]
                 coefficient = 1
-                main_input = self.pm_object.get_component(c).get_main_input()
+                main_input = pm_object.get_component(c).get_main_input()
                 for stream in model.ME_STREAMS:
                     if (c, stream, s) in [*self.conversion_tuples_dict.keys()]:
                         # Case, the storage is based in input -> Adjust coefficient
@@ -1139,26 +1225,6 @@ class OptimizationProblem:
             return model.total_revenue == sum(model.revenue[me] for me in model.SALEABLE_STREAMS)
         model._total_revenue_con = Constraint(rule=_total_revenue_rule)
 
-        if False:
-            def power_lower_bound_ignoring_penalty_rule(model):
-                # Penalize capacities lower than lower bound
-                if False:
-                    return model.power_penalty == sum(-(model.component_status[c, t]
-                                                       - model.component_correct_p[c, t] - 1) * model.M
-                                                      for c in model.SHUT_DOWN_COMPONENTS
-                                                      for t in model.TIME)
-                else:
-                    return model.power_penalty == sum(model.wrong_power[c] * 1000000000
-                                                      for c in model.SHUT_DOWN_COMPONENTS)
-            model.capacity_lower_bound_ignoring_penalty_con = Constraint(
-                rule=power_lower_bound_ignoring_penalty_rule)
-
-            def wrong_power_rule(model, c):
-                return model.wrong_power[c] * 10000000000 >= sum((model.component_status[c, t]
-                                                                  + model.component_correct_p[c, t] - 1)
-                                                                 for t in model.TIME)
-            model.wrong_power_con = Constraint(model.SHUT_DOWN_COMPONENTS, rule=wrong_power_rule)
-
         def objective_function(model):
             # Define objective function
             return (model.total_annuity
@@ -1169,7 +1235,6 @@ class OptimizationProblem:
                     + model.total_working_capital_costs
                     + model.total_purchase_costs
                     - model.total_revenue)
-                    #+ model.power_penalty)
         model.obj = Objective(rule=objective_function, sense=minimize)
 
         return model
@@ -1191,10 +1256,10 @@ class OptimizationProblem:
         return instance, results
 
     def reset_information(self):
-        self.conversion_tuples = []
-        self.conversion_tuples_dict = {}
-        self.main_tuples = []
-        self.side_tuples = []
+        self.input_conversion_tuples = []
+        self.output_conversion_tuples = []
+        self.input_conversion_tuples_dict = {}
+        self.output_conversion_tuples_dict = {}
         self.input_tuples = []
         self.output_tuples = []
 
@@ -1202,13 +1267,14 @@ class OptimizationProblem:
 
         self.input_conversion_tuples = []
         self.output_conversion_tuples = []
-        self.conversion_tuples_dict = {}
+        self.input_conversion_tuples_dict = {}
+        self.output_conversion_tuples_dict = {}
         self.input_tuples = []
         self.output_tuples = []
+        self.lower_bound_dict = {}
 
         # ----------------------------------
         # Set up problem
-
         self.path_data = path_data
         self.solver = solver
         self.instance = None
@@ -1227,7 +1293,6 @@ class OptimizationProblem:
             if solved_feasible:
                 self.instance, self.results = self.optimize(self.model, self.instance)
             else:
-                self.pm_object = self.pre_adjustments(pm_object)
                 model = self.initialize_problem(self.pm_object)
                 model = self.post_adjustments(self.pm_object, model)
                 self.model = self.attach_constraints(self.pm_object, model)

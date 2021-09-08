@@ -9,7 +9,9 @@ from datetime import datetime
 from _helpers_gui import ToggledFrame
 from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
-from objects_formulation import ParameterObject
+from parameter_object import ParameterObject
+
+from load_projects import load_001, load_002
 
 
 class Interface:
@@ -29,11 +31,33 @@ class Interface:
         if self.path_custom is None:  # New project
 
             self.pm_object_original = ParameterObject('parameter', integer_steps=10)
+            self.pm_object_original.create_new_project()
+
             self.pm_object_copy = ParameterObject('parameter2', integer_steps=10)
+            self.pm_object_copy.create_new_project()
+
             self.root.title('New Project')
+
         else:  # Custom project
-            self.pm_object_original = ParameterObject('parameter', path_custom=self.path_custom, integer_steps=10)
-            self.pm_object_copy = ParameterObject('parameter2', path_custom=self.path_custom, integer_steps=10)
+
+            self.pm_object_original = ParameterObject('parameter', integer_steps=10)
+            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10)
+
+            case_data = pd.read_excel(self.path_custom, index_col=0)
+
+            if 'version' in case_data.columns:
+                version = str(case_data.loc[0, 'version'])
+
+                if version == '0.0.1':
+                    self.pm_object_original = load_001(self.pm_object_original, case_data)
+                    self.pm_object_copy = load_001(self.pm_object_copy, case_data)
+                elif version == '0.0.2':
+                    self.pm_object_original = load_002(self.pm_object_original, case_data)
+                    self.pm_object_copy = load_002(self.pm_object_copy, case_data)
+
+            else:  # Case where no version exists
+                self.pm_object_original = load_001(self.pm_object_original, case_data)
+                self.pm_object_copy = load_001(self.pm_object_copy, case_data)
 
             custom_title = self.path_custom.split('/')[-1].split('.')[0]
             self.root.title(custom_title)
@@ -343,6 +367,10 @@ class Interface:
 
         k = 0
 
+        case_data.loc[k, 'version'] = '0.0.2'
+
+        k += 1
+
         for parameter in self.pm_object_copy.get_general_parameters():
             value = self.pm_object_copy.get_general_parameter_value(parameter)
 
@@ -366,18 +394,22 @@ class Interface:
 
             if component.get_component_type() == 'conversion':
 
-                case_data.loc[k, 'min_p'] = component.get_min_p()
-                case_data.loc[k, 'max_p'] = component.get_max_p()
-                case_data.loc[k, 'ramp_up'] = component.get_ramp_up()
-                case_data.loc[k, 'ramp_down'] = component.get_ramp_down()
-                case_data.loc[k, 'shut_down_ability'] = component.get_shut_down_ability()
-                case_data.loc[k, 'shut_down_time'] = component.get_shut_down_time()
-                case_data.loc[k, 'start_up_time'] = component.get_start_up_time()
+                case_data.loc[k, 'capex_basis'] = component.get_capex_basis()
                 case_data.loc[k, 'scalable'] = component.is_scalable()
                 case_data.loc[k, 'base_investment'] = component.get_base_investment()
                 case_data.loc[k, 'base_capacity'] = component.get_base_capacity()
                 case_data.loc[k, 'economies_of_scale'] = component.get_economies_of_scale()
                 case_data.loc[k, 'max_capacity_economies_of_scale'] = component.get_max_capacity_economies_of_scale()
+                case_data.loc[k, 'min_p'] = component.get_min_p()
+                case_data.loc[k, 'max_p'] = component.get_max_p()
+                case_data.loc[k, 'ramp_up'] = component.get_ramp_up()
+                case_data.loc[k, 'ramp_down'] = component.get_ramp_down()
+                case_data.loc[k, 'shut_down_ability'] = component.get_shut_down_ability()
+                case_data.loc[k, 'start_up_time'] = component.get_start_up_time()
+                case_data.loc[k, 'hot_standby_ability'] = component.get_hot_standby_ability()
+                case_data.loc[k, 'hot_standby_stream'] = [*component.get_hot_standby_demand().keys()][0]
+                case_data.loc[k, 'hot_standby_demand'] = component.get_hot_standby_demand()[[*component.get_hot_standby_demand().keys()][0]]
+                case_data.loc[k, 'hot_standby_startup_time'] = component.get_hot_standby_startup_time()
                 case_data.loc[k, 'number_parallel_units'] = component.get_number_parallel_units()
 
             elif component.get_component_type() == 'generator':
@@ -493,7 +525,7 @@ class Interface:
 
     def analyze_results(self, optimization_problem):
 
-        result = Result(optimization_problem, self.path_result)
+        result = Result(optimization_problem, self.path_result, self.path_data)
 
     def get_data_template(self):
 
@@ -505,7 +537,7 @@ class Interface:
 
         from _helpers_gui import SettingWindow
         from os import walk
-        from objects_formulation import ParameterObject
+        from parameter_object import ParameterObject
         from optimization_classes_and_methods import OptimizationProblem
         from analysis_classes_and_methods import Result
 

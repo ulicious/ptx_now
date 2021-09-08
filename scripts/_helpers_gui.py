@@ -12,7 +12,7 @@ from streams_classes_and_methods import StreamFrame
 from storage_classes_and_methods import StorageFrame
 from generators_classes_and_methods import GeneratorFrame
 
-from objects_formulation import GenerationComponent, StorageComponent
+from components import GenerationComponent, StorageComponent
 
 import os
 

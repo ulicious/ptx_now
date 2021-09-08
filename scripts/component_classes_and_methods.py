@@ -2,10 +2,9 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import *
 import random
-import pandas as pd
 
-from objects_formulation import Stream
-from objects_formulation import ConversionComponent
+from stream import Stream
+from components import ConversionComponent
 
 
 class ComponentFrame:
@@ -89,8 +88,15 @@ class ComponentParametersFrame:
                 self.component_object.set_shut_down_ability(False)
             else:
                 self.component_object.set_shut_down_ability(True)
-                self.component_object.set_shut_down_time(float(self.label_shut_down_value_str.get()))
                 self.component_object.set_start_up_time(float(self.label_start_up_value_str.get()))
+
+            if not self.hot_standby_ability_var.get():
+                self.component_object.set_hot_standby_ability(False)
+            else:
+                self.component_object.set_hot_standby_ability(True)
+                self.component_object.set_hot_standby_demand(self.pm_object.get_abbreviation(hot_standby_combobox.get()),
+                                                             float(hot_standby_entry.get()))
+                self.component_object.set_hot_standby_startup_time(int(hot_standby_startup_time_entry.get()))
 
             self.component_object.set_number_parallel_units(float(self.label_number_parallel_units_str.get()))
 
@@ -118,12 +124,20 @@ class ComponentParametersFrame:
 
         def activate_shut_down():
             if self.shut_down_ability_var.get():
-                entry_shut_down.config(state=NORMAL)
                 entry_start_up.config(state=NORMAL)
 
             else:
-                entry_shut_down.config(state=DISABLED)
                 entry_start_up.config(state=DISABLED)
+
+        def activate_hot_standby():
+            if self.hot_standby_ability_var.get():
+                hot_standby_combobox.config(state='readonly')
+                hot_standby_entry.config(state=NORMAL)
+                hot_standby_startup_time_entry.config(state=NORMAL)
+            else:
+                hot_standby_combobox.config(state=DISABLED)
+                hot_standby_entry.config(state=DISABLED)
+                hot_standby_startup_time_entry.config(state=DISABLED)
 
         def change_capex_basis():
             if capex_basis_var.get() == 'input':
@@ -131,20 +145,34 @@ class ComponentParametersFrame:
                 main_input_nice_name = self.pm_object.get_nice_name(main_input)
                 unit_new = self.pm_object.get_stream(main_input).get_unit()
 
-                capex_unit.set('Capex [€/' + unit_new + ' ' + main_input_nice_name + ']')
-                base_investment_var.set('Base Investment [€/' + unit_new + ' ' + main_input_nice_name + ']')
-                base_capacity_var.set('Base Capacity [' + unit_new + ' ' + main_input_nice_name + ']')
-                max_capacity_var.set('Maximal Capacity [' + unit_new + ' ' + main_input_nice_name + ']')
+                if unit_new == 'kWh':
+                    unit_new = 'kW' + main_input_nice_name
+                elif unit_new == 'MWh':
+                    unit_new = 'MW' + main_input_nice_name
+                else:
+                    unit_new = unit_new + main_input_nice_name + ' / h'
+
+                capex_unit.set('Capex [€/' + unit_new + ']')
+                base_investment_var.set('Base Investment [€/' + unit_new + ']')
+                base_capacity_var.set('Base Capacity [' + unit_new + ']')
+                max_capacity_var.set('Maximal Capacity [' + unit_new + ']')
 
             else:
                 main_output = self.component_object.get_main_output()
                 main_output_nice_name = self.pm_object.get_nice_name(main_output)
                 unit_new = self.pm_object.get_stream(main_output).get_unit()
 
-                capex_unit.set('Capex [€/' + unit_new + ' ' + main_output_nice_name + ']')
-                base_investment_var.set('Base Investment [€/' + unit_new + ' ' + main_output_nice_name + ']')
-                base_capacity_var.set('Base Capacity [' + unit_new + ' ' + main_output_nice_name + ']')
-                max_capacity_var.set('Maximal Capacity [' + unit_new + ' ' + main_output_nice_name + ']')
+                if unit_new == 'kWh':
+                    unit_new = 'kW' + main_output_nice_name
+                elif unit_new == 'MWh':
+                    unit_new = 'MW' + main_output_nice_name
+                else:
+                    unit_new = unit_new + main_output_nice_name + ' / h'
+
+                capex_unit.set('Capex [€/' + unit_new + ']')
+                base_investment_var.set('Base Investment [€/' + unit_new + ']')
+                base_capacity_var.set('Base Capacity [' + unit_new + ']')
+                max_capacity_var.set('Maximal Capacity [' + unit_new + ']')
 
         # Toplevel object which will
         # be treated as a new window
@@ -200,7 +228,7 @@ class ComponentParametersFrame:
         max_capacity_var = StringVar()
         max_capacity_var.set('Maximal Capacity [' + unit + ']')
 
-        capex_label = ttk.Label(newWindow, textvariable=capex_unit).grid(row=2, column=0, sticky='w')
+        ttk.Label(newWindow, textvariable=capex_unit).grid(row=2, column=0, sticky='w')
         entry_capex_var = ttk.Entry(newWindow, text=self.label_capex_value_str, state=status_no_scale)
         entry_capex_var.grid(row=2, column=1, sticky='w')
 
@@ -264,23 +292,49 @@ class ComponentParametersFrame:
         else:
             shut_down_state = DISABLED
 
-        tk.Label(newWindow, text='Shut down [h]').grid(row=14, column=0, sticky='w')
-        entry_shut_down = ttk.Entry(newWindow, text=self.label_shut_down_value_str, state=shut_down_state)
-        entry_shut_down.grid(row=14, column=1, sticky='w')
-
-        tk.Label(newWindow, text='Start up [h]').grid(row=15, column=0, sticky='w')
+        ttk.Label(newWindow, text='Cold Start up Time [h]').grid(row=14, column=0, sticky='w')
         entry_start_up = ttk.Entry(newWindow, text=self.label_start_up_value_str, state=shut_down_state)
-        entry_start_up.grid(row=15, column=1, sticky='w')
+        entry_start_up.grid(row=14, column=1, sticky='w')
 
-        tk.Label(newWindow, text='Number of units in system').grid(row=16, column=0, sticky='w')
+        # Hot standby ability
+        if self.hot_standby_ability_var.get():
+            state_hot_standby = NORMAL
+            state_hot_standby_combobox = 'readonly'
+        else:
+            state_hot_standby = DISABLED
+            state_hot_standby_combobox = DISABLED
+
+        ttk.Checkbutton(newWindow, text='Hot Standby possible?', variable=self.hot_standby_ability_var,
+                        command=activate_hot_standby).grid(row=15, column=0, columnspan=2, sticky='w')
+
+        streams = []
+        for s in self.pm_object.get_specific_streams('final'):
+            streams.append(s.get_nice_name())
+
+        ttk.Label(newWindow, text='Hot Standby Input Stream').grid(row=16, column=0, sticky='w')
+        hot_standby_combobox = ttk.Combobox(newWindow, text='', values=streams, state=state_hot_standby_combobox)
+        hot_standby_combobox.set(self.hot_standby_stream_var.get())
+        hot_standby_combobox.grid(row=16, column=1, sticky='w')
+
+        ttk.Label(newWindow, text='Hot Standby Hourly Demand').grid(row=17, column=0, sticky='w')
+        hot_standby_entry = ttk.Entry(newWindow, text=self.hot_standby_demand_var, state=state_hot_standby)
+        hot_standby_entry.grid(row=17, column=1, sticky='w')
+
+        ttk.Label(newWindow, text='Hot Standby Startup Time [h]').grid(row=18, column=0, sticky='w')
+        hot_standby_startup_time_entry = ttk.Entry(newWindow, text=self.hot_standby_demand_startup_time,
+                                                   state=state_hot_standby)
+        hot_standby_startup_time_entry.grid(row=18, column=1, sticky='w')
+
+        # Number of units of same type in system
+        tk.Label(newWindow, text='Number of units in system').grid(row=19, column=0, sticky='w')
         entry_number_units = ttk.Entry(newWindow, text=self.label_number_parallel_units_str)
-        entry_number_units.grid(row=16, column=1, sticky='w')
+        entry_number_units.grid(row=19, column=1, sticky='w')
 
         button = ttk.Button(newWindow, text='Adjust values', command=get_value_and_kill_window)
-        button.grid(row=17, column=0, sticky='ew')
+        button.grid(row=20, column=0, sticky='ew')
 
         button = ttk.Button(newWindow, text='Cancel', command=newWindow.destroy)
-        button.grid(row=17, column=1, sticky='ew')
+        button.grid(row=20, column=1, sticky='ew')
 
         newWindow.grid_columnconfigure(0, weight=1, uniform='a')
         newWindow.grid_columnconfigure(1, weight=1, uniform='a')
@@ -360,10 +414,44 @@ class ComponentParametersFrame:
             capex_unit = self.component_object.get_capex_unit()
             lifetime = self.component_object.get_lifetime()
             maintenance = round(float(self.component_object.get_maintenance() * 100), 2)
+
             min_p = round(float(self.component_object.get_min_p() * 100), 2)
             max_p = round(float(self.component_object.get_max_p() * 100), 2)
             ramp_down = round(float(self.component_object.get_ramp_down() * 100), 2)
             ramp_up = round(float(self.component_object.get_ramp_up() * 100), 2)
+
+            shut_down_ability = bool(self.component_object.get_shut_down_ability())
+            self.shut_down_ability_var = BooleanVar()
+            self.shut_down_ability_var.set(shut_down_ability)
+            self.label_start_up_value_str = StringVar()
+            if shut_down_ability:
+                start_up_time = self.component_object.get_start_up_time()
+                self.label_start_up_value_str.set(start_up_time)
+            else:
+                self.label_start_up_value_str.set(0)
+
+            hot_standby_ability = bool(self.component_object.get_hot_standby_ability())
+            self.hot_standby_ability_var = BooleanVar()
+            self.hot_standby_ability_var.set(hot_standby_ability)
+            self.hot_standby_stream_var = StringVar()
+            self.hot_standby_demand_var = StringVar()
+            self.hot_standby_demand_startup_time = IntVar()
+            if hot_standby_ability:
+                hot_standby_demand = self.component_object.get_hot_standby_demand()
+                stream = [*hot_standby_demand.keys()][0]
+                stream_nice_name = self.pm_object.get_nice_name(stream)
+                hot_standby_unit = self.pm_object.get_stream(stream).get_unit()
+                hot_standby_startup_time = self.component_object.get_hot_standby_startup_time()
+
+                self.hot_standby_ability_var.set(hot_standby_ability)
+                self.hot_standby_stream_var.set(stream_nice_name)
+                self.hot_standby_demand_var.set(hot_standby_demand[stream])
+                self.hot_standby_demand_startup_time.set(hot_standby_startup_time)
+            else:
+                self.hot_standby_stream_var.set('')
+                self.hot_standby_demand_var.set(0)
+                self.hot_standby_demand_startup_time.set(0)
+
             number_parallel_units = int(self.component_object.get_number_parallel_units())
 
             self.label_capex_value_str = StringVar()
@@ -392,27 +480,22 @@ class ComponentParametersFrame:
             self.label_ramp_up_value_str = StringVar()
             self.label_ramp_up_value_str.set(ramp_up)
 
-            self.shut_down_ability_var = BooleanVar()
-            self.shut_down_ability_var.set(False)
-            self.label_shut_down_value_str = StringVar()
-            self.label_start_up_value_str = StringVar()
-
             self.label_number_parallel_units_str = StringVar()
             self.label_number_parallel_units_str.set(number_parallel_units)
 
             # Capex Basis
             ttk.Label(self.frame, text='Investment Basis').grid(row=1, column=0, sticky='ew')
 
-            self.capex_basis_frame = ttk.Frame(self.frame)
+            capex_basis_frame = ttk.Frame(self.frame)
 
-            self.capex_basis_input_rb = ttk.Radiobutton(self.capex_basis_frame, text='Main Input', value='input',
-                                                        variable=self.capex_basis_var, state=DISABLED)
-            self.capex_basis_input_rb.grid(row=0, column=0)
-            self.capex_basis_output_rb = ttk.Radiobutton(self.capex_basis_frame, text='Main Output', value='output',
-                                                         variable=self.capex_basis_var, state=DISABLED)
-            self.capex_basis_output_rb.grid(row=0, column=1)
+            ttk.Radiobutton(capex_basis_frame, text='Main Input', value='input',
+                            variable=self.capex_basis_var, state=DISABLED).grid(row=0, column=0)
+            ttk.Radiobutton(capex_basis_frame, text='Main Output', value='output',
+                            variable=self.capex_basis_var, state=DISABLED).grid(row=0, column=1)
 
-            self.capex_basis_frame.grid(row=1, column=1, sticky='ew')
+            capex_basis_frame.grid(row=1, column=1, sticky='ew')
+
+            i = 2
 
             if not self.component_object.is_scalable():
 
@@ -421,12 +504,11 @@ class ComponentParametersFrame:
                 capex = self.component_object.get_capex()
                 self.label_capex_value_str.set(capex)
 
-                self.label_capex = ttk.Label(self.frame, text='CAPEX [' + self.label_capex_unit_str.get() + ']')
-                self.label_capex.grid(column=0, row=2, sticky='w')
-                self.label_capex_value = ttk.Label(self.frame, text=self.label_capex_value_str.get())
-                self.label_capex_value.grid(column=1, row=2, sticky='w')
+                ttk.Label(self.frame, text='CAPEX [' + self.label_capex_unit_str.get() + ']').grid(column=0,
+                                                                                                   row=i, sticky='w')
+                ttk.Label(self.frame, text=self.label_capex_value_str.get()).grid(column=1, row=i, sticky='w')
 
-                i = 0
+                i += 1
 
             else:
 
@@ -444,104 +526,100 @@ class ComponentParametersFrame:
                 self.label_max_capacity_eoc_value_str.set(max_capacity_eoc)
 
                 self.label_base_investment = ttk.Label(self.frame, text='Base investment [' + self.label_capex_unit_str.get() + ']')
-                self.label_base_investment.grid(column=0, row=2, sticky='w')
+                self.label_base_investment.grid(column=0, row=i+1, sticky='w')
                 self.label_base_investment_value = ttk.Label(self.frame,
                                                              text=self.label_base_investment_value_str.get())
-                self.label_base_investment_value.grid(column=1, row=2, sticky='w')
+                self.label_base_investment_value.grid(column=1, row=i+1, sticky='w')
 
                 unit = self.label_capex_unit_str.get().split('/')[-1]
                 if unit == 'MWh':
                     unit = 'MW'
+                elif unit == 'kWh':
+                    unit = 'kW'
 
                 self.label_base_capacity = ttk.Label(self.frame, text='Base capacity [' + unit + ']')
-                self.label_base_capacity.grid(column=0, row=3, sticky='w')
+                self.label_base_capacity.grid(column=0, row=i+2, sticky='w')
                 self.label_base_capacity_value = ttk.Label(self.frame, text=self.label_base_capacity_value_str.get())
-                self.label_base_capacity_value.grid(column=1, row=3, sticky='w')
+                self.label_base_capacity_value.grid(column=1, row=i+2, sticky='w')
 
                 self.label_scaling_factor = ttk.Label(self.frame, text='Scaling factor')
-                self.label_scaling_factor.grid(column=0, row=4, sticky='w')
+                self.label_scaling_factor.grid(column=0, row=i+3, sticky='w')
                 self.label_scaling_factor_value = ttk.Label(self.frame,
                                                             text=self.label_scaling_factor_value_str.get())
-                self.label_scaling_factor_value.grid(column=1, row=4, sticky='w')
+                self.label_scaling_factor_value.grid(column=1, row=i+3, sticky='w')
 
                 self.label_max_capacity_eoc = ttk.Label(self.frame, text='Max capacity [' + unit + ']')
-                self.label_max_capacity_eoc.grid(column=0, row=5, sticky='w')
+                self.label_max_capacity_eoc.grid(column=0, row=i+4, sticky='w')
                 self.label_max_capacity_eoc_value = ttk.Label(self.frame,
                                                               text=self.label_max_capacity_eoc_value_str.get())
-                self.label_max_capacity_eoc_value.grid(column=1, row=5, sticky='w')
+                self.label_max_capacity_eoc_value.grid(column=1, row=i+4, sticky='w')
 
-                i = 3
+                i += 4
 
-            self.label_lifetime = ttk.Label(self.frame, text='Lifetime [Years]')
-            self.label_lifetime.grid(column=0, row=3+i, sticky='w')
-            self.label_lifetime_value = ttk.Label(self.frame, text=self.label_lifetime_value_str.get())
-            self.label_lifetime_value.grid(column=1, row=3+i, sticky='w')
+            ttk.Label(self.frame, text='Lifetime [Years]').grid(column=0, row=i+1, sticky='w')
+            ttk.Label(self.frame, text=self.label_lifetime_value_str.get()).grid(column=1, row=i+1, sticky='w')
 
-            self.label_maintenance = ttk.Label(self.frame, text='Maintenance [%]')
-            self.label_maintenance.grid(column=0, row=4+i, sticky='w')
-            self.label_maintenance_value = ttk.Label(self.frame, text=self.label_maintenance_value_str.get())
-            self.label_maintenance_value.grid(column=1, row=4+i, sticky='w')
+            ttk.Label(self.frame, text='Maintenance [%]').grid(column=0, row=i+2, sticky='w')
+            ttk.Label(self.frame, text=self.label_maintenance_value_str.get()).grid(column=1, row=i+2, sticky='w')
 
-            self.label_min_capacity = ttk.Label(self.frame, text='Minimal power [%]')
-            self.label_min_capacity.grid(column=0, row=5+i, sticky='w')
-            self.label_min_capacity_value = ttk.Label(self.frame, text=self.label_min_capacity_value_str.get())
-            self.label_min_capacity_value.grid(column=1, row=5+i, sticky='w')
+            ttk.Label(self.frame, text='Minimal power [%]').grid(column=0, row=i+3, sticky='w')
+            ttk.Label(self.frame, text=self.label_min_capacity_value_str.get()).grid(column=1, row=i+3, sticky='w')
 
-            self.label_max_capacity = ttk.Label(self.frame, text='Maximal power [%]')
-            self.label_max_capacity.grid(column=0, row=6+i, sticky='w')
-            self.label_max_capacity_value = ttk.Label(self.frame, text=self.label_max_capacity_value_str.get())
-            self.label_max_capacity_value.grid(column=1, row=6+i, sticky='w')
+            ttk.Label(self.frame, text='Maximal power [%]').grid(column=0, row=i+4, sticky='w')
+            ttk.Label(self.frame, text=self.label_max_capacity_value_str.get()).grid(column=1, row=i+4, sticky='w')
 
-            self.label_ramp_down = ttk.Label(self.frame, text='Ramp down time [%/h]')
-            self.label_ramp_down.grid(column=0, row=7 + i, sticky='w')
-            self.label_ramp_down_value = ttk.Label(self.frame, text=self.label_ramp_down_value_str.get())
-            self.label_ramp_down_value.grid(column=1, row=7 + i, sticky='w')
+            ttk.Label(self.frame, text='Ramp down time [%/h]').grid(column=0, row=i+5, sticky='w')
+            ttk.Label(self.frame, text=self.label_ramp_down_value_str.get()).grid(column=1, row=i+5, sticky='w')
 
-            self.label_ramp_up = ttk.Label(self.frame, text='Ramp up time [%/h]')
-            self.label_ramp_up.grid(column=0, row=8 + i, sticky='w')
-            self.label_ramp_up_value = ttk.Label(self.frame, text=self.label_ramp_up_value_str.get())
-            self.label_ramp_up_value.grid(column=1, row=8 + i, sticky='w')
+            ttk.Label(self.frame, text='Ramp up time [%/h]').grid(column=0, row=i+6, sticky='w')
+            ttk.Label(self.frame, text=self.label_ramp_up_value_str.get()).grid(column=1, row=i+6, sticky='w')
 
-            j = 0
+            i += 6
 
             if self.component_object.get_shut_down_ability():
-                shut_down = self.component_object.get_shut_down_time()
-                start_up = self.component_object.get_start_up_time()
+                ttk.Label(self.frame, text='Cold Start up time [h]').grid(column=0, row=i+1, sticky='w')
+                ttk.Label(self.frame, text=self.label_start_up_value_str.get()).grid(column=1, row=i+1, sticky='w')
 
-                self.shut_down_ability_var.set(True)
-                self.label_shut_down_value_str.set(shut_down)
-                self.label_start_up_value_str.set(start_up)
+                i += 2
 
-                self.label_shut_down = ttk.Label(self.frame, text='Shut down time [h]')
-                self.label_shut_down.grid(column=0, row=9 + i, sticky='w')
-                self.label_shut_down_value = ttk.Label(self.frame, text=self.label_shut_down_value_str.get())
-                self.label_shut_down_value.grid(column=1, row=9 + i, sticky='w')
+            if hot_standby_ability:
 
-                self.label_start_up = ttk.Label(self.frame, text='Start up time [h]')
-                self.label_start_up.grid(column=0, row=10 + i, sticky='w')
-                self.label_start_up_value = ttk.Label(self.frame, text=self.label_start_up_value_str.get())
-                self.label_start_up_value.grid(column=1, row=10 + i, sticky='w')
+                ttk.Label(self.frame, text='Hot Standby Input Stream').grid(row=i+1, column=0, sticky='w')
+                ttk.Label(self.frame, text=self.hot_standby_stream_var.get()).grid(row=i + 1, column=1, sticky='w')
 
-                j = 2
+                if hot_standby_unit == 'MWh':
+                    hot_standby_unit = 'MW'
+                elif hot_standby_unit == 'kWh':
+                    hot_standby_unit = 'kW'
+                else:
+                    hot_standby_unit = hot_standby_unit + ' / h'
 
-            self.label_number_parallel_units = ttk.Label(self.frame, text='Number of units in system')
-            self.label_number_parallel_units.grid(column=0, row=11 + i + j, sticky='w')
-            self.label_number_parallel_units_value = ttk.Label(self.frame,
-                                                               text=self.label_number_parallel_units_str.get())
-            self.label_number_parallel_units_value.grid(column=1, row=11 + i + j, sticky='w')
+                ttk.Label(self.frame, text='Hot Standby Input Demand [' + hot_standby_unit + ']').grid(row=i + 2,
+                                                                                                       column=0,
+                                                                                                       sticky='w')
+                ttk.Label(self.frame, text=self.hot_standby_demand_var.get()).grid(row=i + 2, column=1, sticky='w')
+
+                ttk.Label(self.frame, text='Hot Standby Start up Time [h]').grid(row=i + 3, column=0, sticky='w')
+                ttk.Label(self.frame, text=self.hot_standby_demand_startup_time.get()).grid(row=i + 3, column=1,
+                                                                                            sticky='w')
+
+                i += 3
+
+            ttk.Label(self.frame, text='Number of units in system').grid(column=0, row=i + 1, sticky='w')
+            ttk.Label(self.frame, text=self.label_number_parallel_units_str.get()).grid(column=1, row=i + 1, sticky='w')
 
             self.delete_component_dict = {}
 
             ttk.Button(self.frame, text='Adjust parameters',
-                       command=self.adjust_component_value).grid(column=0, row=12+i+j, sticky='ew')
+                       command=self.adjust_component_value).grid(column=0, row=i + 2, sticky='ew')
 
             if self.component_object.is_custom():
                 ttk.Button(self.frame, text='Default parameters',
                            command=self.set_component_parameters_to_default,
-                           state=DISABLED).grid(column=1, row=12 + i + j, sticky='ew')
+                           state=DISABLED).grid(column=1, row=i + 2, sticky='ew')
             else:
                 ttk.Button(self.frame, text='Default parameters',
-                           command=self.set_component_parameters_to_default).grid(column=1, row=12+i+j, sticky='ew')
+                           command=self.set_component_parameters_to_default).grid(column=1, row=i + 2, sticky='ew')
 
             self.frame.grid_columnconfigure(0, weight=1, uniform="a")
             self.frame.grid_columnconfigure(1, weight=1, uniform="a")

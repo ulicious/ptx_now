@@ -94,7 +94,6 @@ class GeneralAssumptionsFrame:
 
             k = 0
             for gp in self.pm_object.get_general_parameters():
-
                 if gp in exclude:
                     continue
 

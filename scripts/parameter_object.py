@@ -35,14 +35,18 @@ class ParameterObject:
         return self.general_parameter_values
 
     def set_general_parameter(self, parameter):  # checked
-        self.general_parameters.append(parameter)
-        self.applied_parameter_for_component[parameter] = {}
+        if parameter not in self.general_parameters:
+            self.general_parameters.append(parameter)
+
+            if parameter not in ['wacc', 'covered_period', 'representative_weeks']:
+                self.applied_parameter_for_component[parameter] = {}
 
     def get_general_parameters(self):  # checked
         return self.general_parameters
 
     def set_applied_parameter_for_component(self, general_parameter, component, status):
-        self.applied_parameter_for_component[general_parameter][component] = status
+        if general_parameter not in ['wacc', 'covered_period', 'representative_weeks']:
+            self.applied_parameter_for_component[general_parameter][component] = status
 
     def set_all_applied_parameters(self, applied_parameters):
         self.applied_parameter_for_component = applied_parameters
@@ -58,6 +62,11 @@ class ParameterObject:
         self.components.update({abbreviation: component})
         self.set_nice_name(abbreviation, component.get_nice_name())
         self.set_abbreviation(component.get_nice_name(), abbreviation)
+
+        self.applied_parameter_for_component[abbreviation] = {'taxes_and_insurance': True,
+                                                              'personnel_costs': True,
+                                                              'overhead': True,
+                                                              'working_capital': True}
 
     def get_all_component_names(self):  # checked
         return [*self.components.keys()]
@@ -193,6 +202,30 @@ class ParameterObject:
     def get_integer_steps(self):
         return self.integer_steps
 
+    def set_uses_representative_weeks(self, uses_weeks):
+        self.uses_representative_weeks = bool(uses_weeks)
+
+    def get_uses_representative_weeks(self):
+        return self.uses_representative_weeks
+
+    def set_number_representative_weeks(self, number_weeks):
+        self.number_representative_weeks = int(number_weeks)
+
+    def get_number_representative_weeks(self):
+        return self.number_representative_weeks
+
+    def set_path_weighting(self, path):
+        self.path_weighting = str(path)
+
+    def get_path_weighting(self):
+        return self.path_weighting
+
+    def set_covered_period(self, covered_period):
+        self.covered_period = covered_period
+
+    def get_covered_period(self):
+        return self.covered_period
+
     def create_new_project(self):
         """ Create new project """
 
@@ -200,8 +233,7 @@ class ParameterObject:
                       'Personnel Cost': 'personnel_costs',
                       'Taxes and insurance': 'taxes_and_insurance',
                       'Overhead': 'overhead',
-                      'Working Capital': 'working_capital',
-                      'Covered Period': 'covered_period'}
+                      'Working Capital': 'working_capital'}
 
         for c in [*nice_names.keys()]:
             self.set_nice_name(nice_names[c], c)
@@ -222,9 +254,6 @@ class ParameterObject:
 
         self.set_general_parameter_value('working_capital', 0.1)
         self.set_general_parameter('working_capital')
-
-        self.set_general_parameter_value('covered_period', 8760)
-        self.set_general_parameter('covered_period')
 
         conversion_component = ConversionComponent(name='dummy', nice_name='Dummy', final_unit=True)
         self.add_component('dummy', conversion_component)
@@ -261,17 +290,23 @@ class ParameterObject:
                                integer_steps=self.integer_steps, general_parameters=general_parameters,
                                general_parameter_values=general_parameter_values, nice_names=nice_names,
                                abbreviations_dict=abbreviations_dict, streams=streams,
-                               components=self.components, copy_object=True)
+                               components=self.components,
+                               uses_representative_weeks=self.uses_representative_weeks,
+                               number_representative_weeks=self.number_representative_weeks,
+                               path_weighting=self.path_weighting,
+                               covered_period=self.covered_period,
+                               copy_object=True)
 
-    def __init__(self, name=None, path_custom=None, integer_steps=5,
+    def __init__(self, name=None, integer_steps=5,
                  general_parameters=None, general_parameter_values=None,
                  nice_names=None, abbreviations_dict=None, streams=None, components=None,
+                 uses_representative_weeks=False, number_representative_weeks=0, path_weighting='',
+                 covered_period=8760,
                  copy_object=False):
 
         """
         Object, which stores all components, streams, settings etc.
         :param name: [string] - name of parameter object
-        :param path_custom: [string] - path to custom settings
         :param integer_steps: [int] - number of integer steps (used to split capacity)
         :param general_parameters: [list] - List of general parameters
         :param general_parameter_values: [dict] - Dictionary with general parameter values
@@ -284,11 +319,19 @@ class ParameterObject:
         self.name = name
 
         if not copy_object:
-            self.path_custom = path_custom
 
-            self.general_parameters = []
-            self.general_parameter_values = {}
-            self.applied_parameter_for_component = {}
+            # Initiate as default values
+            self.general_parameters = ['wacc', 'taxes_and_insurance', 'personnel_costs', 'overhead', 'working_capital']
+            self.general_parameter_values = {'wacc': 0.07,
+                                             'taxes_and_insurance': 0.015,
+                                             'personnel_costs': 0.01,
+                                             'overhead': 0.015,
+                                             'working_capital': 0.1}
+            self.applied_parameter_for_component = {'taxes_and_insurance': {},
+                                                    'personnel_costs': {},
+                                                    'overhead': {},
+                                                    'working_capital': {}}
+
             self.nice_names = {}
             self.abbreviations_dict = {}
 
@@ -296,14 +339,15 @@ class ParameterObject:
             self.components = {}
 
         else:
-            self.path_custom = path_custom
+            # Object is copied if components have parallel units.
+            # It is copied so that the original pm_object is not changed
 
             self.general_parameters = general_parameters
             self.general_parameter_values = general_parameter_values
-
-            self.applied_parameter_for_component = {}
-            for g in self.get_general_parameters():
-                self.applied_parameter_for_component[g] = {}
+            self.applied_parameter_for_component = {'taxes_and_insurance': {},
+                                                    'personnel_costs': {},
+                                                    'overhead': {},
+                                                    'working_capital': {}}
 
             self.nice_names = nice_names
             self.abbreviations_dict = abbreviations_dict
@@ -311,6 +355,10 @@ class ParameterObject:
             self.streams = streams
             self.components = components
 
+        self.covered_period = covered_period
+        self.uses_representative_weeks = uses_representative_weeks
+        self.number_representative_weeks = number_representative_weeks
+        self.path_weighting = path_weighting
         self.integer_steps = integer_steps
 
 

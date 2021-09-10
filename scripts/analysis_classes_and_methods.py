@@ -138,43 +138,92 @@ class Result:
                         list_values = self.all_variables_dict[variable_name][stream]
                         sum_values = sum(self.all_variables_dict[variable_name][stream])
 
-                        if variable_name == "mass_energy_available":
-                            self.available_stream[stream] = self.available_stream[stream] + sum_values
+                        if not self.pm_object.get_uses_representative_weeks():
 
-                        if variable_name == 'mass_energy_emitted':
-                            if stream in self.model.EMITTED_STREAMS:
-                                self.emitted_stream[stream] = self.emitted_stream[stream] + sum_values
+                            if variable_name == "mass_energy_available":
+                                self.available_stream[stream] = (self.available_stream[stream] + sum_values)
 
-                        if variable_name == 'mass_energy_purchase_stream':  # Calculate costs of purchase
-                            if stream in self.model.PURCHASABLE_STREAMS:
-                                self.purchased_stream[stream] = self.purchased_stream[stream] + sum_values
-                                self.purchase_costs[stream] = self.purchase_costs[stream] + \
-                                                              sum(list_values[t] * self.model.purchase_price[
-                                                                  stream, t]
-                                                                  for t in self.model.TIME)
+                            if variable_name == 'mass_energy_emitted':
+                                if stream in self.model.EMITTED_STREAMS:
+                                    self.emitted_stream[stream] = (self.emitted_stream[stream] + sum_values)
 
-                        if variable_name == 'mass_energy_sell_stream':  # Calculate costs of purchase
-                            if stream in self.model.SALEABLE_STREAMS:
-                                self.sold_stream[stream] = self.sold_stream[stream] + sum_values
-                                self.selling_costs[stream] = self.selling_costs[stream] + \
-                                                             sum(list_values[t] * self.model.selling_price[
-                                                                 stream, t] * (-1)
-                                                                 for t in self.model.TIME)
+                            if variable_name == 'mass_energy_purchase_stream':  # Calculate costs of purchase
+                                if stream in self.model.PURCHASABLE_STREAMS:
+                                    self.purchased_stream[stream] = (self.purchased_stream[stream] + sum_values)
+                                    self.purchase_costs[stream] = (self.purchase_costs[stream] +
+                                                                   sum(list_values[t]
+                                                                       * self.model.purchase_price[stream, t]
+                                                                       for t in self.model.TIME))
 
-                        if variable_name == 'mass_energy_total_generation':
-                            if stream in self.model.GENERATED_STREAMS:
-                                self.total_generated_stream[stream] = self.total_generated_stream[
-                                                                          stream] + sum_values
+                            if variable_name == 'mass_energy_sell_stream':  # Calculate costs of purchase
+                                if stream in self.model.SALEABLE_STREAMS:
+                                    self.sold_stream[stream] = (self.sold_stream[stream] + sum_values)
+                                    self.selling_costs[stream] = (self.selling_costs[stream]
+                                                                  + sum(list_values[t]
+                                                                        * self.model.selling_price[stream, t] * (-1)
+                                                                        for t in self.model.TIME))
 
-                        if variable_name == 'mass_energy_storage_in_streams':
-                            if stream in self.model.STORAGES:
-                                self.stored_stream[stream] = self.stored_stream[stream] + sum_values
+                            if variable_name == 'mass_energy_total_generation':
+                                if stream in self.model.GENERATED_STREAMS:
+                                    self.total_generated_stream[stream] = (self.total_generated_stream[stream]
+                                                                           + sum_values)
+
+                            if variable_name == 'mass_energy_storage_in_streams':
+                                if stream in self.model.STORAGES:
+                                    self.stored_stream[stream] = (self.stored_stream[stream] + sum_values)
+
+                        else:
+
+                            if variable_name == "mass_energy_available":
+                                self.available_stream[stream] = (self.available_stream[stream]
+                                                                 + sum(list_values[t] * self.model.weightings[t]
+                                                                       for t in self.model.TIME))
+
+                            if variable_name == 'mass_energy_emitted':
+                                if stream in self.model.EMITTED_STREAMS:
+                                    self.emitted_stream[stream] = (self.emitted_stream[stream] +
+                                                                   sum(list_values[t] * self.model.weightings[t]
+                                                                       for t in self.model.TIME))
+
+                            if variable_name == 'mass_energy_purchase_stream':  # Calculate costs of purchase
+                                if stream in self.model.PURCHASABLE_STREAMS:
+                                    self.purchased_stream[stream] = (self.purchased_stream[stream]
+                                                                     + sum(list_values[t] * self.model.weightings[t]
+                                                                           for t in self.model.TIME))
+                                    self.purchase_costs[stream] = (self.purchase_costs[stream]
+                                                                   + sum(list_values[t] * self.model.weightings[t]
+                                                                         * self.model.purchase_price[stream, t]
+                                                                         for t in self.model.TIME))
+
+                            if variable_name == 'mass_energy_sell_stream':  # Calculate costs of purchase
+                                if stream in self.model.SALEABLE_STREAMS:
+                                    self.sold_stream[stream] = (self.sold_stream[stream]
+                                                                + sum(list_values[t] * self.model.weightings[t]
+                                                                      for t in self.model.TIME))
+                                    self.selling_costs[stream] = (self.selling_costs[stream]
+                                                                  + sum(list_values[t] * self.model.weightings[t]
+                                                                        * self.model.selling_price[stream, t] * (-1)
+                                                                        for t in self.model.TIME))
+
+                            if variable_name == 'mass_energy_total_generation':
+                                if stream in self.model.GENERATED_STREAMS:
+                                    self.total_generated_stream[stream] = (self.total_generated_stream[stream]
+                                                                           + sum(list_values[t]
+                                                                                 * self.model.weightings[t]
+                                                                                 for t in self.model.TIME))
+
+                            if variable_name == 'mass_energy_storage_in_streams':
+                                if stream in self.model.STORAGES:
+                                    self.stored_stream[stream] = (self.stored_stream[stream]
+                                                                  + sum(list_values[t] * self.model.weightings[t]
+                                                                        for t in self.model.TIME))
 
             elif variable_name in self.variable_three_index:
 
                 if variable_name in variable_names:
 
                     for c in [*self.all_variables_dict[variable_name]]:
+                        component_object = self.pm_object.get_component(c)
 
                         conversion = False
                         for i in self.pm_object.get_specific_components('final', 'conversion'):
@@ -187,18 +236,20 @@ class Result:
 
                         for stream in [*self.all_variables_dict[variable_name][c]]:
 
+                            list_values = self.all_variables_dict[variable_name][c][stream]
+                            sum_values = sum(self.all_variables_dict[variable_name][c][stream])
+
+                            ratio = 1
                             if conversion:
-                                component_object = self.pm_object.get_component(c)
                                 inputs = component_object.get_inputs()
                                 outputs = component_object.get_outputs()
 
                                 # Case stream is conversed but not fully
                                 if (stream in [*inputs.keys()]) & (stream in [*outputs.keys()]):
-                                    ratio = outputs[stream] / inputs[stream]
-                                else:
-                                    ratio = 1
+                                    sum_values = sum_values * outputs[stream] / inputs[stream]
+                                    ratio = sum_values * outputs[stream] / inputs[stream]
 
-                                sum_values = sum(self.all_variables_dict[variable_name][c][stream]) * ratio
+                            if not self.pm_object.get_uses_representative_weeks():
 
                                 if variable_name == 'mass_energy_component_out_streams':
                                     if stream == component_object.get_main_output():
@@ -212,12 +263,34 @@ class Result:
                                     if stream in [*component_object.get_hot_standby_demand().keys()]:
                                         self.hot_standby_demand[c][stream] = sum_values
 
-                            else:
-                                sum_values = sum(self.all_variables_dict[variable_name][c][stream])
-
                                 if variable_name == 'mass_energy_generation':
                                     if stream in self.model.GENERATED_STREAMS:
                                         self.generated_stream[c] = sum_values
+
+                            else:
+                                if variable_name == 'mass_energy_component_out_streams':
+                                    if stream == component_object.get_main_output():
+                                        self.conversed_stream[stream] = (self.conversed_stream[stream]
+                                                                         + sum(list_values[t] * self.model.weightings[t]
+                                                                               * ratio for t in self.model.TIME))
+                                        self.conversed_stream_per_component[c][stream] = sum(list_values[t]
+                                                                                             * self.model.weightings[t]
+                                                                                             * ratio
+                                                                                             for t in self.model.TIME)
+                                    else:
+                                        self.conversed_stream[stream] = self.conversed_stream[stream] + 0
+                                        self.conversed_stream_per_component[c][stream] = 0
+
+                                if variable_name == 'mass_energy_hot_standby_demand':
+                                    if stream in [*component_object.get_hot_standby_demand().keys()]:
+                                        self.hot_standby_demand[c][stream] = sum(list_values[t]
+                                                                                 * self.model.weightings[t] * ratio
+                                                                                 for t in self.model.TIME)
+
+                                if variable_name == 'mass_energy_generation':
+                                    if stream in self.model.GENERATED_STREAMS:
+                                        self.generated_stream[c] = sum(list_values[t] * self.model.weightings[t] * ratio
+                                                                       for t in self.model.TIME)
 
     def analyze_streams(self):
 
@@ -821,7 +894,9 @@ class Result:
                 generation_df.loc[generator, 'Personnel Cost'] = self.all_variables_dict['personnel_costs'][generator]
 
                 generation_profile = pd.read_excel(self.path_data + generator_object.get_generation_data(), index_col=0)
-                potential_generation = generation_profile.sum().sum() * capacity
+                if max(self.model.TIME) > generation_profile.index[0]:
+                    generation_profile = generation_profile.iloc[0:max(self.model.TIME) + 1]
+                potential_generation = generation_profile.multiply(self.model.weightings, axis=0).sum().sum() * capacity
                 generation_df.loc[generator, 'Potential Generation'] = potential_generation
 
                 generation_df.loc[generator, 'LCOE before Curtailment'] = (generation_df.loc[generator, 'Annuity']
@@ -830,7 +905,7 @@ class Result:
                                                                            + generation_df.loc[generator, 'Overhead']
                                                                            + generation_df.loc[generator, 'Personnel Cost']) / potential_generation
 
-                generation = sum(self.all_variables_dict['mass_energy_generation'][generator][generated_stream])
+                generation = self.generated_stream[generator]
                 generation_df.loc[generator, ' Actual Generation'] = generation
 
                 curtailment = potential_generation - generation
@@ -848,7 +923,8 @@ class Result:
         # Total costs: annuity, maintenance, buying and selling, taxes and insurance, etc.
         total_production = 0
         for stream in [*self.all_variables_dict['mass_energy_demand'].keys()]:
-            total_production += sum(self.all_variables_dict['mass_energy_demand'][stream])
+            total_production += sum(self.all_variables_dict['mass_energy_demand'][stream][t]
+                                    * self.model.weightings[t] for t in self.model.TIME)
 
         cost_distribution = pd.DataFrame()
 

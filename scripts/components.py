@@ -330,9 +330,9 @@ class ConversionComponent(Component):
         self.max_p = max_p
         self.ramp_down = ramp_down
         self.ramp_up = ramp_up
-        self.shut_down_ability = shut_down_ability
+        self.shut_down_ability = bool(shut_down_ability)
         self.start_up_time = int(start_up_time)
-        self.hot_standby_ability = hot_standby_ability
+        self.hot_standby_ability = bool(hot_standby_ability)
         if hot_standby_demand is None:
             self.hot_standby_demand = {}
         else:

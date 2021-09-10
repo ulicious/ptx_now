@@ -11,7 +11,7 @@ from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
 from parameter_object import ParameterObject
 
-from load_projects import load_001, load_002
+from load_projects import load_001, load_002, load_003
 
 
 class Interface:
@@ -54,6 +54,9 @@ class Interface:
                 elif version == '0.0.2':
                     self.pm_object_original = load_002(self.pm_object_original, case_data)
                     self.pm_object_copy = load_002(self.pm_object_copy, case_data)
+                elif version == '0.0.3':
+                    self.pm_object_original = load_003(self.pm_object_original, case_data)
+                    self.pm_object_copy = load_003(self.pm_object_copy, case_data)
 
             else:  # Case where no version exists
                 self.pm_object_original = load_001(self.pm_object_original, case_data)
@@ -367,7 +370,7 @@ class Interface:
 
         k = 0
 
-        case_data.loc[k, 'version'] = '0.0.2'
+        case_data.loc[k, 'version'] = '0.0.3'
 
         k += 1
 
@@ -379,6 +382,14 @@ class Interface:
             case_data.loc[k, 'value'] = value
 
             k += 1
+
+        case_data.loc[k, 'type'] = 'representative_weeks'
+        case_data.loc[k, 'representative_weeks'] = self.pm_object_copy.get_uses_representative_weeks()
+        case_data.loc[k, 'number_representative_weeks'] = self.pm_object_copy.get_number_representative_weeks()
+        case_data.loc[k, 'path_weighting'] = self.pm_object_copy.get_path_weighting()
+        case_data.loc[k, 'covered_period'] = self.pm_object_copy.get_covered_period()
+
+        k += 1
 
         for component in self.pm_object_copy.get_all_components():
 

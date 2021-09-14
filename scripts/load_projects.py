@@ -2,6 +2,23 @@ from components import ConversionComponent, StorageComponent, GenerationComponen
 from stream import Stream
 
 
+def load_setting(pm_object, case_data):
+    if 'version' in case_data.columns:
+        version = str(case_data.loc[0, 'version'])
+
+        if version == '0.0.1':
+            pm_object = load_001(pm_object, case_data)
+        elif version == '0.0.2':
+            pm_object = load_002(pm_object, case_data)
+        elif version == '0.0.3':
+            pm_object = load_003(pm_object, case_data)
+
+    else:  # Case where no version exists
+        pm_object = load_001(pm_object, case_data)
+
+    return pm_object
+
+
 def load_000(pm_object, case_data):
     """ Set general parameters """
     general_parameter_df = case_data[case_data['type'] == 'general_parameter']

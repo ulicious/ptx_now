@@ -372,6 +372,9 @@ class Result:
                                                 + self.all_variables_dict['overhead_costs'][generator]
                                                 + self.all_variables_dict['working_capital_costs'][generator])
 
+        # COST DISTRIBUTION: Distribute the costs to each stream
+        # First: The intrinsic costs of each stream.
+        # Intrinsic costs include generation, storage, purchase and selling costs
         intrinsic_costs = {}
         intrinsic_costs_per_available_unit = {}
         for stream in self.model.ME_STREAMS:
@@ -380,6 +383,8 @@ class Result:
                                             + self.storage_costs[stream]
                                             + self.selling_costs[stream], 5)
 
+            # If intrinsic costs exist, distribute them on the total stream available
+            # Available stream = Generated, Purchased, Conversed minus Sold, Emitted
             if intrinsic_costs[stream] >= 0:
                 if self.total_availability[stream] == 0:
                     intrinsic_costs_per_available_unit[stream] = 0
@@ -387,33 +392,44 @@ class Result:
                     intrinsic_costs_per_available_unit[stream] = (intrinsic_costs[stream]
                                                                   / self.total_availability[stream])
             elif intrinsic_costs[stream] < 0:
+                # If intrinsic costs are negative (due to selling of side products),
+                # the total costs are distributed to the total stream sold
                 intrinsic_costs_per_available_unit[stream] = (-intrinsic_costs[stream]
                                                               / self.sold_stream[stream])
 
+        pd.DataFrame.from_dict(intrinsic_costs, orient='index').to_excel(
+            self.new_result_folder + '/intrinsic_costs.xlsx')
+        pd.DataFrame.from_dict(intrinsic_costs_per_available_unit, orient='index').to_excel(
+            self.new_result_folder + '/intrinsic_costs_per_available_unit.xlsx')
+
+        # Second: Next to intrinsic costs, conversion costs exist.
+        # Each stream, which is the main output of a conversion unit,
+        # will be matched with the costs this conversion unit produces
         conversion_costs_per_conversed_unit = {}
         total_intrinsic_costs_per_available_unit = {}
         for component in self.pm_object.get_specific_components('final', 'conversion'):
-
-            # For each component stream, calculate intrinsic costs
-            # (conversion, storage, generation, purchase, sell)
             component_name = component.get_name()
             main_output = component.get_main_output()
 
-            # Components without capacity are not considered
+            # Components without capacity are not considered, as they dont converse anything
             if self.all_variables_dict['nominal_cap'][component_name] == 0:
                 continue
 
+            # Calculate the conversion costs per conversed unit
             conversion_costs_per_conversed_unit[component_name] = (self.conversion_costs_component[component_name]
                                                               / self.conversed_stream_per_component[component_name][main_output])
 
+            # To this conversion costs, the intrinsic costs of the stream are added
             total_intrinsic_costs_per_available_unit[component_name] = (intrinsic_costs_per_available_unit[main_output]
                                                                    + conversion_costs_per_conversed_unit[component_name])
 
-        # Calculate final costs per unit based on input of other streams.
-        # Important: These has to be done upstream
+        pd.DataFrame.from_dict(conversion_costs_per_conversed_unit, orient='index').to_excel(
+            self.new_result_folder + '/conversion_costs_per_conversed_unit.xlsx')
+        pd.DataFrame.from_dict(total_intrinsic_costs_per_available_unit, orient='index').to_excel(
+            self.new_result_folder + '/total_intrinsic_costs_per_available_unit.xlsx')
+
         stream_equations_constant = {}
         columns_index = [*self.pm_object.get_all_streams().keys()]
-
         for s in self.pm_object.get_specific_components('final', 'conversion'):
             component_name = s.get_name()
             if self.all_variables_dict['nominal_cap'][component_name] > 0:
@@ -429,13 +445,13 @@ class Result:
             main_outputs.append(main_output)
             main_output_coefficients[component.get_main_output()] = component.get_outputs()[main_output]
 
-        # Create list of components which produce inputs and outputs
         all_inputs = []
         final_stream = None
         for component in self.pm_object.get_specific_components('final', 'conversion'):
             component_name = component.get_name()
             inputs = component.get_inputs()
             outputs = component.get_outputs()
+            main_output = component.get_main_output()
 
             if self.all_variables_dict['nominal_cap'][component_name] == 0:
                 continue
@@ -444,31 +460,37 @@ class Result:
             hot_standby_demand = 0
             if component.get_hot_standby_ability():
                 hot_standby_stream = [*component.get_hot_standby_demand().keys()][0]
-                hot_standby_demand = component.get_hot_standby_demand()[hot_standby_stream]
+                hot_standby_demand = (self.hot_standby_demand[component_name][hot_standby_stream]
+                                      / self.conversed_stream_per_component[component_name][main_output])
 
-            for i in [*inputs.keys()]:
-
-                if i not in [*outputs.keys()]:
-                    if component.get_hot_standby_ability():
+            # First of all, associate inputs to components
+            # If hot standby possible: input + hot standby demand -> hot standby demand prt conversed unit
+            # If same stream in input and output: input - output
+            # If neither: just input
+            for i in [*inputs.keys()]:  # stream in input
+                if i not in [*outputs.keys()]:  # stream not in output
+                    if component.get_hot_standby_ability():  # component has hot standby ability
                         if i != hot_standby_stream:
                             coefficients_df.loc[i, component_name] = inputs[i]
                         else:
                             coefficients_df.loc[i, component_name] = inputs[i] + hot_standby_demand
-                    else:
+                    else:  # component has no hot standby ability
                         coefficients_df.loc[i, component_name] = inputs[i]
-                else:
+                else:  # stream in output
                     if (i in main_outputs) | (intrinsic_costs_per_available_unit[i] != 0):
-                        if component.get_hot_standby_ability():
-                            if i != hot_standby_stream:
+                        if component.get_hot_standby_ability():    # component has hot standby ability
+                            if i != hot_standby_stream:  # hot standby stream is not stream
                                 coefficients_df.loc[i, component_name] = inputs[i] - outputs[i]
                             else:
                                 coefficients_df.loc[i, component_name] = inputs[i] + hot_standby_demand - outputs[i]
-                        else:
+                        else:    # component has no hot standby ability
                             coefficients_df.loc[i, component_name] = inputs[i] - outputs[i]
 
                 all_inputs.append(i)
+
+            # If outputs have costs, then they are associated with component (not main output)
             for o in [*outputs.keys()]:
-                if (o not in [*inputs.keys()]) & (o != component.get_main_output()):
+                if (o not in [*inputs.keys()]) & (o != main_output):
                     if intrinsic_costs_per_available_unit[o] != 0:
                         coefficients_df.loc[o, component_name] = -outputs[o]
 
@@ -477,7 +499,7 @@ class Result:
 
             coefficients_df.loc[component_name, component_name] = -1
 
-        # Matching of costs, which do not influence demanded stream
+        # Matching of costs, which do not influence demanded stream directly (via inputs)
         # Costs of side streams with no demand (e.g., flares to burn excess gases)
         # will be added to final stream
         for component in self.pm_object.get_specific_components('final', 'conversion'):
@@ -492,6 +514,7 @@ class Result:
                 if not main_output.is_demanded():  # Check if main output is demanded
                     coefficients_df.loc[component.get_name(), final_stream] = 1
 
+        # Each stream, if main output, has its intrinsic costs and the costs of the conversion component
         for stream in self.model.ME_STREAMS:
             for component in self.pm_object.get_specific_components('final', 'conversion'):
                 component_name = component.get_name()
@@ -502,11 +525,12 @@ class Result:
                 main_output = component.get_main_output()
                 outputs = component.get_outputs()
                 if stream == main_output:
+                    # ratio is when several components have same output
                     ratio = (self.conversed_stream_per_component[component_name][stream]
                              / self.conversed_stream[stream])
-                    coefficients_df.loc[component_name, stream] = ratio
+                    coefficients_df.loc[component_name, stream] = 1 / outputs[stream] * ratio
 
-                    coefficients_df.loc[stream, stream] = coefficients_df.loc[stream, stream] - outputs[stream] * ratio
+                    coefficients_df.loc[stream, stream] = -1
 
             if stream not in main_outputs:
                 coefficients_df.loc[stream, stream] = -1
@@ -519,8 +543,11 @@ class Result:
             coefficients_dict.update({column: coefficients_df[column].tolist()})
             if column in self.model.ME_STREAMS:
                 if column in [main_output_coefficients.keys()]:
-                    stream_equations_constant.update({column: (-intrinsic_costs_per_available_unit[column]
-                                                               * main_output_coefficients[column])})
+                    if False:
+                        stream_equations_constant.update({column: (-intrinsic_costs_per_available_unit[column]
+                                                                   * main_output_coefficients[column])})
+                    else:
+                        stream_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
                 else:
                     stream_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
             else:
@@ -531,6 +558,9 @@ class Result:
                 main_output = component.get_main_output()
                 stream_equations_constant.update({column: (-conversion_costs_per_conversed_unit[column]
                                                            * main_output_coefficients[main_output])})
+
+        pd.DataFrame.from_dict(stream_equations_constant, orient='index').to_excel(
+            self.new_result_folder + '/stream_equations_constant.xlsx')
 
         values_equations = coefficients_dict.values()
         A = np.array(list(values_equations))
@@ -769,7 +799,8 @@ class Result:
             # Save dataframes in multi-sheet excel file
             with pd.ExcelWriter(self.new_result_folder + '/main_output_costs.xlsx', engine="xlsxwriter") as writer:
                 for df in [*dataframe_dict.keys()]:
-                    dataframe_dict[df].to_excel(writer, df)
+                    sheet_name = df.replace("Parallel Unit", "PU")
+                    dataframe_dict[df].to_excel(writer, sheet_name)
                 writer.save()
 
     def analyze_components(self):

@@ -11,7 +11,7 @@ from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
 from parameter_object import ParameterObject
 
-from load_projects import load_001, load_002, load_003
+from load_projects import load_setting
 
 
 class Interface:
@@ -45,22 +45,8 @@ class Interface:
 
             case_data = pd.read_excel(self.path_custom, index_col=0)
 
-            if 'version' in case_data.columns:
-                version = str(case_data.loc[0, 'version'])
-
-                if version == '0.0.1':
-                    self.pm_object_original = load_001(self.pm_object_original, case_data)
-                    self.pm_object_copy = load_001(self.pm_object_copy, case_data)
-                elif version == '0.0.2':
-                    self.pm_object_original = load_002(self.pm_object_original, case_data)
-                    self.pm_object_copy = load_002(self.pm_object_copy, case_data)
-                elif version == '0.0.3':
-                    self.pm_object_original = load_003(self.pm_object_original, case_data)
-                    self.pm_object_copy = load_003(self.pm_object_copy, case_data)
-
-            else:  # Case where no version exists
-                self.pm_object_original = load_001(self.pm_object_original, case_data)
-                self.pm_object_copy = load_001(self.pm_object_copy, case_data)
+            self.pm_object_original = load_setting(self.pm_object_original, case_data)
+            self.pm_object_copy = load_setting(self.pm_object_copy, case_data)
 
             custom_title = self.path_custom.split('/')[-1].split('.')[0]
             self.root.title(custom_title)
@@ -411,16 +397,30 @@ class Interface:
                 case_data.loc[k, 'base_capacity'] = component.get_base_capacity()
                 case_data.loc[k, 'economies_of_scale'] = component.get_economies_of_scale()
                 case_data.loc[k, 'max_capacity_economies_of_scale'] = component.get_max_capacity_economies_of_scale()
+
                 case_data.loc[k, 'min_p'] = component.get_min_p()
                 case_data.loc[k, 'max_p'] = component.get_max_p()
+
                 case_data.loc[k, 'ramp_up'] = component.get_ramp_up()
                 case_data.loc[k, 'ramp_down'] = component.get_ramp_down()
+
                 case_data.loc[k, 'shut_down_ability'] = component.get_shut_down_ability()
-                case_data.loc[k, 'start_up_time'] = component.get_start_up_time()
+                if component.get_shut_down_ability():
+                    case_data.loc[k, 'start_up_time'] = component.get_start_up_time()
+                else:
+                    case_data.loc[k, 'start_up_time'] = 0
+
                 case_data.loc[k, 'hot_standby_ability'] = component.get_hot_standby_ability()
-                case_data.loc[k, 'hot_standby_stream'] = [*component.get_hot_standby_demand().keys()][0]
-                case_data.loc[k, 'hot_standby_demand'] = component.get_hot_standby_demand()[[*component.get_hot_standby_demand().keys()][0]]
-                case_data.loc[k, 'hot_standby_startup_time'] = component.get_hot_standby_startup_time()
+                if component.get_hot_standby_ability():
+                    case_data.loc[k, 'hot_standby_stream'] = [*component.get_hot_standby_demand().keys()][0]
+                    case_data.loc[k, 'hot_standby_demand'] = component.get_hot_standby_demand()[
+                        [*component.get_hot_standby_demand().keys()][0]]
+                    case_data.loc[k, 'hot_standby_startup_time'] = component.get_hot_standby_startup_time()
+                else:
+                    case_data.loc[k, 'hot_standby_stream'] = ''
+                    case_data.loc[k, 'hot_standby_demand'] = 0
+                    case_data.loc[k, 'hot_standby_startup_time'] = 0
+
                 case_data.loc[k, 'number_parallel_units'] = component.get_number_parallel_units()
 
             elif component.get_component_type() == 'generator':
@@ -526,6 +526,8 @@ class Interface:
         else:
             path_name = self.path_settings + "/" + name + ".xlsx"
 
+            self.root.title(name)
+
         case_data.to_excel(path_name, index=True)
 
     def optimize(self):
@@ -573,6 +575,9 @@ class Interface:
                                       path_settings=path_settings,
                                       path_custom=path_custom, solver=solver)
 
+                custom_title = path_custom.split('/')[-1].split('.')[0]
+                self.root.title(custom_title)
+
             elif setting_window.radiobutton_variable.get() == 'optimize_only':
 
                 path_to_settings = setting_window.folder_optimize
@@ -582,13 +587,18 @@ class Interface:
 
                 for file in filenames:
                     file = file.split('/')[0]
+
+                    print('Currently optimized: ' + file)
+
                     path = path_to_settings + file
                     file_without_ending = file.split('.')[0]
 
-                    pm_object = ParameterObject('parameter2', path_custom=path, integer_steps=10)
+                    pm_object = ParameterObject('parameter', integer_steps=10)
+                    case_data = pd.read_excel(path, index_col=0)
+                    pm_object = load_setting(pm_object, case_data)
 
                     optimization_problem = OptimizationProblem(pm_object, path_data=path_data, solver=solver)
-                    result = Result(optimization_problem, path_result, file_without_ending)
+                    result = Result(optimization_problem, path_result, path_data, file_without_ending)
 
 
 

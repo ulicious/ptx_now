@@ -56,6 +56,8 @@ class OptimizationProblem:
         Therefore, the problem is solved without these two options to create
         an initial solution """
 
+        print('Create initial solution')
+
         # Create simpler model and optimize to get warm start solution
         pm_object_warm_start = deepcopy(pm_object)
 
@@ -124,17 +126,8 @@ class OptimizationProblem:
                                         instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
                                         instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
 
-                            if component_object.get_shut_down_ability():
-                                if component_object.get_name() not in model.SHUT_DOWN_COMPONENTS:
-                                    continue
-                                #  if component is able for shutdown, it will set the binaries s.t. no shutdown is initiated
-                                for t in model.TIME:
-
-                                    # Time depending variables
-                                    #instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 0
-                                    instance_adjusted.component_status[(parallel_unit_component_name, t)] = 1
-                                    instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
-                                    instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
+                            for t in model.TIME:
+                                instance_adjusted.status_on[(parallel_unit_component_name, t)] = 1
                         else:
                             # component_x will have no capacity
                             if component_object.is_scalable():
@@ -147,15 +140,8 @@ class OptimizationProblem:
                                         instance_adjusted.nominal_cap_pre[(parallel_unit_component_name, j)] = 0
                                         instance_adjusted.capacity_binary[(parallel_unit_component_name, j)] = 0
 
-                            if component_object.get_shut_down_ability():
-                                if component_object.get_name() not in model.SHUT_DOWN_COMPONENTS:
-                                    continue
-                                for t in model.TIME:
-                                    # Time depending variables
-                                    #instance_adjusted.component_correct_p[(parallel_unit_component_name, t)] = 1
-                                    instance_adjusted.component_status[(parallel_unit_component_name, t)] = 0
-                                    instance_adjusted.status_switch_on[(parallel_unit_component_name, t)] = 0
-                                    instance_adjusted.status_switch_off[(parallel_unit_component_name, t)] = 0
+                            for t in model.TIME:
+                                instance_adjusted.status_on[(parallel_unit_component_name, t)] = 1
 
                 else:
                     # No parallel units
@@ -172,20 +158,8 @@ class OptimizationProblem:
                                 instance_adjusted.nominal_cap_pre[(component_name, j)] = 0
                                 instance_adjusted.capacity_binary[(component_name, j)] = 0
 
-                    if component_object.get_shut_down_ability():
-                        if component_object.get_name() not in model.SHUT_DOWN_COMPONENTS:
-                            continue
-                        # Time depending binaries
-                        for t in model.TIME:
-
-                            # instance_adjusted.component_correct_p[(component_name, t)] = 0
-                            instance_adjusted.component_status[(component_name, t)] = 1
-                            instance_adjusted.status_switch_on[(component_name, t)] = 0
-                            instance_adjusted.status_switch_off[(component_name, t)] = 0
-
-            # Create variables, which are not in instance as shutdown was forbidden
-            # Respective variables are component_correct_p, component_status
-            # switch_on and switch_off
+                    for t in model.TIME:
+                        instance_adjusted.status_on[(component_name, t)] = 1
 
             return solved_feasible, model_adjusted, instance_adjusted, pm_object_adjusted
 
@@ -1350,13 +1324,16 @@ class OptimizationProblem:
 
         # Check if shutdown ability is available -> creates problems as many binaries will be created
         conv_components = pm_object.get_specific_components('final', 'conversion')
-        shutdown_exists = False
+        make_pre_solution = False
         for c in conv_components:
             if c.get_shut_down_ability():
-                shutdown_exists = True
+                make_pre_solution = True
+                break
+            elif c.get_hot_standby_ability():
+                make_pre_solution = True
                 break
 
-        if shutdown_exists:
+        if make_pre_solution:
             solved_feasible, self.model, self.instance, self.pm_object \
                 = self.create_initial_solution(pm_object)
             if solved_feasible:

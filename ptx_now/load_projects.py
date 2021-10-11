@@ -39,7 +39,6 @@ def load_000(pm_object, case_data):
         name = component_df.loc[i, 'name']
         nice_name = component_df.loc[i, 'nice_name']
         capex = component_df.loc[i, 'capex']
-        capex_unit = component_df.loc[i, 'capex_unit']
         lifetime = component_df.loc[i, 'lifetime']
         maintenance = component_df.loc[i, 'maintenance']
         final_unit = component_df.loc[i, 'final']
@@ -61,7 +60,7 @@ def load_000(pm_object, case_data):
 
             conversion_component = ConversionComponent(name=name, nice_name=nice_name, lifetime=lifetime,
                                                        maintenance=maintenance, base_investment=base_investment,
-                                                       capex=capex, capex_unit=capex_unit, scalable=scalable,
+                                                       capex=capex, scalable=scalable,
                                                        base_capacity=base_capacity,
                                                        economies_of_scale=economies_of_scale,
                                                        max_capacity_economies_of_scale=max_capacity_economies_of_scale,
@@ -87,7 +86,7 @@ def load_000(pm_object, case_data):
             storage_limiting_component = case_data.loc[i, 'storage_limiting_component']
             storage_limiting_component_ratio = case_data.loc[i, 'storage_limiting_component_ratio']
 
-            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex,
                                                  charging_efficiency, discharging_efficiency, min_soc, max_soc,
                                                  initial_soc, leakage=leakage, ratio_capacity_p=ratio_capacity_p,
                                                  storage_limiting_component=storage_limiting_component,
@@ -99,7 +98,7 @@ def load_000(pm_object, case_data):
             generated_stream = case_data.loc[i, 'generated_stream']
             generation_data = case_data.loc[i, 'generation_data']
 
-            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex,
                                             generated_stream=generated_stream, generation_data=generation_data,
                                             final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, generator)
@@ -228,7 +227,6 @@ def load_001(pm_object, case_data):
         name = component_df.loc[i, 'name']
         nice_name = component_df.loc[i, 'nice_name']
         capex = component_df.loc[i, 'capex']
-        capex_unit = component_df.loc[i, 'capex_unit']
         capex_basis = component_df.loc[i, 'capex_basis']
         lifetime = component_df.loc[i, 'lifetime']
         maintenance = component_df.loc[i, 'maintenance']
@@ -251,7 +249,7 @@ def load_001(pm_object, case_data):
 
             conversion_component = ConversionComponent(name=name, nice_name=nice_name, lifetime=lifetime,
                                                        maintenance=maintenance, base_investment=base_investment,
-                                                       capex=capex, capex_unit=capex_unit, scalable=scalable,
+                                                       capex=capex, scalable=scalable,
                                                        capex_basis=capex_basis, base_capacity=base_capacity,
                                                        economies_of_scale=economies_of_scale,
                                                        max_capacity_economies_of_scale=max_capacity_economies_of_scale,
@@ -277,9 +275,9 @@ def load_001(pm_object, case_data):
             storage_limiting_component = case_data.loc[i, 'storage_limiting_component']
             storage_limiting_component_ratio = case_data.loc[i, 'storage_limiting_component_ratio']
 
-            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex,
                                                  charging_efficiency, discharging_efficiency, min_soc, max_soc,
-                                                 initial_soc, leakage=leakage, ratio_capacity_p=ratio_capacity_p,
+                                                 initial_soc, ratio_capacity_p=ratio_capacity_p,
                                                  storage_limiting_component=storage_limiting_component,
                                                  storage_limiting_component_ratio=storage_limiting_component_ratio,
                                                  final_unit=final_unit, custom_unit=False, limited_storage=limited)
@@ -289,7 +287,7 @@ def load_001(pm_object, case_data):
             generated_stream = case_data.loc[i, 'generated_stream']
             generation_data = case_data.loc[i, 'generation_data']
 
-            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex,
                                             generated_stream=generated_stream, generation_data=generation_data,
                                             final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, generator)
@@ -418,7 +416,6 @@ def load_002(pm_object, case_data):
         name = component_df.loc[i, 'name']
         nice_name = component_df.loc[i, 'nice_name']
         capex = component_df.loc[i, 'capex']
-        capex_unit = component_df.loc[i, 'capex_unit']
         capex_basis = component_df.loc[i, 'capex_basis']
         lifetime = component_df.loc[i, 'lifetime']
         maintenance = component_df.loc[i, 'maintenance']
@@ -444,7 +441,7 @@ def load_002(pm_object, case_data):
 
             conversion_component = ConversionComponent(name=name, nice_name=nice_name, lifetime=lifetime,
                                                        maintenance=maintenance, base_investment=base_investment,
-                                                       capex=capex, capex_unit=capex_unit, scalable=scalable,
+                                                       capex=capex, scalable=scalable,
                                                        capex_basis=capex_basis, base_capacity=base_capacity,
                                                        economies_of_scale=economies_of_scale,
                                                        max_capacity_economies_of_scale=max_capacity_economies_of_scale,
@@ -472,7 +469,7 @@ def load_002(pm_object, case_data):
             storage_limiting_component = case_data.loc[i, 'storage_limiting_component']
             storage_limiting_component_ratio = case_data.loc[i, 'storage_limiting_component_ratio']
 
-            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex,
                                                  charging_efficiency, discharging_efficiency, min_soc, max_soc,
                                                  initial_soc, leakage=leakage, ratio_capacity_p=ratio_capacity_p,
                                                  storage_limiting_component=storage_limiting_component,
@@ -484,7 +481,7 @@ def load_002(pm_object, case_data):
             generated_stream = case_data.loc[i, 'generated_stream']
             generation_data = case_data.loc[i, 'generation_data']
 
-            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex,
                                             generated_stream=generated_stream, generation_data=generation_data,
                                             final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, generator)
@@ -612,7 +609,6 @@ def load_003(pm_object, case_data):
         name = component_df.loc[i, 'name']
         nice_name = component_df.loc[i, 'nice_name']
         capex = component_df.loc[i, 'capex']
-        capex_unit = component_df.loc[i, 'capex_unit']
         capex_basis = component_df.loc[i, 'capex_basis']
         lifetime = component_df.loc[i, 'lifetime']
         maintenance = component_df.loc[i, 'maintenance']
@@ -638,7 +634,7 @@ def load_003(pm_object, case_data):
 
             conversion_component = ConversionComponent(name=name, nice_name=nice_name, lifetime=lifetime,
                                                        maintenance=maintenance, base_investment=base_investment,
-                                                       capex=capex, capex_unit=capex_unit, scalable=scalable,
+                                                       capex=capex, scalable=scalable,
                                                        capex_basis=capex_basis, base_capacity=base_capacity,
                                                        economies_of_scale=economies_of_scale,
                                                        max_capacity_economies_of_scale=max_capacity_economies_of_scale,
@@ -666,7 +662,7 @@ def load_003(pm_object, case_data):
             storage_limiting_component = case_data.loc[i, 'storage_limiting_component']
             storage_limiting_component_ratio = case_data.loc[i, 'storage_limiting_component_ratio']
 
-            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            storage_component = StorageComponent(name, nice_name, lifetime, maintenance, capex,
                                                  charging_efficiency, discharging_efficiency, min_soc, max_soc,
                                                  initial_soc, leakage=leakage, ratio_capacity_p=ratio_capacity_p,
                                                  storage_limiting_component=storage_limiting_component,
@@ -678,7 +674,7 @@ def load_003(pm_object, case_data):
             generated_stream = case_data.loc[i, 'generated_stream']
             generation_data = case_data.loc[i, 'generation_data']
 
-            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex_unit, capex,
+            generator = GenerationComponent(name, nice_name, lifetime, maintenance, capex,
                                             generated_stream=generated_stream, generation_data=generation_data,
                                             final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, generator)
@@ -780,3 +776,4 @@ def load_003(pm_object, case_data):
         pm_object.set_abbreviation(nice_name, abbreviation)
 
     return pm_object
+

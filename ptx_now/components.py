@@ -22,12 +22,6 @@ class Component:
     def get_capex(self):
         return self.capex
 
-    def set_capex_unit(self, capex_unit):
-        self.capex_unit = capex_unit
-
-    def get_capex_unit(self):
-        return self.capex_unit
-
     def set_lifetime(self, lifetime):
         self.lifetime = float(lifetime)
 
@@ -57,10 +51,10 @@ class Component:
 
     def __copy__(self):
         return Component(name=self.name, nice_name=self.nice_name, final_unit=self.final_unit,
-                         custom_unit=self.custom_unit, capex=self.capex,
-                         capex_unit=self.capex_unit, lifetime=self.lifetime, maintenance=self.maintenance)
+                         custom_unit=self.custom_unit, capex=self.capex, lifetime=self.lifetime,
+                         maintenance=self.maintenance)
 
-    def __init__(self, name, nice_name, lifetime, maintenance, capex_unit, capex=None,
+    def __init__(self, name, nice_name, lifetime, maintenance, capex=None,
                  final_unit=False, custom_unit=False):
 
         """
@@ -70,7 +64,6 @@ class Component:
         :param nice_name: [string] - Nice name of component
         :param lifetime: [int] - lifetime of component
         :param maintenance: [float] - Maintenance of component
-        :param capex_unit: [string] - Unit of CAPEX
         :param capex: [float] - Capex
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
@@ -83,7 +76,6 @@ class Component:
         self.custom_unit = bool(custom_unit)
 
         self.capex = capex
-        self.capex_unit = capex_unit
 
         self.lifetime = lifetime
         self.maintenance = maintenance
@@ -161,9 +153,13 @@ class ConversionComponent(Component):
     def get_hot_standby_ability(self):
         return self.hot_standby_ability
 
-    def set_hot_standby_demand(self, stream, demand):
-        self.hot_standby_demand.clear()  # todo: Check if only one input?
-        self.hot_standby_demand[stream] = float(demand)
+    def set_hot_standby_demand(self, stream, demand=None):
+        if demand is not None:
+            hot_standby_demand = {stream: demand}
+            self.hot_standby_demand.clear()
+            self.hot_standby_demand = hot_standby_demand
+        else:
+            self.hot_standby_demand = stream
 
     def get_hot_standby_demand(self):
         return self.hot_standby_demand
@@ -251,7 +247,7 @@ class ConversionComponent(Component):
         hot_standby_demand = copy.deepcopy(self.hot_standby_demand)
 
         return ConversionComponent(name=name, nice_name=nice_name, lifetime=self.lifetime,
-                                   maintenance=self.maintenance, capex=self.capex, capex_unit=self.capex_unit,
+                                   maintenance=self.maintenance, capex=self.capex,
                                    capex_basis=self.capex_basis, scalable=self.scalable,
                                    base_investment=self.base_investment, base_capacity=self.base_capacity,
                                    economies_of_scale=self.economies_of_scale,
@@ -266,7 +262,7 @@ class ConversionComponent(Component):
                                    main_input=self.main_input, main_output=self.main_output, streams=streams,
                                    final_unit=self.final_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., capex_unit='€/MWh Electricity',
+    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
                  capex_basis='input', scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
                  max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1., shut_down_ability=False,
                  start_up_time=0., hot_standby_ability=False, hot_standby_demand=None, hot_standby_startup_time=0,
@@ -281,7 +277,6 @@ class ConversionComponent(Component):
         :param lifetime: [int] - lifetime of unit
         :param maintenance: [float] - maintenance of unit in % of investment
         :param capex: [float] - CAPEX of component
-        :param capex_unit: [string] - Unit of capex
         :param capex_basis: [str] - Decide if input or output sets basis of capex
         :param scalable: [boolean] - Boolean if scalable unit
         :param base_investment: [float] - If scalable, base investment of unit
@@ -291,7 +286,6 @@ class ConversionComponent(Component):
         :param ramp_down: [float] - Ramp down between time steps in % / h
         :param ramp_up: [float] - Ramp up between time steps in % / h
         :param shut_down_ability: [boolean] - Boolean if component can be turned off
-        :param shut_down_time: [int] - Time to shut down component
         :param start_up_time: [int] - Time to start up component
         :param number_parallel_units: [int] - Number parallel components with same parameters
         :param inputs: [Dict] - inputs of component
@@ -305,7 +299,7 @@ class ConversionComponent(Component):
         :param custom_unit: [boolean] - if unit is custom
         """
 
-        super().__init__(name, nice_name, lifetime, maintenance, capex_unit, capex, final_unit, custom_unit)
+        super().__init__(name, nice_name, lifetime, maintenance, capex, final_unit, custom_unit)
 
         self.component_type = 'conversion'
         self.scalable = bool(scalable)
@@ -413,7 +407,7 @@ class StorageComponent(Component):
 
     def __copy__(self):
         return StorageComponent(name=self.name, nice_name=self.nice_name, lifetime=self.lifetime,
-                                maintenance=self.maintenance, capex_unit=self.capex_unit, capex=self.capex,
+                                maintenance=self.maintenance, capex=self.capex,
                                 charging_efficiency=self.charging_efficiency,
                                 discharging_efficiency=self.discharging_efficiency,
                                 min_soc=self.min_soc, max_soc=self.max_soc, initial_soc=self.initial_soc,
@@ -423,7 +417,7 @@ class StorageComponent(Component):
                                 storage_limiting_component_ratio=self.storage_limiting_component_ratio,
                                 final_unit=self.final_unit, custom_unit=self.custom_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex_unit='€/MWh', capex=0.,
+    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
                  charging_efficiency=1., discharging_efficiency=1., min_soc=0., max_soc=1.,
                  initial_soc=0.5, leakage=0., ratio_capacity_p=1.,
                  limited_storage=False, storage_limiting_component=None, storage_limiting_component_ratio=None,
@@ -437,7 +431,6 @@ class StorageComponent(Component):
         :param lifetime: [int] - lifetime of unit
         :param maintenance: [float] - maintenance of unit in % of investment
         :param capex: [float] - CAPEX of component
-        :param capex_unit:[string] - Unit of capex
         :param charging_efficiency: [float] - Charging efficiency when charging storage
         :param discharging_efficiency: [float] - Charging efficiency when discharging storage
         :param min_soc: [float] - minimal SOC of storage
@@ -452,7 +445,7 @@ class StorageComponent(Component):
         :param custom_unit: [boolean] - if not default component
         """
 
-        super().__init__(name, nice_name, lifetime, maintenance, capex_unit, capex,
+        super().__init__(name, nice_name, lifetime, maintenance, capex,
                          final_unit, custom_unit)
 
         self.component_type = 'storage'
@@ -491,12 +484,12 @@ class GenerationComponent(Component):
 
     def __copy__(self):
         return GenerationComponent(name=self.name, nice_name=self.nice_name, lifetime=self.lifetime,
-                                   maintenance=self.maintenance, capex_unit=self.capex_unit, capex=self.capex,
+                                   maintenance=self.maintenance, capex=self.capex,
                                    generation_data=self.generation_data, generated_stream=self.generated_stream,
                                    generation_profile=self.generation_profile,
                                    final_unit=self.final_unit, custom_unit=self.custom_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex_unit='€/MW', capex=0.,
+    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
                  generation_data=None, generated_stream='electricity', generation_profile=None,
                  final_unit=False, custom_unit=False):
 
@@ -508,14 +501,13 @@ class GenerationComponent(Component):
         :param lifetime: [int] - lifetime of unit
         :param maintenance: [float] - maintenance of unit in % of investment
         :param capex: [float] - CAPEX of unit
-        :param capex_unit: [string] -  Unit of capex
         :param generation_data: [string] -  Path to csv file which contains normalized capacity factor
         :param generated_stream: [string] - Stream, which is generated by generator
         :param generation_profile: [list] - contains time series of normalized capacity factor
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
-        super().__init__(name, nice_name, lifetime, maintenance, capex_unit, capex,
+        super().__init__(name, nice_name, lifetime, maintenance, capex,
                          final_unit, custom_unit)
 
         self.component_type = 'generator'

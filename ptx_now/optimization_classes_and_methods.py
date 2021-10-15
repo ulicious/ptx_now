@@ -8,6 +8,7 @@ from pyomo.opt import SolverStatus, TerminationCondition
 from _helper_optimization import calculate_economies_of_scale_steps
 
 
+
 class OptimizationProblem:
 
     def pre_adjustments(self, pm_object):
@@ -241,6 +242,7 @@ class OptimizationProblem:
             if stream.is_demanded():
                 demanded_streams.append(stream_name)
             if stream.is_total_demand():
+                print('total demand' + stream_name)
                 total_demand_streams.append(stream_name)
 
         model.ME_STREAMS = Set(initialize=final_streams)
@@ -612,16 +614,20 @@ class OptimizationProblem:
         model.generation_profiles = Param(model.GENERATORS, model.TIME, initialize=generation_profiles_dict)
 
         # Get weighting file for representative weeks if used
+        weightings_dict = {}
         if pm_object.get_uses_representative_weeks():
             weightings = pd.read_excel(self.path_data + pm_object.get_path_weighting(), index_col=0)
-            weightings_dict = {}
             j = 0
             for i in weightings.index:
                 if i < pm_object.get_number_representative_weeks():
                     for k in range(7*24):
                         weightings_dict[j] = weightings.loc[i].values[0]
                         j += 1
-            model.weightings = Param(model.TIME, initialize=weightings_dict)
+        else:
+            for t in model.TIME:
+                weightings_dict[t] = 1
+
+        model.weightings = Param(model.TIME, initialize=weightings_dict)
 
         return model
 
@@ -677,11 +683,7 @@ class OptimizationProblem:
             # Sets streams, which are demanded
             if me in m.DEMANDED_STREAMS:  # Case with demand
                 if me in m.TOTAL_DEMANDED_STREAMS:  # Case where demand needs to be satisfied over all t
-                    if pm_object.get_uses_representative_weeks():
-                        return sum(m.mass_energy_demand[me, t] * m.weightings[t] for t in m.TIME) \
-                               >= m.stream_demand[me, 0]
-                    else:
-                        return sum(m.mass_energy_demand[me, t] for t in m.TIME) \
+                    return sum(m.mass_energy_demand[me, t] * m.weightings[t] for t in m.TIME) \
                                >= m.stream_demand[me, 0]
                 else:
                     return Constraint.Skip
@@ -781,7 +783,7 @@ class OptimizationProblem:
                 hot_standby_demand = pm_object.get_component(c).get_hot_standby_demand()[hot_standby_stream]
                 if me_in == hot_standby_stream:
                     return m.mass_energy_hot_standby_demand[c, me_in, t] \
-                           >= m.nominal_cap[c] * hot_standby_demand + (m.status_standby[c, t] - 1) * 10000
+                           >= m.nominal_cap[c] * hot_standby_demand + (m.status_standby[c, t] - 1) * 1000000
                 else:
                     return m.mass_energy_hot_standby_demand[c, me_in, t] == 0
             else:
@@ -793,7 +795,7 @@ class OptimizationProblem:
             if c in m.STANDBY_COMPONENTS:
                 hot_standby_stream = [*pm_object.get_component(c).get_hot_standby_demand().keys()][0]
                 if me_in == hot_standby_stream:
-                    return m.mass_energy_hot_standby_demand[c, me_in, t] <= m.status_standby[c, t] * 10000
+                    return m.mass_energy_hot_standby_demand[c, me_in, t] <= m.status_standby[c, t] * 1000000
                 else:
                     return m.mass_energy_hot_standby_demand[c, me_in, t] == 0
             else:
@@ -831,7 +833,7 @@ class OptimizationProblem:
             main_input = pm_object.get_component(c).get_main_input()
             if me_in == main_input:
                 return m.mass_energy_component_in_streams[c, me_in, t] \
-                       >= m.nominal_cap[c] * m.min_p[c] + (m.status_on[c, t] - 1) * 10000
+                       >= m.nominal_cap[c] * m.min_p[c] + (m.status_on[c, t] - 1) * 1000000
             else:
                 return Constraint.Skip
         model._conversion_minimal_component_capacity_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS,
@@ -845,7 +847,7 @@ class OptimizationProblem:
                 if t > 0:
                     return (m.mass_energy_component_in_streams[c, me_in, t]
                             - m.mass_energy_component_in_streams[c, me_in, t - 1]) <= \
-                           m.nominal_cap[c] * m.ramp_up[c] + m.status_on_switch_on[c, t] * 10000
+                           m.nominal_cap[c] * m.ramp_up[c] + m.status_on_switch_on[c, t] * 1000000
                 else:
                     return Constraint.Skip
             else:
@@ -859,7 +861,7 @@ class OptimizationProblem:
                 if t > 0:
                     return (m.mass_energy_component_in_streams[c, me_in, t]
                             - m.mass_energy_component_in_streams[c, me_in, t - 1]) >= \
-                           - m.nominal_cap[c] * m.ramp_down[c] - m.status_on_switch_off[c, t] * 10000
+                           - m.nominal_cap[c] * m.ramp_down[c] - m.status_on_switch_off[c, t] * 1000000
                 else:
                     return Constraint.Skip
             else:
@@ -896,7 +898,7 @@ class OptimizationProblem:
                 main_input = pm_object.get_component(c).get_main_input()
                 if me_in == main_input:
                     return m.mass_energy_component_in_streams[c, me_in, t] \
-                           - m.status_on[c, t] * 10000 <= 0
+                           - m.status_on[c, t] * 1000000 <= 0
                 else:
                     return Constraint.Skip
             model._active_component_con = Constraint(model.CONVERSION_COMPONENTS, model.ME_STREAMS, model.TIME,
@@ -1020,7 +1022,7 @@ class OptimizationProblem:
 
         def capacity_binary_activation_rule(m, c, i):
             # Capacity binary will be 1 if the capacity of the integer step is higher than 0
-            return m.capacity_binary[c, i] >= m.nominal_cap_pre[c, i] / 10000
+            return m.capacity_binary[c, i] >= m.nominal_cap_pre[c, i] / 1000000
         model.capacity_binary_activation_con = Constraint(model.SCALABLE_COMPONENTS, model.INTEGER_STEPS,
                                                           rule=capacity_binary_activation_rule)
 
@@ -1145,14 +1147,14 @@ class OptimizationProblem:
 
         def charge_binary_activation_rule(m, s, t):
             # Define charging binary -> if charged, binary = 1
-            return m.mass_energy_storage_in_streams[s, t] - m.storage_charge_binary[s, t] * 10000 <= 0
+            return m.mass_energy_storage_in_streams[s, t] - m.storage_charge_binary[s, t] * 1000000 <= 0
 
         model.charge_binary_activation_con = Constraint(model.STORAGES, model.TIME, rule=charge_binary_activation_rule)
 
         def discharge_binary_activation_rule(m, s, t):
             # Define discharging binary -> if discharged, binary = 1
             return m.mass_energy_storage_out_streams[s, t] - m.storage_discharge_binary[
-                s, t] * 10000 <= 0
+                s, t] * 1000000 <= 0
 
         model.discharge_binary_activation_con = Constraint(model.STORAGES, model.TIME,
                                                            rule=discharge_binary_activation_rule)
@@ -1243,12 +1245,8 @@ class OptimizationProblem:
 
         def _purchase_costs_rule(m, me):
             # calculate purchase costs of each stream
-            if not pm_object.get_uses_representative_weeks():
-                return m.purchase_costs[me] == sum(m.mass_energy_purchase_stream[me, t]
-                                                   * m.purchase_price[me, t] for t in m.TIME)
-            else:
-                return m.purchase_costs[me] == sum(m.mass_energy_purchase_stream[me, t] * m.weightings[t]
-                                                   * m.purchase_price[me, t] for t in m.TIME)
+            return m.purchase_costs[me] == sum(m.mass_energy_purchase_stream[me, t] * m.weightings[t]
+                                               * m.purchase_price[me, t] for t in m.TIME)
         model._purchase_costs_con = Constraint(model.PURCHASABLE_STREAMS, rule=_purchase_costs_rule)
 
         def _total_purchase_costs_rule(m):
@@ -1258,12 +1256,8 @@ class OptimizationProblem:
 
         def _revenue_rule(m, me):
             # Calculate revenue for each stream
-            if not pm_object.get_uses_representative_weeks():
-                return m.revenue[me] == sum(m.mass_energy_sell_stream[me, t]
-                                            * m.selling_price[me, t] for t in m.TIME)
-            else:
-                return m.revenue[me] == sum(m.mass_energy_sell_stream[me, t] * m.weightings[t]
-                                            * m.selling_price[me, t] for t in m.TIME)
+            return m.revenue[me] == sum(m.mass_energy_sell_stream[me, t] * m.weightings[t]
+                                        * m.selling_price[me, t] for t in m.TIME)
         model.revenue_con = Constraint(model.SALEABLE_STREAMS, rule=_revenue_rule)
 
         def _total_revenue_rule(m):

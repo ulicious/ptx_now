@@ -227,7 +227,12 @@ def load_001(pm_object, case_data):
         name = component_df.loc[i, 'name']
         nice_name = component_df.loc[i, 'nice_name']
         capex = component_df.loc[i, 'capex']
-        capex_basis = component_df.loc[i, 'capex_basis']
+
+        if 'capex_basis' in component_df.columns:
+            capex_basis = component_df.loc[i, 'capex_basis']
+        else:
+            capex_basis = 'input'
+
         lifetime = component_df.loc[i, 'lifetime']
         maintenance = component_df.loc[i, 'maintenance']
         final_unit = component_df.loc[i, 'final']

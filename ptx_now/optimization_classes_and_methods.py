@@ -1115,27 +1115,43 @@ class OptimizationProblem:
         model.storage_discharge_upper_bound_con = Constraint(model.ME_STREAMS, model.TIME,
                                                              rule=storage_discharge_upper_bound_rule)
 
-        if False: # todo: delete
+        if True:
 
             def storage_limitation_to_component_rule(model, s):
                 # todo: delete completely to avoid complex cases?
                 # Sets storage limitation based on other component.
                 # E.g., if battery should be able to store max a 24 hour supply for electrolysis
                 c = model.storage_limiting_component[s]
-                coefficient = 1
-                main_input = pm_object.get_component(c).get_main_input()
-                for stream in model.ME_STREAMS:
-                    if (c, stream, s) in [*self.conversion_tuples_dict.keys()]:
-                        # Case, the storage is based in input -> Adjust coefficient
-                        coefficient = self.conversion_tuples_dict[(c, stream, s)]
-                        if (c, stream) in self.main_tuples:
-                            break
-                return model.nominal_cap[s] == model.nominal_cap[model.storage_limiting_component[s]] \
-                       * model.storage_limiting_component_ratio[s] * coefficient
-                # todo: wenn input, dann muss die effizienz noch eingerechnet werden
+                component = self.pm_object.get_component(c)
+                main_input = component.get_main_input()
+                main_output = component.get_main_output()
+                if s in [*component.get_inputs().keys()]:
+
+                    if s == main_input:
+                        coefficient = 1
+                    else:
+                        main_coefficient = component.get_inputs()[main_input]
+                        side_coefficient = component.get_inputs()[s]
+
+                        coefficient = side_coefficient / main_coefficient
+
+                else:
+
+                    main_in_coefficient = component.get_inputs()[main_input]
+                    main_out_coefficient = component.get_outputs()[main_output]
+                    side_coefficient = component.get_outputs()[s]
+
+                    if s == main_output:
+                        coefficient = main_out_coefficient / main_in_coefficient
+                    else:
+
+                        coefficient = side_coefficient / main_in_coefficient
+
+                return model.nominal_cap[s] == (model.nominal_cap[model.storage_limiting_component[s]]
+                                                * model.storage_limiting_component_ratio[s] * coefficient)
 
             model.storage_limitation_to_component_con = Constraint(model.LIMITED_STORAGES,
-                                                                        rule=storage_limitation_to_component_rule)
+                                                                   rule=storage_limitation_to_component_rule)
 
         """ STORAGE BINARY DECISIONS """
 

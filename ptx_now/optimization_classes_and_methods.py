@@ -738,7 +738,7 @@ class OptimizationProblem:
             # todo: adjustment: '<=' durch abregelung?
 
             if me == pm_object.get_component(g).get_generated_stream():
-                return m.mass_energy_generation[g, me, t] == m.generation_profiles[g, t] * m.nominal_cap[g]
+                return m.mass_energy_generation[g, me, t] <= m.generation_profiles[g, t] * m.nominal_cap[g]
             else:
                 return m.mass_energy_generation[g, me, t] == 0
         model.power_generation_con = Constraint(model.GENERATORS, model.ME_STREAMS, model.TIME,

@@ -191,6 +191,7 @@ class ParameterObject:
         return components
 
     def remove_stream(self, stream):
+
         self.get_stream(stream).set_final(False)
 
     def activate_stream(self, stream):

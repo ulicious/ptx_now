@@ -18,6 +18,12 @@ class Stream:
     def get_unit(self):
         return self.stream_unit
 
+    def set_energy_content(self, energy_content):
+        self.energy_content = energy_content
+
+    def get_energy_content(self):
+        return self.energy_content
+
     def set_purchasable(self, status):
         self.purchasable = status
 
@@ -104,13 +110,14 @@ class Stream:
 
     def __copy__(self):
         return Stream(name=self.name, nice_name=self.nice_name, stream_unit=self.stream_unit,
+                      energy_content=self.energy_content,
                       final_stream=self.final_stream, custom_stream=self.custom_stream, emittable=self.emittable,
                       available=self.available, purchasable=self.purchasable, purchase_price=self.purchase_price,
                       purchase_price_type=self.purchase_price_type, saleable=self.saleable, sale_price=self.sale_price,
                       sale_price_type=self.sale_price_type, demanded=self.demanded, demand=self.demand,
                       total_demand=self.total_demand)
 
-    def __init__(self, name, nice_name, stream_unit, final_stream=False, custom_stream=False,
+    def __init__(self, name, nice_name, stream_unit, energy_content=None, final_stream=False, custom_stream=False,
                  emittable=False, available=False,
                  purchasable=False, purchase_price=None, purchase_price_type='fixed',
                  saleable=False, sale_price=None, sale_price_type='fixed',
@@ -121,6 +128,7 @@ class Stream:
         :param name: [string] - Abbreviation of stream
         :param nice_name: [string] - Nice name of stream
         :param stream_unit: [string] - Unit of stream
+        :param energy_content: [float] - Energy content per unit
         :param final_stream: [boolean] - Is used in the final optimization?
         :param custom_stream: [boolean] - Is a custom stream?
         :param emittable: [boolean] - can be emitted?
@@ -139,6 +147,22 @@ class Stream:
         self.name = name
         self.nice_name = nice_name
         self.stream_unit = stream_unit
+        if energy_content is not None:
+            self.energy_content = energy_content
+        elif self.stream_unit == 'kWh':
+            self.energy_content = 0.001
+        elif self.stream_unit == 'MWh':
+            self.energy_content = 1
+        elif self.stream_unit == 'GWh':
+            self.energy_content = 1000
+        elif self.stream_unit == 'kJ':
+            self.energy_content = 2.7777e-7
+        elif self.stream_unit == 'MJ':
+            self.energy_content = 2.7777e-4
+        elif self.stream_unit == 'GJ':
+            self.energy_content = 2.7777e-1
+        else:
+            self.energy_content = 0
 
         self.final_stream = final_stream
         self.custom_stream = custom_stream

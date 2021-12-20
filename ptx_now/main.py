@@ -6,6 +6,7 @@ from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
 from load_projects import load_setting
 import pandas as pd
+from _helpers_visualization import create_visualization
 
 setting_window = SettingWindow()
 
@@ -15,6 +16,7 @@ if setting_window.go_on:
     path_result = setting_window.folder_result
     path_settings = setting_window.folder_settings
     solver = setting_window.solver
+    path_visualization = setting_window.folder_visualization
 
     if setting_window.radiobutton_variable.get() == 'new':
 
@@ -49,6 +51,9 @@ if setting_window.go_on:
 
             optimization_problem = OptimizationProblem(pm_object, path_data=path_data, solver=solver)
             result = Result(optimization_problem, path_result, path_data, file_without_ending)
+
+    elif setting_window.radiobutton_variable.get() == 'visualize_only':
+        create_visualization(path_visualization)
 
 
 

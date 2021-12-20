@@ -16,8 +16,6 @@ class StreamFrame:
         stream_original = self.pm_object_original.get_stream(self.stream)
         self.pm_object.add_stream(self.stream, stream_original.__copy__())
 
-        # todo: Storable?
-
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
 
@@ -154,6 +152,14 @@ class StreamFrame:
 
         i += 1
 
+        energy_units = ['kWh', 'MWh', 'GWh', 'kJ', 'MJ', 'GJ']
+        if not self.stream_object.get_unit() in energy_units:
+            ttk.Label(self.frame, text='Energy content:').grid(row=i, column=0, sticky='w')
+            ttk.Label(self.frame, text=self.energy_content_var.get() + ' MWh/' + self.stream_object.get_unit())\
+                .grid(row=i, column=1)
+
+            i += 1
+
         button_frame = ttk.Frame(self.frame)
         ttk.Button(button_frame, text='Adjust setting', command=self.adjust_values)\
             .grid(row=0, column=0, sticky='ew')
@@ -162,8 +168,8 @@ class StreamFrame:
             ttk.Button(button_frame, text='Reset setting', command=self.set_stream_settings_to_default)\
                 .grid(row=0, column=1, sticky='ew')
         else:
-            ttk.Button(button_frame, text='Reset setting', command=self.set_stream_settings_to_default, state=DISABLED) \
-                .grid(row=0, column=1, sticky='ew')
+            ttk.Button(button_frame, text='Reset setting',
+                       command=self.set_stream_settings_to_default, state=DISABLED).grid(row=0, column=1, sticky='ew')
 
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
@@ -232,6 +238,8 @@ class StreamFrame:
 
         self.demand_text_var.set(self.stream_object.get_demand())
 
+        self.energy_content_var.set(self.stream_object.get_energy_content())
+
     def __init__(self, parent, frame, stream, pm_object, pm_object_original):
 
         self.parent = parent
@@ -260,6 +268,8 @@ class StreamFrame:
         self.demand_var = tk.BooleanVar()
         self.total_demand_var = tk.BooleanVar()
         self.demand_text_var = StringVar()
+
+        self.energy_content_var = StringVar()
 
         self.create_widgets_in_frame()
 
@@ -385,6 +395,15 @@ class AdjustStreamWindow:
                                                onvalue=True, offvalue=False, command=change_total_demand)
         self.demand_total_demand_button.grid(row=10, column=2, sticky='w')
 
+        i = 0
+        energy_units = ['kWh', 'MWh', 'GWh', 'kJ', 'MJ', 'GJ']
+        if not self.stream_object.get_unit() in energy_units:
+            ttk.Separator(self.newWindow).grid(row=11, columnspan=3, sticky='ew')
+            ttk.Label(self.newWindow, text='Energy content').grid(row=12, column=0, sticky='w')
+            ttk.Entry(self.newWindow, textvariable=self.energy_content_var).grid(row=12, column=1, sticky='w')
+            ttk.Label(self.newWindow, text='MWh/' + self.stream_object.get_unit()).grid(row=12, column=2, sticky='w')
+            i = 2
+
         button_frame = ttk.Frame(self.newWindow)
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
@@ -394,7 +413,7 @@ class AdjustStreamWindow:
         ttk.Button(button_frame, text='Cancel', command=self.kill_only) \
             .grid(row=0, column=1, sticky='ew')
 
-        button_frame.grid(row=11, columnspan=3, sticky='ew')
+        button_frame.grid(row=11+i, columnspan=3, sticky='ew')
 
         self.configure_purchasable_streams()
         self.configure_saleable_streams()
@@ -459,6 +478,8 @@ class AdjustStreamWindow:
             self.total_demand_var.set(False)
 
         self.demand_text_var.set(self.stream_object.get_demand())
+
+        self.energy_content_var.set(self.stream_object.get_energy_content())
 
     def configure_purchasable_streams(self):
         if self.purchasable_var.get():
@@ -612,6 +633,8 @@ class AdjustStreamWindow:
             else:
                 self.stream_object.set_sale_price(self.sale_price_curve_text_var.get())
 
+        self.stream_object.set_energy_content(self.energy_content_var.get())
+
         self.parent.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.parent.update_widgets()
 
@@ -628,6 +651,7 @@ class AdjustStreamWindow:
         self.newWindow.title('Adjust Stream Parameters')
         self.newWindow.grab_set()
 
+        # variables
         self.purchasable_var = tk.BooleanVar()
         self.purchase_price_type_var = tk.StringVar()
         self.purchase_price_fixed_text_var = tk.StringVar()
@@ -646,6 +670,9 @@ class AdjustStreamWindow:
         self.demand_text_var = StringVar()
         self.initial_purchase_price_var = StringVar()
 
+        self.energy_content_var = StringVar()
+
+        # widgets
         self.purchase_fixed_price_radiobutton = ttk.Radiobutton(self.newWindow)
         self.purchase_fixed_price_entry = ttk.Entry(self.newWindow)
         self.purchase_price_curve_radiobutton = ttk.Radiobutton(self.newWindow)

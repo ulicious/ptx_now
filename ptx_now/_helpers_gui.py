@@ -220,8 +220,20 @@ class ComponentInterface(ttk.Frame):
 
                     component.set_final(False)
 
-            for stream in self.pm_object_copy.get_specific_streams('final'):
-                self.pm_object_copy.remove_stream(stream.get_name())
+                    # Set all streams to not final if stream is not used anymore
+                    for stream in self.pm_object_copy.get_specific_streams('final'):
+                        stream_used_elsewhere = False
+                        for other_component in self.pm_object_copy.get_specific_components('final', 'conversion'):
+                            if other_component != component:
+                                if stream.get_name() in [*other_component.get_inputs().keys()]:
+                                    stream_used_elsewhere = True
+                                    break
+                                if stream.get_name() in [*other_component.get_outputs().keys()]:
+                                    stream_used_elsewhere = True
+                                    break
+
+                        if not stream_used_elsewhere:
+                            self.pm_object_copy.remove_stream(stream.get_name())
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
@@ -449,7 +461,7 @@ class StorageInterface(ttk.Frame):
 
         # Add storages to collection of existing storages
         self.storages_nice_names = []
-        for s in self.pm_object_copy.get_specific_components(component_type='storage'):
+        for s in self.pm_object_copy.get_specific_components('final', 'storage'):
             self.storages_nice_names.append(s.get_nice_name())
 
         # Add dummy storages for not yet existing storages
@@ -928,7 +940,7 @@ class ToggledFrame(tk.Frame):
 
             # Add storages to collection of existing storages
             self.storages_nice_names = []
-            for s in self.pm_object_copy.get_specific_components(component_type='storage'):
+            for s in self.pm_object_copy.get_specific_components('final', 'storage'):
                 self.storages_nice_names.append(s.get_nice_name())
 
             # Add dummy storages for not yet existing storages
@@ -1297,38 +1309,50 @@ class SettingWindow:
             self.folder_optimize = folder_path
             self.choose_optimize_folder_var.set(self.folder_optimize)
 
+    def getFolderPathResultVisualization(self):
+        folder_path = filedialog.askdirectory() + '/'
+        if folder_path != '/':
+            self.folder_visualization = folder_path
+            self.choose_visualize_folder_var.set(self.folder_visualization)
+
     def radiobutton_command(self):
 
-        if self.radiobutton_variable.get() == 'new':
+        self.choose_result_folder_button.config(state=NORMAL)
+        self.choose_result_folder_label.config(state=NORMAL)
 
-            self.optimize_only_path_label.config(state=DISABLED)
-            self.optimize_only_path_button.config(state=DISABLED)
+        self.choose_settings_folder_button.config(state=NORMAL)
+        self.choose_settings_folder_label.config(state=NORMAL)
 
-            self.choose_custom_path_label.config(state=DISABLED)
-            self.choose_custom_path_button.config(state=DISABLED)
+        self.optimize_only_path_label.config(state=DISABLED)
+        self.optimize_only_path_button.config(state=DISABLED)
 
-        elif self.radiobutton_variable.get() == 'custom':
+        self.choose_custom_path_label.config(state=DISABLED)
+        self.choose_custom_path_button.config(state=DISABLED)
 
-            self.optimize_only_path_label.config(state=DISABLED)
-            self.optimize_only_path_button.config(state=DISABLED)
+        self.visualize_only_path_button.config(state=DISABLED)
+        self.visualize_only_path_button.config(state=DISABLED)
 
+        if self.radiobutton_variable.get() == 'custom':
             self.choose_custom_path_label.config(state=NORMAL)
             self.choose_custom_path_button.config(state=NORMAL)
 
         elif self.radiobutton_variable.get() == 'optimize_only':
 
+            self.choose_settings_folder_button.config(state=DISABLED)
+            self.choose_settings_folder_label.config(state=DISABLED)
+
             self.optimize_only_path_label.config(state=NORMAL)
             self.optimize_only_path_button.config(state=NORMAL)
 
-            self.choose_custom_path_label.config(state=DISABLED)
-            self.choose_custom_path_button.config(state=DISABLED)
-            
-        else:
-            self.optimize_only_path_label.config(state=DISABLED)
-            self.optimize_only_path_button.config(state=DISABLED)
+        elif self.radiobutton_variable.get() == 'visualize_only':
+            self.choose_result_folder_button.config(state=DISABLED)
+            self.choose_result_folder_label.config(state=DISABLED)
 
-            self.choose_custom_path_label.config(state=DISABLED)
-            self.choose_custom_path_button.config(state=DISABLED)
+            self.choose_settings_folder_button.config(state=DISABLED)
+            self.choose_settings_folder_label.config(state=DISABLED)
+
+            self.visualize_only_path_button.config(state=NORMAL)
+            self.visualize_only_path_button.config(state=NORMAL)
 
     def kill_window(self):
 
@@ -1363,6 +1387,11 @@ class SettingWindow:
             ttk.Label(window_no_paths, text='Please choose folder with settings').pack()
             ttk.Button(window_no_paths, text='Ok', command=kill_no_paths_window).pack()
 
+        elif (self.radiobutton_variable.get() == 'visualize_only') & (check_empty(self.folder_visualization)):
+            window_no_paths = Toplevel(self.window)
+            ttk.Label(window_no_paths, text='Please choose result folder').pack()
+            ttk.Button(window_no_paths, text='Ok', command=kill_no_paths_window).pack()
+
         else:
 
             self.base_settings.loc['path_data'] = self.folder_data
@@ -1372,6 +1401,7 @@ class SettingWindow:
             self.base_settings.loc['chosen_setting'] = self.radiobutton_variable.get()
             self.base_settings.loc['path_optimize'] = self.folder_optimize
             self.base_settings.loc['solver'] = self.solver_combobox.get()
+            self.base_settings.loc['path_visualization'] = self.folder_visualization
 
             self.base_settings.to_excel(os.getcwd() + '/base_settings.xlsx', index=True)
 
@@ -1399,11 +1429,13 @@ class SettingWindow:
         self.path_custom = self.base_settings.loc['path_custom'].values[0]
         self.path_optimize = self.base_settings.loc['path_optimize'].values[0]
         self.solver = self.base_settings.loc['solver'].values[0]
+        self.path_visualization = self.base_settings.loc['path_visualization'].values[0]
 
         radiobutton_frame = ttk.Frame(self.frame)
         radiobutton_frame.grid_columnconfigure(0, weight=1)
         radiobutton_frame.grid_columnconfigure(1, weight=1)
         radiobutton_frame.grid_columnconfigure(2, weight=1)
+        radiobutton_frame.grid_columnconfigure(3, weight=1)
 
         self.radiobutton_variable = StringVar()
 
@@ -1422,6 +1454,9 @@ class SettingWindow:
         tk.Radiobutton(radiobutton_frame, text='Optimize existing projects', variable=self.radiobutton_variable,
                        value='optimize_only', command=self.radiobutton_command).grid(row=0, column=2, sticky='ew')
 
+        tk.Radiobutton(radiobutton_frame, text='Visualize project', variable=self.radiobutton_variable,
+                       value='visualize_only', command=self.radiobutton_command).grid(row=0, column=3, sticky='ew')
+
         radiobutton_frame.grid(row=0, columnspan=2, sticky='ew')
 
         self.choose_data_folder_var = StringVar()
@@ -1430,6 +1465,7 @@ class SettingWindow:
         self.choose_custom_path_label_var = StringVar()
         self.choose_optimize_folder_var = StringVar()
         self.choose_solver_var = StringVar()
+        self.choose_visualize_folder_var = StringVar()
 
         if type(self.path_result) == str:
 
@@ -1450,6 +1486,9 @@ class SettingWindow:
 
             self.choose_solver_var.set(self.solver)
 
+            self.choose_visualize_folder_var.set(self.path_visualization)
+            self.folder_visualization = self.path_visualization
+
         else:
             self.choose_data_folder_var.set('')
             self.choose_result_folder_var.set('')
@@ -1457,12 +1496,14 @@ class SettingWindow:
             self.choose_custom_path_label_var.set('')
             self.choose_optimize_folder_var.set('')
             self.choose_solver_var.set('')
+            self.choose_visualize_folder_var.set('')
 
             self.folder_data = None
             self.selected_custom = None
             self.folder_optimize = None
             self.folder_result = None
             self.folder_settings = None
+            self.folder_visualization = None
 
         self.choose_data_folder_button = ttk.Button(self.frame, text='Select data folder',
                                                     command=self.getFolderData)
@@ -1500,10 +1541,17 @@ class SettingWindow:
         self.optimize_only_path_label.grid(row=5, column=1, sticky='w')
 
         tk.Label(self.frame, text='Solver').grid(row=6, column=0, sticky='w')
-        solvers = ['gurobi', 'cplex']
+        solvers = ['gurobi', 'cplex', 'glpk']
         self.solver_combobox = ttk.Combobox(self.frame, values=solvers, state='readonly')
         self.solver_combobox.set(self.choose_solver_var.get())
         self.solver_combobox.grid(row=6, column=1, sticky='ew')
+
+        self.visualize_only_path_button = ttk.Button(self.frame, text='Select result for visualization',
+                                                    command=self.getFolderPathResultVisualization)
+        self.visualize_only_path_button.grid(row=7, column=0, sticky='ew')
+
+        self.visualize_only_path_label = tk.Label(self.frame, textvariable=self.choose_visualize_folder_var)
+        self.visualize_only_path_label.grid(row=7, column=1, sticky='w')
 
         button_frame = ttk.Frame(self.frame)
         button_frame.grid_columnconfigure(0, weight=1)
@@ -1514,7 +1562,7 @@ class SettingWindow:
         self.button_ok = ttk.Button(button_frame, text='Cancel', command=self.kill_window_without)
         self.button_ok.grid(row=0, column=1, sticky='ew')
 
-        button_frame.grid(row=7, columnspan=2, sticky='ew')
+        button_frame.grid(row=8, columnspan=2, sticky='ew')
 
         self.radiobutton_command()
         self.window.mainloop()

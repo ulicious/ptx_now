@@ -9,6 +9,7 @@ from datetime import datetime
 from _helpers_gui import AssumptionsInterface, ComponentInterface, StreamInterface, StorageInterface, GeneratorInterface
 from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
+from _helpers_visualization import create_visualization
 from parameter_object import ParameterObject
 
 from load_projects import load_setting
@@ -38,6 +39,7 @@ class Interface:
             self.pm_object_copy.create_new_project()
 
             self.root.title('New Project')
+            self.project_name = None
 
         else:  # Custom project
 
@@ -51,6 +53,7 @@ class Interface:
 
             custom_title = self.path_custom.split('/')[-1].split('.')[0]
             self.root.title(custom_title)
+            self.project_name = custom_title
 
         self.me_checked = False  # boolean if mass energy balance was checked
 
@@ -398,7 +401,7 @@ class Interface:
 
         k = 0
 
-        case_data.loc[k, 'version'] = '0.0.3'
+        case_data.loc[k, 'version'] = '0.0.4'
 
         k += 1
 
@@ -468,6 +471,7 @@ class Interface:
 
                 case_data.loc[k, 'generated_stream'] = component.get_generated_stream()
                 case_data.loc[k, 'generation_data'] = component.get_generation_data()
+                case_data.loc[k, 'curtailment_possible'] = component.get_curtailment_possible()
 
             elif component.get_component_type() == 'storage':
 
@@ -549,6 +553,8 @@ class Interface:
             # Demand
             case_data.loc[k, 'demand'] = stream.get_demand()
 
+            case_data.loc[k, 'energy_content'] = stream.get_energy_content()
+
             k += 1
 
         for abbreviation in self.pm_object_copy.get_all_abbreviations():
@@ -579,7 +585,7 @@ class Interface:
 
     def analyze_results(self, optimization_problem):
 
-        result = Result(optimization_problem, self.path_result, self.path_data)
+        result = Result(optimization_problem, self.path_result, self.path_data, self.project_name)
 
     def get_data_template(self):
 
@@ -640,6 +646,9 @@ class Interface:
 
                     optimization_problem = OptimizationProblem(pm_object, path_data=path_data, solver=solver)
                     result = Result(optimization_problem, path_result, path_data, file_without_ending)
+
+            elif setting_window.radiobutton_variable.get() == 'visualize_only':
+                create_visualization(setting_window.path_visualization)
 
 
 

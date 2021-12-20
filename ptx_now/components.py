@@ -482,15 +482,22 @@ class GenerationComponent(Component):
     def get_generation_data(self):
         return self.generation_data
 
+    def set_curtailment_possible(self, status):
+        self.curtailment_possible = status
+
+    def get_curtailment_possible(self):
+        return self.curtailment_possible
+
     def __copy__(self):
         return GenerationComponent(name=self.name, nice_name=self.nice_name, lifetime=self.lifetime,
                                    maintenance=self.maintenance, capex=self.capex,
                                    generation_data=self.generation_data, generated_stream=self.generated_stream,
                                    generation_profile=self.generation_profile,
+                                   curtailment_possible=self.curtailment_possible,
                                    final_unit=self.final_unit, custom_unit=self.custom_unit)
 
     def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
-                 generation_data=None, generated_stream='electricity', generation_profile=None,
+                 generation_data=None, generated_stream='electricity', generation_profile=None, curtailment_possible=True,
                  final_unit=False, custom_unit=False):
 
         """
@@ -515,3 +522,4 @@ class GenerationComponent(Component):
         self.generated_stream = generated_stream
         self.generation_data = generation_data
         self.generation_profile = generation_profile
+        self.curtailment_possible = curtailment_possible

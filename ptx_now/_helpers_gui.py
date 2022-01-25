@@ -1283,36 +1283,42 @@ class SettingWindow:
         folder_path = filedialog.askdirectory() + '/'
         if folder_path != '/':
             self.folder_data = folder_path
+            self.path_data = folder_path
             self.choose_data_folder_var.set(self.folder_data)
 
     def getFolderResult(self):
         folder_path = filedialog.askdirectory() + '/'
         if folder_path != '/':
             self.folder_result = folder_path
+            self.path_result = folder_path
             self.choose_result_folder_var.set(self.folder_result)
 
     def getFolderSettings(self):
         folder_path = filedialog.askdirectory() + '/'
         if folder_path != '/':
             self.folder_settings = folder_path
+            self.path_settings = folder_path
             self.choose_saved_settings_folder_var.set(self.folder_settings)
 
     def getFolderPathCustom(self):
         folder_path = filedialog.askopenfilename()
         if folder_path != '':
             self.selected_custom = folder_path
+            self.path_custom = folder_path
             self.choose_custom_path_label_var.set(self.selected_custom)
 
     def getFolderPathOptimize(self):
         folder_path = filedialog.askdirectory() + '/'
         if folder_path != '/':
             self.folder_optimize = folder_path
+            self.path_optimize = folder_path
             self.choose_optimize_folder_var.set(self.folder_optimize)
 
     def getFolderPathResultVisualization(self):
         folder_path = filedialog.askdirectory() + '/'
         if folder_path != '/':
             self.folder_visualization = folder_path
+            self.path_visualization = folder_path
             self.choose_visualize_folder_var.set(self.folder_visualization)
 
     def radiobutton_command(self):

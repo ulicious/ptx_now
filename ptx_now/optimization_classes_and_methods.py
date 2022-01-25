@@ -185,9 +185,9 @@ class OptimizationProblem:
 
         # Time range
         if pm_object.get_uses_representative_weeks():
-            number_weeks = pm_object.get_number_representative_weeks()
+            number_weeks = len(pd.read_excel(self.path_data + pm_object.get_path_weighting(), index_col=0).index)
             covered_period = number_weeks * 7 * 24
-            model.TIME = RangeSet(0, covered_period)# - 1)
+            model.TIME = RangeSet(0, covered_period - 1)
         else:
             model.TIME = RangeSet(0, pm_object.get_covered_period() - 1)
 
@@ -605,12 +605,12 @@ class OptimizationProblem:
         model.selling_price = Param(model.SALEABLE_STREAMS, model.TIME, initialize=sell_price_dict)
         model.stream_demand = Param(model.DEMANDED_STREAMS, model.TIME, initialize=demand_dict)
 
-        # Set normalized generation profiles
+        generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
         for generator in pm_object.get_specific_components('final', 'generator'):
             generator_name = generator.get_name()
-            generation_profile = pd.read_excel(self.path_data + generator.get_generation_data(), index_col=0)
             for t in model.TIME:
-                generation_profiles_dict.update({(generator_name, t): float(generation_profile.loc[t, 'value'])})
+                ind = generation_profile.index[t]
+                generation_profiles_dict.update({(generator_name, t): float(generation_profile.loc[ind, generator.get_nice_name()])})
 
         model.generation_profiles = Param(model.GENERATORS, model.TIME, initialize=generation_profiles_dict)
 
@@ -620,10 +620,9 @@ class OptimizationProblem:
             weightings = pd.read_excel(self.path_data + pm_object.get_path_weighting(), index_col=0)
             j = 0
             for i in weightings.index:
-                if i < pm_object.get_number_representative_weeks():
-                    for k in range(7*24):
-                        weightings_dict[j] = weightings.loc[i].values[0]
-                        j += 1
+                for k in range(7*24):
+                    weightings_dict[j] = weightings.at[i, 'weighting']
+                    j += 1
         else:
             for t in model.TIME:
                 weightings_dict[t] = 1
@@ -1159,8 +1158,7 @@ class OptimizationProblem:
                     return m.mass_energy_storage_out_streams[me, t] / m.discharging_efficiency[me] \
                            <= m.nominal_cap[me] / m.ratio_capacity_p[me]
             else:
-                return m.mass_energy_storage_out_streams[
-                           me, t] == 0  # Defines all streams of non storable streams
+                return m.mass_energy_storage_out_streams[me, t] == 0  # Defines all streams of non storable streams
 
         model.storage_discharge_upper_bound_con = Constraint(model.ME_STREAMS, model.TIME,
                                                              rule=storage_discharge_upper_bound_rule)
@@ -1368,7 +1366,7 @@ class OptimizationProblem:
         self.input_tuples = []
         self.output_tuples = []
 
-    def __init__(self, pm_object, path_data, solver):
+    def __init__(self, pm_object, path_data, solver, path_to_generation_folder=None):
 
         self.input_conversion_tuples = []
         self.output_conversion_tuples = []
@@ -1381,6 +1379,7 @@ class OptimizationProblem:
         # ----------------------------------
         # Set up problem
         self.path_data = path_data
+        self.path_to_generation_folder = path_to_generation_folder
         self.solver = solver
         self.instance = None
 

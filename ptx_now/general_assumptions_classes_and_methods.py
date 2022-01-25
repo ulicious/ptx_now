@@ -28,7 +28,6 @@ class GeneralAssumptionsFrame:
 
             if rb_variable.get() == 'representative_weeks':
                 self.pm_object.set_uses_representative_weeks(True)
-                self.pm_object.set_number_representative_weeks(number_representative_weeks.get())
                 self.pm_object.set_path_weighting(path_weighting.get())
             else:
                 self.pm_object.set_uses_representative_weeks(False)
@@ -54,8 +53,6 @@ class GeneralAssumptionsFrame:
                 label_covered_period.config(state=NORMAL)
                 entry_covered_period.config(state=NORMAL)
 
-                label_number_repr_weeks.config(state=DISABLED)
-                entry_number_repr_weeks.config(state=DISABLED)
                 label_weighting.config(state=DISABLED)
                 button_select_path.config(state=DISABLED)
                 path_label.config(state=DISABLED)
@@ -63,8 +60,6 @@ class GeneralAssumptionsFrame:
                 label_covered_period.config(state=DISABLED)
                 entry_covered_period.config(state=DISABLED)
 
-                label_number_repr_weeks.config(state=NORMAL)
-                entry_number_repr_weeks.config(state=NORMAL)
                 label_weighting.config(state=NORMAL)
                 button_select_path.config(state=NORMAL)
                 path_label.config(state=NORMAL)
@@ -86,9 +81,6 @@ class GeneralAssumptionsFrame:
         representative_weeks = BooleanVar()
         representative_weeks.set(self.pm_object.get_uses_representative_weeks())
 
-        number_representative_weeks = IntVar()
-        number_representative_weeks.set(self.pm_object.get_number_representative_weeks())
-
         path_weighting = StringVar()
         path_weighting.set(self.pm_object.get_path_weighting())
 
@@ -105,12 +97,6 @@ class GeneralAssumptionsFrame:
 
         ttk.Radiobutton(newWindow, text='Use Representative Weeks?', variable=rb_variable,
                         value='representative_weeks', command=change_rb).grid(column=0, row=i, sticky='w')
-
-        label_number_repr_weeks = ttk.Label(newWindow,
-                                            text='Number Representative Weeks [weeks]', state=state_repr_weeks)
-        label_number_repr_weeks.grid(column=0, row=i+1, sticky='w')
-        entry_number_repr_weeks = ttk.Entry(newWindow, text=number_representative_weeks, state=state_repr_weeks)
-        entry_number_repr_weeks.grid(column=1, row=i+1, sticky='w')
 
         label_weighting = ttk.Label(newWindow,
                                     text='Representative Weeks Weightings [filename]', state=state_repr_weeks)
@@ -220,14 +206,10 @@ class GeneralAssumptionsFrame:
 
         if self.pm_object.get_uses_representative_weeks():
 
-            ttk.Label(self.frame, text='Number Representative Weeks [weeks]').grid(column=0, row=i, sticky='w')
-            ttk.Label(self.frame, text=self.pm_object.get_number_representative_weeks()).grid(column=1, row=i,
-                                                                                              sticky='w')
-
             ttk.Label(self.frame, text='Representative Weeks Weightings [path]').grid(column=0, row=i+1, sticky='w')
             ttk.Label(self.frame, text=self.pm_object.get_path_weighting()).grid(column=1, row=i+1, sticky='w')
 
-            i += 2
+            i += 1
         else:
 
             ttk.Label(self.frame, text='Covered Period [h]').grid(column=0, row=i, sticky='w')

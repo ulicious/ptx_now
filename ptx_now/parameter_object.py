@@ -209,12 +209,6 @@ class ParameterObject:
     def get_uses_representative_weeks(self):
         return self.uses_representative_weeks
 
-    def set_number_representative_weeks(self, number_weeks):
-        self.number_representative_weeks = int(number_weeks)
-
-    def get_number_representative_weeks(self):
-        return self.number_representative_weeks
-
     def set_path_weighting(self, path):
         self.path_weighting = str(path)
 
@@ -226,6 +220,18 @@ class ParameterObject:
 
     def get_covered_period(self):
         return self.covered_period
+
+    def set_single_profile(self, status):
+        self.single_profile = status
+
+    def get_single_profile(self):
+        return self.single_profile
+
+    def set_generation_data(self, generation_data):
+        self.generation_data = generation_data
+
+    def get_generation_data(self):
+        return self.generation_data
 
     def create_new_project(self):
         """ Create new project """
@@ -292,8 +298,8 @@ class ParameterObject:
                                general_parameter_values=general_parameter_values, nice_names=nice_names,
                                abbreviations_dict=abbreviations_dict, streams=streams,
                                components=self.components,
+                               generation_data=self.generation_data, single_profile=self.single_profile,
                                uses_representative_weeks=self.uses_representative_weeks,
-                               number_representative_weeks=self.number_representative_weeks,
                                path_weighting=self.path_weighting,
                                covered_period=self.covered_period,
                                copy_object=True)
@@ -301,8 +307,8 @@ class ParameterObject:
     def __init__(self, name=None, integer_steps=5,
                  general_parameters=None, general_parameter_values=None,
                  nice_names=None, abbreviations_dict=None, streams=None, components=None,
-                 uses_representative_weeks=False, number_representative_weeks=0, path_weighting='',
-                 covered_period=8760,
+                 generation_data=None, single_profile=True,
+                 uses_representative_weeks=False, path_weighting='',  covered_period=8760,
                  copy_object=False):
 
         """
@@ -358,9 +364,11 @@ class ParameterObject:
 
         self.covered_period = covered_period
         self.uses_representative_weeks = uses_representative_weeks
-        self.number_representative_weeks = number_representative_weeks
         self.path_weighting = path_weighting
         self.integer_steps = integer_steps
+
+        self.generation_data = generation_data
+        self.single_profile = bool(single_profile)
 
 
 ParameterObjectCopy = type('CopyOfB', ParameterObject.__bases__, dict(ParameterObject.__dict__))

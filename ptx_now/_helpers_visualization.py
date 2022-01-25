@@ -27,42 +27,20 @@ def create_visualization(path):
         def merge_tuples(*t):
             return tuple(j for i in t for j in (i if isinstance(i, tuple) else (i,)))
 
+        first_column_index = ['Charging', 'Discharging', 'Demand', 'Emitting', 'Freely Available', 'Generation',
+                              'Purchase', 'Selling', 'Input', 'Output', 'State of Charge', 'Total Generation',
+                              'Hot Standby Demand']
+
         time_series['Name'] = time_series.index.tolist()
-        for i in time_series.loc['Charging'].index:
-            time_series.at[merge_tuples('Charging', i), 'Name'] = str(i[1]) + ' Charging'
+        for c in first_column_index:
+            if c in time_series.index.get_level_values(0):
+                for i in time_series.loc[c].index:
+                    if str(i[0]) == 'nan':
+                        name = str(i[1]) + ' ' + c
+                    else:
+                        name = str(i[1]) + ' ' + c + ' ' + str(i[0])
 
-        for i in time_series.loc['Charging Binary'].index:
-            time_series.at[merge_tuples('Charging Binary', i), 'Name'] = str(i[1]) + ' Charging Binary'
-
-        for i in time_series.loc['Discharging Binary'].index:
-            time_series.at[merge_tuples('Discharging Binary', i), 'Name'] = str(i[1]) + ' Discharging Binary'
-
-        for i in time_series.loc['Discharging'].index:
-            time_series.at[merge_tuples('Discharging', i), 'Name'] = str(i[1]) + ' Discharging'
-
-        for i in time_series.loc['Demand'].index:
-            time_series.at[merge_tuples('Demand', i), 'Name'] = str(i[1]) + ' Demand'
-
-        for i in time_series.loc['Emitting'].index:
-            time_series.at[merge_tuples('Emitting', i), 'Name'] = str(i[1]) + ' Emitted'
-
-        for i in time_series.loc['Freely Available'].index:
-            time_series.at[merge_tuples('Freely Available', i), 'Name'] = 'Freely Available ' + str(i[1])
-
-        for i in time_series.loc['Generation'].index:
-            time_series.at[merge_tuples('Generation', i), 'Name'] = str(i[0]) + ' ' + str(i[1]) + ' Generation'
-
-        for i in time_series.loc['Input'].index:
-            time_series.at[merge_tuples('Input', i), 'Name'] = str(i[0]) + ' ' + str(i[1]) + ' Input'
-
-        for i in time_series.loc['Output'].index:
-            time_series.at[merge_tuples('Output', i), 'Name'] = str(i[0]) + ' ' + str(i[1]) + ' Output'
-
-        for i in time_series.loc['State of Charge'].index:
-            time_series.at[merge_tuples('State of Charge', i), 'Name'] = 'State of Charge of ' + str(i[1])
-
-        for i in time_series.loc['Total Generation'].index:
-            time_series.at[merge_tuples('Total Generation', i), 'Name'] = 'Total ' + str(i[1]) + ' Generation'
+                    time_series.at[merge_tuples(c, i), 'Name'] = name
 
         # Implement web application
         app = dash.Dash(__name__)
@@ -184,6 +162,50 @@ def create_visualization(path):
                                         style_cell_conditional=[
                                             {
                                                 'if': {'column_id': conversion_components_table_columns},
+                                                'textAlign': 'left',
+                                                'font-family': 'Calibri',
+                                                'width': '10%'
+                                            },
+                                            {
+                                                'if': {'column_id': ''},
+                                                'textAlign': 'left',
+                                                'font-family': 'Calibri',
+                                                'width': '10%',
+                                                'background-color': '#f5f2f2'
+                                            }
+                                        ],
+                                        style_data_conditional=[
+                                            {
+                                                'if': {'column_id': ''},
+                                                'fontWeight': 'bold',
+                                            }
+                                        ],
+                                        style_header={
+                                            'fontWeight': 'bold',
+                                            'background-color': '#edebeb'
+                                        },
+                                    )
+                                ],
+                            ),
+                        ]
+                        ),
+                dcc.Tab(label='Storage Components',
+                        children=[
+                            html.Div(
+                                [
+                                    html.H2(
+                                        ["Storage Components"],
+                                        className="subtitle padded",
+                                        style={'font-family': 'Calibri'}
+                                    ),
+                                    dash_table.DataTable(
+                                        id='storage_components_table',
+                                        columns=[{"name": i, "id": i} for i in storage_components_table.columns],
+                                        data=storage_components_table.to_dict('records'),
+                                        style_as_list_view=True,
+                                        style_cell_conditional=[
+                                            {
+                                                'if': {'column_id': storage_components_table_columns},
                                                 'textAlign': 'left',
                                                 'font-family': 'Calibri',
                                                 'width': '10%'
@@ -392,12 +414,6 @@ def create_visualization(path):
                                     html.Div([
                                         html.H4(children="Generator Selection",
                                                 className="subtitle padded", style={'font-family': 'Arial'}),
-                                        # Dropdown if all streams available for load profile
-                                        # dcc.Dropdown(
-                                        #    className='load_profile_selection',
-                                        #    id='load_profile_drop',
-                                        #    options=[{'label': str(i), 'value': str(i)} for i in timeseries_unit.unique()]
-                                        # ),
                                         dcc.Checklist(
                                             id='load_profile_checklist',
                                             options=[{
@@ -627,43 +643,36 @@ def create_visualization(path):
         assumptions_file = pd.read_excel(path + '0_assumptions.xlsx', index_col=0)
         overview_file = pd.read_excel(path + '1_results_overview.xlsx', index_col=0)
         components_file = pd.read_excel(path + '2_components.xlsx', index_col=0)
+        cost_distribution = pd.read_excel(path + '3_cost_distribution.xlsx', index_col=0)
         streams_file = pd.read_excel(path + '4_streams.xlsx', index_col=0)
         time_series_file = pd.read_excel(path + '5_time_series_streams.xlsx', index_col=(0, 1, 2))
+        print(time_series_file)
         generation_file = pd.read_excel(path + '6_generation.xlsx', index_col=0)
 
-        return assumptions_file, overview_file, components_file, streams_file, time_series_file, generation_file
+        return assumptions_file, overview_file, components_file, cost_distribution,\
+               streams_file, time_series_file, generation_file
 
-    def calculate_costs():
-        # Calculate economical parameters
-
-        costs_dict = {'total_investment': components['Total Investment'].sum(),
-                      'maintenance': components['Maintenance'].sum(), 'annuity': components['Annuity'].sum(),
-                      'personnel': components['Personnel'].sum(), 'overhead': components['Overhead'].sum(),
-                      'taxes_and_insurance': components['Taxes and Insurance'].sum(),
-                      'working_capital': components['Working Capital'].sum()}
-
-        costs_dict['opex'] = costs_dict['maintenance'] + costs_dict['personnel'] + costs_dict['overhead'] \
-                             + costs_dict['taxes_and_insurance'] + costs_dict['working_capital']
-
-        costs_dict['annual_costs'] = costs_dict['opex'] + costs_dict['annuity']
-
-        return costs_dict
 
     def create_overview_table():
 
-        total_investment = round(overview.loc['Total Investment'].values[0])
-        annual_costs = round(overview.loc['Annual Costs'].values[0])
-        cost_per_unit = round(overview.loc['Production Costs per Unit'].values[0] / annual_production, 2)
-        efficiency = overview.loc['Efficiency'].values[0] * 100
+        total_investment = "%.2f" % overview.loc['Total Investment'].values[0]
+        total_fix_costs = "%.2f" % overview.loc['Total Fix Costs'].values[0]
+        total_variable_costs = "%.2f" % overview.loc['Total Variable Costs'].values[0]
+        annual_costs = "%.2f" % overview.loc['Annual Costs'].values[0]
+        cost_per_unit = "%.2f" % overview.loc['Production Costs per Unit'].values[0]
+        efficiency = "%.2f" % (overview.loc['Efficiency'].values[0] * 100)
 
         # Table Overview
         tab_overview = pd.DataFrame({
-            '': ('Annual production', 'Total investment', 'Annual costs', 'Production cost per unit', 'Efficiency'),
+            '': ('Annual production', 'Total investment', 'Total Fix Costs', 'Total Variable Costs',
+                 'Annual costs', 'Production cost per unit', 'Efficiency'),
             'Value':
-                (str(annual_production) + " " + annual_production_unit,
+                (str(round(annual_production)) + " " + annual_production_unit,
                  str(total_investment) + " €",
+                 str(total_fix_costs) + " €",
+                 str(total_variable_costs) + " €",
                  str(annual_costs) + " €",
-                 str(cost_per_unit) + " € ",
+                 str(cost_per_unit) + " €/" + annual_production_unit,
                  str(efficiency) + ' %')}
         )
 
@@ -691,26 +700,26 @@ def create_visualization(path):
             if components.loc[component, 'Capacity Basis'] == 'input':
                 component_list.append(component)
 
-                capacity.append(round(components.loc[component, 'Capacity [input]'], 3))
+                capacity.append("%.3f" % components.loc[component, 'Capacity [input]'])
                 capacity_unit.append(components.loc[component, 'Capacity Unit [input]'])
-                CAPEX.append(round(components.loc[component, 'Investment [per input]']))
+                CAPEX.append("%.2f" % components.loc[component, 'Investment [per input]'])
             elif components.loc[component, 'Capacity Basis'] == 'output':
                 component_list.append(component)
-                capacity.append(round(components.loc[component, 'Capacity [output]'], 3))
+                capacity.append("%.3f" % components.loc[component, 'Capacity [output]'])
                 capacity_unit.append(components.loc[component, 'Capacity Unit [output]'])
-                CAPEX.append(round(components.loc[component, 'Investment [per output]']))
+                CAPEX.append("%.2f" % components.loc[component, 'Investment [per output]'])
             else:
                 # All non-conversion components have no Capacity Basis
                 continue
 
-            total_investment.append(round(components.loc[component, 'Total Investment']))
-            annuity.append(round(components.loc[component, 'Annuity']))
-            maintenance.append(round(components.loc[component, 'Maintenance']))
-            taxes_and_insurance.append(round(components.loc[component, 'Taxes and Insurance']))
-            personnel_costs.append(round(components.loc[component, 'Personnel']))
-            overhead.append(round(components.loc[component, 'Overhead']))
-            working_capital.append(round(components.loc[component, 'Working Capital']))
-            full_load_hours.append(round(components.loc[component, 'Full-load Hours']))
+            total_investment.append("%.2f" % components.loc[component, 'Total Investment'])
+            annuity.append("%.2f" % components.loc[component, 'Annuity'])
+            maintenance.append("%.2f" % components.loc[component, 'Maintenance'])
+            taxes_and_insurance.append("%.2f" % components.loc[component, 'Taxes and Insurance'])
+            personnel_costs.append("%.2f" % components.loc[component, 'Personnel'])
+            overhead.append("%.2f" % components.loc[component, 'Overhead'])
+            working_capital.append("%.2f" % components.loc[component, 'Working Capital'])
+            full_load_hours.append("%.2f" % components.loc[component, 'Full-load Hours'])
 
         conversion_components_tab = pd.DataFrame({'': component_list,
                                                   'Capacity': capacity,
@@ -729,37 +738,26 @@ def create_visualization(path):
     def create_cost_structure_graph():
         # Cost structure
 
-        annual_costs = cost_dictionary['annual_costs']
-
         bar_list = []
         bar_share_list = []
         matter_of_expense = []
         value_absolute = []
         value_relative = []
-        parameters = ['Annuity', 'Maintenance', 'Taxes and Insurance', 'Personnel', 'Overhead', 'Working Capital']
-        total_costs = 0
-        for component in components.index:
-            for p in parameters:
-                value = components.loc[component, p] / annual_production
-                if value == 0:
-                    # Do not take empty entries
-                    continue
+        for i in cost_distribution.index:
 
-                total_costs += value
-                matter_of_expense.append(component + ' ' + p)
+            matter_of_expense.append(i)
 
-                p_dict = {'name': component + ' ' + p, 'width': [0.4], 'x': [''], 'y': [round(value, 2)]}
+            value = cost_distribution.loc[i, 'Per Output']
+            p_dict = {'name': i, 'width': [0.4], 'x': [''], 'y': [value]}
+            value_absolute.append("%.2f" % value + ' €/' + annual_production_unit)
+            if i != 'Total':
                 bar_list.append(go.Bar(p_dict))
-                value_absolute.append(str(round(value, 2)) + ' €/' + annual_production_unit)
 
-                value = components.loc[component, p] / annual_costs * 100
-                p_share_dict = {'name': component + ' ' + p, 'width': [0.4], 'x': [''], 'y': [round(value, 2)]}
+            value = cost_distribution.loc[i, '%']
+            p_share_dict = {'name': i, 'width': [0.4], 'x': [''], 'y': [value * 100]}
+            value_relative.append("%.2f" % (value * 100) + ' %')
+            if i != 'Total':
                 bar_share_list.append(go.Bar(p_share_dict))
-                value_relative.append(str(round(value, 2))+' %')
-
-        matter_of_expense.append('Total')
-        value_absolute.append(str(round(total_costs, 2)) + ' €/' + annual_production_unit)
-        value_relative.append('100 %')
 
         cost_structure_df = pd.DataFrame()
         cost_structure_df['Matter of Expense'] = matter_of_expense
@@ -778,12 +776,14 @@ def create_visualization(path):
         columns = ['Maintenance', 'Taxes and Insurance', 'Personnel', 'Overhead', 'Working Capital']
         assumptions_tab = pd.DataFrame(index=assumptions.index)
         assumptions_tab[''] = assumptions.index
-        assumptions_tab['Capex'] = round(assumptions['Capex'], 2)
         assumptions_tab['Capex Unit'] = assumptions['Capex Unit']
 
         for i in assumptions.index:
+
+            assumptions_tab.loc[i, 'Capex'] = "%.2f" % assumptions.loc[i, 'Capex']
+
             for c in columns:
-                assumptions_tab.loc[i, c] = (round(assumptions.loc[i, c], 2) * 100).astype(str) + ' %'
+                assumptions_tab.loc[i, c] = "%.2f" % (assumptions.loc[i, c] * 100) + ' %'
 
         assumptions_tab['Lifetime'] = assumptions['Lifetime']
 
@@ -794,21 +794,71 @@ def create_visualization(path):
         for i in generation.index:
             generation_tab.loc[i, 'Generator'] = i
             generation_tab.loc[i, 'Generated Stream'] = generation.loc[i, 'Generated Stream']
-            generation_tab.loc[i, 'Investment'] = round(generation.loc[i, 'Investment'])
-            generation_tab.loc[i, 'Annuity'] = round(generation.loc[i, 'Annuity'])
-            generation_tab.loc[i, 'Maintenance'] = round(generation.loc[i, 'Maintenance'])
-            generation_tab.loc[i, 'T&I'] = round(generation.loc[i, 'Taxes and Insurance'])
-            generation_tab.loc[i, 'Overhead'] = round(generation.loc[i, 'Overhead'])
-            generation_tab.loc[i, 'Personnel'] = round(generation.loc[i, 'Personnel'])
-            generation_tab.loc[i, 'Potential Generation'] = round(generation.loc[i, 'Potential Generation'])
-            generation_tab.loc[i, 'Potential FLH'] = round(generation.loc[i, 'Potential Full-load Hours'])
-            generation_tab.loc[i, 'LCOE pre Curtailment'] = round(generation.loc[i, 'LCOE before Curtailment'], 2)
-            generation_tab.loc[i, 'Actual Generation'] = round(generation.loc[i, 'Actual Generation'])
-            generation_tab.loc[i, 'Actual FLH'] = round(generation.loc[i, 'Actual Full-load Hours'])
-            generation_tab.loc[i, 'Curtailment'] = round(generation.loc[i, 'Curtailment'])
-            generation_tab.loc[i, 'LCOE post Curtailment'] = round(generation.loc[i, 'LCOE after Curtailment'], 2)
+            generation_tab.loc[i, 'Capacity'] = "%.2f" % generation.loc[i, 'Capacity']
+            generation_tab.loc[i, 'Investment'] = "%.2f" % generation.loc[i, 'Investment']
+            generation_tab.loc[i, 'Annuity'] = "%.2f" % generation.loc[i, 'Annuity']
+            generation_tab.loc[i, 'Maintenance'] = "%.2f" % generation.loc[i, 'Maintenance']
+            generation_tab.loc[i, 'T&I'] = "%.2f" % generation.loc[i, 'Taxes and Insurance']
+            generation_tab.loc[i, 'Overhead'] = "%.2f" % generation.loc[i, 'Overhead']
+            generation_tab.loc[i, 'Personnel'] = "%.2f" % generation.loc[i, 'Personnel']
+            generation_tab.loc[i, 'Potential Generation'] = "%.0f" % generation.loc[i, 'Potential Generation']
+            generation_tab.loc[i, 'Potential FLH'] = "%.2f" % generation.loc[i, 'Potential Full-load Hours']
+            generation_tab.loc[i, 'LCOE pre Curtailment'] = "%.4f" % generation.loc[i, 'LCOE before Curtailment']
+            generation_tab.loc[i, 'Actual Generation'] = "%.0f" % generation.loc[i, 'Actual Generation']
+            generation_tab.loc[i, 'Actual FLH'] = "%.2f" % generation.loc[i, 'Actual Full-load Hours']
+            generation_tab.loc[i, 'Curtailment'] = "%.0f" % generation.loc[i, 'Curtailment']
+            generation_tab.loc[i, 'LCOE post Curtailment'] = "%.4f" % generation.loc[i, 'LCOE after Curtailment']
 
         return generation_tab
+
+    def create_storage_table():
+        # Create table which contains information on the different components
+
+        component_list = []
+        capacity = []
+        capacity_unit = []
+        CAPEX = []
+        total_investment = []
+        annuity = []
+        maintenance = []
+        taxes_and_insurance = []
+        personnel_costs = []
+        overhead = []
+        working_capital = []
+        for component in components.index:
+
+            if component in generation.index:
+                continue
+
+            # only consider conversion components
+            if not(components.loc[component, 'Capacity Basis'] == 'input'
+                   or components.loc[component, 'Capacity Basis'] == 'output'):
+                component_list.append(component)
+
+                capacity.append("%.3f" % components.loc[component, 'Capacity [input]'])
+                capacity_unit.append(components.loc[component, 'Capacity Unit [input]'])
+                CAPEX.append("%.2f" % components.loc[component, 'Investment [per input]'])
+
+                total_investment.append("%.2f" % components.loc[component, 'Total Investment'])
+                annuity.append("%.2f" % components.loc[component, 'Annuity'])
+                maintenance.append("%.2f" % components.loc[component, 'Maintenance'])
+                taxes_and_insurance.append("%.2f" % components.loc[component, 'Taxes and Insurance'])
+                personnel_costs.append("%.2f" % components.loc[component, 'Personnel'])
+                overhead.append("%.2f" % components.loc[component, 'Overhead'])
+                working_capital.append("%.2f" % components.loc[component, 'Working Capital'])
+
+        storage_components_tab = pd.DataFrame({'': component_list,
+                                               'Capacity': capacity,
+                                               'Capacity Unit': capacity_unit,
+                                               'Capex': CAPEX,
+                                               'Total Investment': total_investment,
+                                               'Annuity': annuity,
+                                               'Maintenance': maintenance,
+                                               'Personnel': personnel_costs,
+                                               'Overhead': overhead,
+                                               'Working Capital': working_capital})
+
+        return storage_components_tab
 
     def create_stream_table():
         stream_tab = pd.DataFrame(index=streams.index)
@@ -816,30 +866,35 @@ def create_visualization(path):
         for i in stream_tab.index:
             stream_tab.loc[i, 'Stream'] = i
             stream_tab.loc[i, 'Unit'] = streams.loc[i, 'unit']
-            stream_tab.loc[i, 'Freely Available'] = round(streams.loc[i, 'Available Stream'])
-            stream_tab.loc[i, 'Purchased'] = round(streams.loc[i, 'Purchased Stream'])
-            stream_tab.loc[i, 'Sold'] = round(streams.loc[i, 'Sold Stream'])
-            stream_tab.loc[i, 'Generated'] = round(streams.loc[i, 'Generated Stream'])
-            stream_tab.loc[i, 'Stored'] = round(streams.loc[i, 'Stored Stream'])
-            stream_tab.loc[i, 'From Conversion'] = round(streams.loc[i, 'Conversed Stream'])
-            stream_tab.loc[i, 'Total Fixed Costs'] = str(round(streams.loc[i, 'Total Fix Costs'], 2)) + ' €'
-            stream_tab.loc[i, 'Total Variable Costs'] = str(round(streams.loc[i, 'Total Variable Costs'], 2)) + ' €'
-            stream_tab.loc[i, 'Intrinsic Costs per Unit'] = str(round(streams.loc[i, 'Total Costs per Unit'], 2)) + ' €/' + streams.loc[i, 'unit']
-            stream_tab.loc[i, 'Costs from other Streams per Unit'] = str(round(round(streams.loc[i, 'Production Costs per Unit'], 2)
-                                                                                     - round(streams.loc[i, 'Total Costs per Unit'], 2), 2)) + ' €/' + streams.loc[i, 'unit']
-            stream_tab.loc[i, 'Total Costs per Unit'] = str(round(streams.loc[i, 'Production Costs per Unit'], 2)) + ' €/' + streams.loc[i, 'unit']
+            stream_tab.loc[i, 'Freely Available'] = "%.0f" % streams.loc[i, 'Available Stream']
+            stream_tab.loc[i, 'Purchased'] = "%.0f" % streams.loc[i, 'Purchased Stream']
+            stream_tab.loc[i, 'Sold'] = "%.0f" % streams.loc[i, 'Sold Stream']
+            stream_tab.loc[i, 'Generated'] = "%.0f" % streams.loc[i, 'Generated Stream']
+            stream_tab.loc[i, 'Stored'] = "%.0f" % streams.loc[i, 'Stored Stream']
+            stream_tab.loc[i, 'From Conversion'] = "%.0f" % streams.loc[i, 'Conversed Stream']
+            stream_tab.loc[i, 'Total Fixed Costs'] = "%.2f" % streams.loc[i, 'Total Fix Costs'] + ' €'
+            stream_tab.loc[i, 'Total Variable Costs'] = "%.2f" % streams.loc[i, 'Total Variable Costs'] + ' €'
+            stream_tab.loc[i, 'Intrinsic Costs per Unit'] = "%.2f" % streams.loc[i, 'Total Costs per Unit'] + ' €/' + streams.loc[i, 'unit']
+            stream_tab.loc[i, 'Costs from other Streams per Unit'] = "%.2f" % (streams.loc[i, 'Production Costs per Unit']
+                                                                                     - streams.loc[i, 'Total Costs per Unit']) + ' €/' + streams.loc[i, 'unit']
+            stream_tab.loc[i, 'Total Costs per Unit'] = "%.2f" % streams.loc[i, 'Production Costs per Unit'] + ' €/' + streams.loc[i, 'unit']
 
         return stream_tab
 
-    name_scenario = path.split('_')[-1].split('/')[0]
+    name_scenario = ''
+    first = True
+    for string in path.split('/')[-2].split('_')[2:]:
+        if first:
+            name_scenario += string
+            first = False
+        else:
+            name_scenario += '_' + string
 
-    assumptions, overview, components, streams, time_series, generation = load_data()
+    assumptions, overview, components, cost_distribution, streams, time_series, generation = load_data()
     assumptions_table = create_assumptions_table()
     assumptions_table_columns = assumptions_table.columns[1:]
 
     create_assumptions_table()
-
-    cost_dictionary = calculate_costs()
 
     annual_production = overview.loc['Annual Production'].values[0]
     annual_production_unit = time_series.loc[['Demand']].loc[:, 'unit'].values[0].split(' / ')[0]
@@ -848,6 +903,9 @@ def create_visualization(path):
 
     conversion_components_table = create_conversion_components_table()
     conversion_components_table_columns = conversion_components_table.columns[1:]
+
+    storage_components_table = create_storage_table()
+    storage_components_table_columns = storage_components_table.columns[1:]
 
     cost_figure, cost_share_figure, cost_structure_dataframe = create_cost_structure_graph()
 

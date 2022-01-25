@@ -11,8 +11,9 @@ from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
 from _helpers_visualization import create_visualization
 from parameter_object import ParameterObject
-
 from load_projects import load_setting
+
+from os import walk
 
 
 class Interface:
@@ -288,10 +289,15 @@ class Interface:
         # Check if a profile for the generation unit exists, if generation unit is enabled
         profiles_exist = True
         generators_without_profile = []
+        if self.pm_object_copy.get_single_profile():
+            generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_generation_data(), index_col=0)
+        else:
+            path_to_generation_files = self.path_data + '\\' + self.pm_object_copy.get_generation_data()
+            _, _, filenames = next(walk(path_to_generation_files))
+            generation_profile = pd.read_excel(path_to_generation_files + '\\' + filenames[0], index_col=0)
+
         for generator in self.pm_object_copy.get_specific_components('final', 'generator'):
-            try:
-                generator.get_generation_data()
-            except:
+            if generator.get_nice_name() not in generation_profile.columns:
                 profiles_exist = False
                 generators_without_profile.append(generator.get_nice_name())
 
@@ -360,9 +366,9 @@ class Interface:
 
                 for generator in generators_without_profile:
                     if generators_without_profile.index(generator) != len(generators_without_profile) - 1:
-                        no_profile_text += self.pm_object_copy.get_nice_name(generator) + ', '
+                        no_profile_text += generator + ', '
                     else:
-                        no_profile_text += self.pm_object_copy.get_nice_name(generator)
+                        no_profile_text += generator
 
                 tk.Label(alert_window, text=no_profile_text).pack()
                 tk.Label(alert_window,
@@ -373,7 +379,7 @@ class Interface:
         else:
             self.optimize_button.config(state=NORMAL)
 
-    def save_setting_window(self): #Todo: Only save when closed or optimized
+    def save_setting_window(self):
 
         def kill_window_and_save():
             self.save_current_parameters_and_options(name_entry.get())
@@ -401,7 +407,7 @@ class Interface:
 
         k = 0
 
-        case_data.loc[k, 'version'] = '0.0.4'
+        case_data.loc[k, 'version'] = '0.0.5'
 
         k += 1
 
@@ -416,9 +422,14 @@ class Interface:
 
         case_data.loc[k, 'type'] = 'representative_weeks'
         case_data.loc[k, 'representative_weeks'] = self.pm_object_copy.get_uses_representative_weeks()
-        case_data.loc[k, 'number_representative_weeks'] = self.pm_object_copy.get_number_representative_weeks()
         case_data.loc[k, 'path_weighting'] = self.pm_object_copy.get_path_weighting()
         case_data.loc[k, 'covered_period'] = self.pm_object_copy.get_covered_period()
+
+        k += 1
+
+        case_data.loc[k, 'type'] = 'generation_data'
+        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_single_profile()
+        case_data.loc[k, 'generation_data'] = self.pm_object_copy.get_generation_data()
 
         k += 1
 
@@ -470,7 +481,6 @@ class Interface:
             elif component.get_component_type() == 'generator':
 
                 case_data.loc[k, 'generated_stream'] = component.get_generated_stream()
-                case_data.loc[k, 'generation_data'] = component.get_generation_data()
                 case_data.loc[k, 'curtailment_possible'] = component.get_curtailment_possible()
 
             elif component.get_component_type() == 'storage':
@@ -559,7 +569,7 @@ class Interface:
 
         for abbreviation in self.pm_object_copy.get_all_abbreviations():
             case_data.loc[k, 'type'] = 'names'
-            case_data.loc[k, 'abbreviation'] = abbreviation
+            case_data.loc[k, 'name'] = abbreviation
             case_data.loc[k, 'nice_name'] = self.pm_object_copy.get_nice_name(abbreviation)
 
             k += 1
@@ -579,9 +589,20 @@ class Interface:
 
     def optimize(self):
 
-        optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+        if self.pm_object_copy.get_single_profile():
+            optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+            self.analyze_results(optimization_problem)
+        else:
+            from os import walk
+            path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
 
-        self.analyze_results(optimization_problem)
+            # Get path of every object in folder
+            _, _, filenames = next(walk(path_to_generation_files))
+            for f in filenames:
+                self.pm_object_copy.set_generation_data(path_to_generation_files + '/' + f)
+                self.pm_object_copy.set_single_profile(False)
+                optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                self.analyze_results(optimization_problem)
 
     def analyze_results(self, optimization_problem):
 
@@ -609,6 +630,7 @@ class Interface:
             path_result = setting_window.folder_result
             path_settings = setting_window.folder_settings
             solver = setting_window.solver
+            path_visualize = setting_window.path_visualization
 
             if setting_window.radiobutton_variable.get() == 'new':
 
@@ -648,7 +670,7 @@ class Interface:
                     result = Result(optimization_problem, path_result, path_data, file_without_ending)
 
             elif setting_window.radiobutton_variable.get() == 'visualize_only':
-                create_visualization(setting_window.path_visualization)
+                create_visualization(path_visualize)
 
 
 

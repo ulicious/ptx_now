@@ -1293,7 +1293,7 @@ class Result:
                 generation_df.loc[generator_nice_name, 'Personnel'] = self.all_variables_dict['personnel_costs'][generator]
 
                 if capacity != 0:
-                    potential_generation = sum(generator_profile.loc[t] * self.model.weightings[t] for t in self.model.TIME) * capacity
+                    potential_generation = sum(generator_profile.loc[generator_profile.index[t]] * self.model.weightings[t] for t in self.model.TIME) * capacity
                     generation_df.loc[generator_nice_name, 'Potential Generation'] = potential_generation
                     generation_df.loc[generator_nice_name, 'Potential Full-load Hours'] = potential_generation / (capacity * 8760) * 8760
 

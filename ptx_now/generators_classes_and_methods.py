@@ -102,7 +102,7 @@ class GeneratorFrame:
                 if file_name.split('.')[-1] == 'xlsx':
                     self.textvar_profile.set(file_name)
                     self.pm_object.set_generation_data(file_name)
-                    self.pm_object.set_single_profile(True)
+                    self.pm_object.set_generation_profile_status(True)
 
                     self.parent.parent.pm_object_copy = self.pm_object
                     self.parent.parent.update_widgets()
@@ -122,7 +122,7 @@ class GeneratorFrame:
 
             self.textvar_profile.set(folder_name)
             self.pm_object.set_generation_data(folder_name)
-            self.pm_object.set_single_profile(False)
+            self.pm_object.set_generation_profile_status(False)
 
             self.parent.parent.pm_object_copy = self.pm_object
             self.parent.parent.update_widgets()
@@ -259,7 +259,7 @@ class GeneratorFrame:
         self.checkbox_var = BooleanVar()
 
         self.profile_var = StringVar()
-        if self.pm_object.get_single_profile():
+        if self.pm_object.get_generation_profile_status():
             self.profile_var.set('single')
         else:
             self.profile_var.set('multiple')

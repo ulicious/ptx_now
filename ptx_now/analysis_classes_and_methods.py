@@ -559,7 +559,7 @@ class Result:
             self.time_depending_variables_df.loc[('Weighting', '', ''), t] = self.model.weightings[t]
 
         # Sort index for better readability
-        ordered_list = ['Weighting', 'Freely Available', 'Purchased', 'Emitted', 'Sold', 'Demand', 'Charging',
+        ordered_list = ['Weighting', 'Freely Available', 'Purchase', 'Emitted', 'Selling', 'Demand', 'Charging',
                         'Discharging', 'State of Charge', 'Total Generation', 'Generation', 'Input', 'Output']
         index_order = []
         for o in ordered_list:
@@ -673,10 +673,11 @@ class Result:
                 intrinsic_costs_per_available_unit[stream] = (-intrinsic_costs[stream]
                                                               / self.sold_stream[stream])
 
-        pd.DataFrame.from_dict(intrinsic_costs, orient='index').to_excel(
-            self.new_result_folder + '/intrinsic_costs.xlsx')
-        pd.DataFrame.from_dict(intrinsic_costs_per_available_unit, orient='index').to_excel(
-            self.new_result_folder + '/intrinsic_costs_per_available_unit.xlsx')
+        if False:
+            pd.DataFrame.from_dict(intrinsic_costs, orient='index').to_excel(
+                self.new_result_folder + '/intrinsic_costs.xlsx')
+            pd.DataFrame.from_dict(intrinsic_costs_per_available_unit, orient='index').to_excel(
+                self.new_result_folder + '/intrinsic_costs_per_available_unit.xlsx')
 
         # Second: Next to intrinsic costs, conversion costs exist.
         # Each stream, which is the main output of a conversion unit,
@@ -699,10 +700,11 @@ class Result:
             total_intrinsic_costs_per_available_unit[component_name] = (intrinsic_costs_per_available_unit[main_output]
                                                                    + conversion_costs_per_conversed_unit[component_name])
 
-        pd.DataFrame.from_dict(conversion_costs_per_conversed_unit, orient='index').to_excel(
-            self.new_result_folder + '/conversion_costs_per_conversed_unit.xlsx')
-        pd.DataFrame.from_dict(total_intrinsic_costs_per_available_unit, orient='index').to_excel(
-            self.new_result_folder + '/total_intrinsic_costs_per_available_unit.xlsx')
+        if False:
+            pd.DataFrame.from_dict(conversion_costs_per_conversed_unit, orient='index').to_excel(
+                self.new_result_folder + '/conversion_costs_per_conversed_unit.xlsx')
+            pd.DataFrame.from_dict(total_intrinsic_costs_per_available_unit, orient='index').to_excel(
+                self.new_result_folder + '/total_intrinsic_costs_per_available_unit.xlsx')
 
         stream_equations_constant = {}
         columns_index = [*self.pm_object.get_all_streams().keys()]
@@ -813,7 +815,8 @@ class Result:
             if stream not in main_outputs:
                 coefficients_df.loc[stream, stream] = -1
 
-        coefficients_df.to_excel(self.new_result_folder + '/equations.xlsx')
+        if False:
+            coefficients_df.to_excel(self.new_result_folder + '/equations.xlsx')
 
         # Right hand side (constants)
         coefficients_dict = {}
@@ -837,8 +840,9 @@ class Result:
                 stream_equations_constant.update({column: (-conversion_costs_per_conversed_unit[column]
                                                            * main_output_coefficients[main_output])})
 
-        pd.DataFrame.from_dict(stream_equations_constant, orient='index').to_excel(
-            self.new_result_folder + '/stream_equations_constant.xlsx')
+        if False:
+            pd.DataFrame.from_dict(stream_equations_constant, orient='index').to_excel(
+                self.new_result_folder + '/stream_equations_constant.xlsx')
 
         values_equations = coefficients_dict.values()
         A = np.array(list(values_equations))
@@ -1079,11 +1083,12 @@ class Result:
                 dataframe_dict[component_nice_name] = components_and_costs
 
             # Save dataframes in multi-sheet excel file
-            with pd.ExcelWriter(self.new_result_folder + '/main_output_costs.xlsx', engine="xlsxwriter") as writer:
-                for df in [*dataframe_dict.keys()]:
-                    sheet_name = df.replace("Parallel Unit", "PU")
-                    dataframe_dict[df].to_excel(writer, sheet_name)
-                writer.save()
+            if False:
+                with pd.ExcelWriter(self.new_result_folder + '/main_output_costs.xlsx', engine="xlsxwriter") as writer:
+                    for df in [*dataframe_dict.keys()]:
+                        sheet_name = df.replace("Parallel Unit", "PU")
+                        dataframe_dict[df].to_excel(writer, sheet_name)
+                    writer.save()
 
     def analyze_components(self):
 
@@ -1270,7 +1275,7 @@ class Result:
 
             generation_df = pd.DataFrame(index=pd.Index([self.pm_object.get_component(s).get_nice_name()
                                                          for s in self.model.GENERATORS]))
-            generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+            generation_profile = pd.read_excel(self.path_data + self.pm_object.get_generation_data(), index_col=0)
 
             for generator in self.model.GENERATORS:
 
@@ -1696,8 +1701,14 @@ class Result:
         k += 1
 
         case_data.loc[k, 'type'] = 'generation_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object.get_single_profile()
+        case_data.loc[k, 'single_profile'] = self.pm_object.get_generation_profile_status()
         case_data.loc[k, 'generation_data'] = self.pm_object.get_generation_data()
+
+        k += 1
+
+        case_data.loc[k, 'type'] = 'purchase_sell_data'
+        case_data.loc[k, 'single_profile'] = self.pm_object.get_sell_purchase_profile_status()
+        case_data.loc[k, 'purchase_sell_data'] = self.pm_object.get_sell_purchase_data()
 
         k += 1
 
@@ -1844,6 +1855,16 @@ class Result:
 
         case_data.to_excel(self.new_result_folder + '/7_settings.xlsx', index=True)
 
+    def copy_input_data(self):
+        import shutil
+        if self.model.GENERATORS:
+            shutil.copy(self.path_data + self.pm_object.get_generation_data(),
+                        self.new_result_folder + '/8_generation_profile.xlsx')
+
+        if self.pm_object.get_sell_purchase_profile_status():
+            pd.read_excel(self.path_data + self.pm_object.get_sell_purchase_data(),
+                          index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
+
     def __init__(self, optimization_problem, path_result, path_data, file_name=None):
 
         self.optimization_problem = optimization_problem
@@ -1916,6 +1937,7 @@ class Result:
         self.analyze_total_costs()
         self.check_integer_variables()
         self.save_current_parameters_and_options()
+        self.copy_input_data()
 
 
         # self.build_sankey_diagram(only_energy=False)

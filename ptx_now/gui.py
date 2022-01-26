@@ -226,6 +226,21 @@ class Interface:
         valid_me_for_stream = {}
         streams_without_well = []
         streams_without_sink = []
+        profile_not_exist = []
+
+        if self.pm_object_copy.get_sell_purchase_profile_status():
+            try:
+                sell_purchase_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_sell_purchase_data(),
+                                                      index_col=0)
+            except:
+                sell_purchase_profile = None
+        else:
+            try:
+                path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_sell_purchase_data()
+                _, _, filenames = next(walk(path_to_generation_files))
+                sell_purchase_profile = pd.read_excel(path_to_generation_files + '/' + filenames[0], index_col=0)
+            except:
+                sell_purchase_profile = None
 
         for stream in self.pm_object_copy.get_specific_streams(final_stream=True):
 
@@ -236,6 +251,17 @@ class Interface:
             if stream.is_available():
                 well_existing = True
             elif stream.is_purchasable():
+
+                if stream.get_purchase_price_type() == 'variable':
+                    profile_exists = False
+                    if sell_purchase_profile is not None:
+                        for c in sell_purchase_profile.columns:
+                            if c.split('_')[0] == stream.get_nice_name():
+                                profile_exists = True
+
+                    if not profile_exists:
+                        profile_not_exist.append(stream.get_nice_name())
+
                 well_existing = True
 
             # If no well exists, the stream has to be generated or converted from other stream
@@ -247,11 +273,11 @@ class Interface:
                             well_existing = True
                             break
 
-                if not well_existing:
-                    for component in self.pm_object_copy.get_specific_components('final', 'generator'):
-                        if stream.get_name() == component.get_generated_stream():
-                            well_existing = True
-                            break
+            if not well_existing:
+                for component in self.pm_object_copy.get_specific_components('final', 'generator'):
+                    if stream.get_name() == component.get_generated_stream():
+                        well_existing = True
+                        break
 
             if not well_existing:
                 streams_without_well.append(stream.get_name())
@@ -261,6 +287,17 @@ class Interface:
                 sink_existing = True
             elif stream.is_saleable():
                 sink_existing = True
+
+                if stream.get_sale_price_type() == 'variable':
+                    profile_exists = False
+                    if sell_purchase_profile is not None:
+                        for c in sell_purchase_profile.columns:
+                            if c.split('_')[0] == stream.get_nice_name():
+                                profile_exists = True
+
+                    if not profile_exists:
+                        profile_not_exist.append(stream.get_nice_name())
+
             elif stream.is_demanded():
                 sink_existing = True
 
@@ -288,8 +325,7 @@ class Interface:
 
         # Check if a profile for the generation unit exists, if generation unit is enabled
         profiles_exist = True
-        generators_without_profile = []
-        if self.pm_object_copy.get_single_profile():
+        if self.pm_object_copy.get_generation_profile_status():
             generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_generation_data(), index_col=0)
         else:
             path_to_generation_files = self.path_data + '\\' + self.pm_object_copy.get_generation_data()
@@ -299,7 +335,7 @@ class Interface:
         for generator in self.pm_object_copy.get_specific_components('final', 'generator'):
             if generator.get_nice_name() not in generation_profile.columns:
                 profiles_exist = False
-                generators_without_profile.append(generator.get_nice_name())
+                profile_not_exist.append(generator.get_nice_name())
 
         error_in_setting = False
         if (not profiles_exist) | (not all_streams_valid):
@@ -362,17 +398,18 @@ class Interface:
                     tk.Label(alert_window, text='').pack()
 
             if not profiles_exist:
-                no_profile_text = 'The following generators have no profile: '
+                no_profile_text = 'The following generators and streams have no profile: '
 
-                for generator in generators_without_profile:
-                    if generators_without_profile.index(generator) != len(generators_without_profile) - 1:
-                        no_profile_text += generator + ', '
+                for u in profile_not_exist:
+                    if profile_not_exist.index(u) != len(profile_not_exist) - 1:
+                        no_profile_text += u + ', '
                     else:
-                        no_profile_text += generator
+                        no_profile_text += u
 
                 tk.Label(alert_window, text=no_profile_text).pack()
                 tk.Label(alert_window,
-                         text='It is important that every generator has a profile. Please adjust your generators').pack()
+                         text='It is important that every generator/stream has a profile. \n'
+                              ' Please adjust your generators/streams').pack()
                 tk.Label(alert_window, text='').pack()
 
             ttk.Button(alert_window, text='OK', command=kill_window).pack(fill='both', expand=True)
@@ -428,8 +465,14 @@ class Interface:
         k += 1
 
         case_data.loc[k, 'type'] = 'generation_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_single_profile()
+        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_generation_profile_status()
         case_data.loc[k, 'generation_data'] = self.pm_object_copy.get_generation_data()
+
+        k += 1
+
+        case_data.loc[k, 'type'] = 'purchase_sell_data'
+        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_sell_purchase_profile_status()
+        case_data.loc[k, 'purchase_sell_data'] = self.pm_object_copy.get_sell_purchase_data()
 
         k += 1
 
@@ -589,7 +632,7 @@ class Interface:
 
     def optimize(self):
 
-        if self.pm_object_copy.get_single_profile():
+        if self.pm_object_copy.get_generation_profile_status():
             optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
             self.analyze_results(optimization_problem)
         else:
@@ -599,7 +642,7 @@ class Interface:
             # Get path of every object in folder
             _, _, filenames = next(walk(path_to_generation_files))
             for f in filenames:
-                self.pm_object_copy.set_generation_data(path_to_generation_files + '/' + f)
+                self.pm_object_copy.set_generation_data(self.pm_object_copy.get_generation_data() + '/' + f)
                 self.pm_object_copy.set_single_profile(False)
                 optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
                 self.analyze_results(optimization_problem)

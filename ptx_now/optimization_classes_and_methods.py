@@ -572,8 +572,13 @@ class OptimizationProblem:
         demand_dict = {}
         generation_profiles_dict = {}
 
+        if self.pm_object.get_sell_purchase_profile_status():
+            sell_purchase_price_curve = pd.read_excel(self.path_data + self.pm_object.get_sell_purchase_data(),
+                                                      index_col=0)
+
         for stream in pm_object.get_specific_streams('final'):
             stream_name = stream.get_name()
+            stream_nice_name = stream.get_nice_name()
 
             # Purchase price
             if stream.is_purchasable():
@@ -582,9 +587,9 @@ class OptimizationProblem:
                         purchase_price_dict.update({(stream_name, t): float(stream.get_purchase_price())})
 
                 else:
-                    purchase_price_curve = pd.read_excel(self.path_data + stream.get_purchase_price(), index_col=0)
+                    purchase_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Purchase']
                     for t in model.TIME:
-                        purchase_price_dict.update({(stream_name, t): float(purchase_price_curve.loc[t, 'value'])})
+                        purchase_price_dict.update({(stream_name, t): float(purchase_price_curve.loc[t])})
 
             # Selling price
             if stream.is_saleable():
@@ -592,9 +597,9 @@ class OptimizationProblem:
                     for t in model.TIME:
                         sell_price_dict.update({(stream_name, t): float(stream.get_sale_price())})
                 else:
-                    sale_price_curve = pd.read_excel(self.path_data + stream.get_sale_price(), index_col=0)
+                    sale_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Selling']
                     for t in model.TIME:
-                        sell_price_dict.update({(stream_name, t): float(sale_price_curve.loc[t, 'value'])})
+                        sell_price_dict.update({(stream_name, t): float(sale_price_curve.loc[t])})
 
             # Demand
             if stream.is_demanded():
@@ -605,7 +610,7 @@ class OptimizationProblem:
         model.selling_price = Param(model.SALEABLE_STREAMS, model.TIME, initialize=sell_price_dict)
         model.stream_demand = Param(model.DEMANDED_STREAMS, model.TIME, initialize=demand_dict)
 
-        generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+        generation_profile = pd.read_excel(self.path_data + self.pm_object.get_generation_data(), index_col=0)
         for generator in pm_object.get_specific_components('final', 'generator'):
             generator_name = generator.get_name()
             for t in model.TIME:

@@ -191,7 +191,6 @@ class ParameterObject:
         return components
 
     def remove_stream(self, stream):
-
         self.get_stream(stream).set_final(False)
 
     def activate_stream(self, stream):
@@ -221,17 +220,29 @@ class ParameterObject:
     def get_covered_period(self):
         return self.covered_period
 
-    def set_single_profile(self, status):
-        self.single_profile = status
+    def set_generation_profile_status(self, status):
+        self.generation_profile_status = status
 
-    def get_single_profile(self):
-        return self.single_profile
+    def get_generation_profile_status(self):
+        return self.generation_profile_status
 
     def set_generation_data(self, generation_data):
         self.generation_data = generation_data
 
     def get_generation_data(self):
         return self.generation_data
+
+    def set_sell_purchase_profile_status(self, status):
+        self.sell_purchase_profile_status = status
+
+    def get_sell_purchase_profile_status(self):
+        return self.sell_purchase_profile_status
+
+    def set_sell_purchase_data(self, sell_purchase_data):
+        self.sell_purchase_data = sell_purchase_data
+
+    def get_sell_purchase_data(self):
+        return self.sell_purchase_data
 
     def create_new_project(self):
         """ Create new project """
@@ -294,11 +305,17 @@ class ParameterObject:
         streams = copy.deepcopy(self.streams)
 
         return ParameterObject(name=self.name,
-                               integer_steps=self.integer_steps, general_parameters=general_parameters,
-                               general_parameter_values=general_parameter_values, nice_names=nice_names,
-                               abbreviations_dict=abbreviations_dict, streams=streams,
+                               integer_steps=self.integer_steps,
+                               general_parameters=general_parameters,
+                               general_parameter_values=general_parameter_values,
+                               nice_names=nice_names,
+                               abbreviations_dict=abbreviations_dict,
+                               streams=streams,
                                components=self.components,
-                               generation_data=self.generation_data, single_profile=self.single_profile,
+                               generation_data=self.generation_data,
+                               generation_profile_status=self.generation_profile_status,
+                               sell_purchase_data=self.sell_purchase_data,
+                               sell_purchase_profile_status=self.sell_purchase_profile_status,
                                uses_representative_weeks=self.uses_representative_weeks,
                                path_weighting=self.path_weighting,
                                covered_period=self.covered_period,
@@ -307,7 +324,8 @@ class ParameterObject:
     def __init__(self, name=None, integer_steps=5,
                  general_parameters=None, general_parameter_values=None,
                  nice_names=None, abbreviations_dict=None, streams=None, components=None,
-                 generation_data=None, single_profile=True,
+                 generation_data=None, generation_profile_status=True,
+                 sell_purchase_data=None, sell_purchase_profile_status=None,
                  uses_representative_weeks=False, path_weighting='',  covered_period=8760,
                  copy_object=False):
 
@@ -368,7 +386,10 @@ class ParameterObject:
         self.integer_steps = integer_steps
 
         self.generation_data = generation_data
-        self.single_profile = bool(single_profile)
+        self.generation_profile_status = bool(generation_profile_status)
+
+        self.sell_purchase_data = sell_purchase_data
+        self.sell_purchase_profile_status = bool(sell_purchase_profile_status)
 
 
 ParameterObjectCopy = type('CopyOfB', ParameterObject.__bases__, dict(ParameterObject.__dict__))

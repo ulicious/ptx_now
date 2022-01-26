@@ -9,6 +9,40 @@ class StreamFrame:
     def adjust_values(self):
         AdjustStreamWindow(self, self.pm_object, self.stream)
 
+    def set_profile_purchase_selling(self):
+        if self.profile_var.get() == 'single':
+            path = filedialog.askopenfilename()
+            file_name = path.split('/')[-1]
+
+            if file_name != '':
+                if file_name.split('.')[-1] == 'xlsx':
+                    self.textvar_profile.set(file_name)
+                    self.pm_object.set_sell_purchase_data(file_name)
+                    self.pm_object.set_sell_purchase_profile_status(True)
+
+                    self.parent.parent.pm_object_copy = self.pm_object
+                    self.parent.parent.update_widgets()
+
+                else:
+                    wrong_file_window = Toplevel()
+                    wrong_file_window.title('')
+                    wrong_file_window.grab_set()
+
+                    ttk.Label(wrong_file_window, text='File is not xlsx format').pack(fill='both', expand=True)
+
+                    ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
+                                                                                                     expand=True)
+        else:
+            path = filedialog.askdirectory()
+            folder_name = path.split('/')[-1]
+
+            self.textvar_profile.set(folder_name)
+            self.pm_object.set_sell_purchase_data(folder_name)
+            self.pm_object.set_sell_purchase_profile_status(False)
+
+            self.parent.parent.pm_object_copy = self.pm_object
+            self.parent.parent.update_widgets()
+
     def set_stream_settings_to_default(self):
 
         self.pm_object.remove_stream_entirely(self.stream_object.get_name())
@@ -46,7 +80,7 @@ class StreamFrame:
                 if self.purchase_price_type_var.get() == 'fixed':
                     text_purchase_price = 'Please enter fix purchase price'
                 else:
-                    text_purchase_price = 'Please choose purchase price curve'
+                    text_purchase_price = ''
 
                 text_purchase_price_unit = ''
             else:
@@ -62,9 +96,7 @@ class StreamFrame:
                 max_columns = max(max_columns, 4)
             else:
                 tk.Label(self.frame, text='Variable price').grid(row=i+1, column=1)
-                tk.Label(self.frame, text='For price time series see:').grid(row=i+1, column=2)
-                tk.Label(self.frame, text=text_purchase_price).grid(row=i+1, column=3)
-                max_columns = max(max_columns, 3)
+                max_columns = max(max_columns, 1)
 
             i += 2
         else:
@@ -103,12 +135,10 @@ class StreamFrame:
                 tk.Label(self.frame, text='Sale price:').grid(row=i+1, column=2)
                 tk.Label(self.frame, text=text_sale_price).grid(row=i+1, column=3)
                 tk.Label(self.frame, text=text_sale_price_unit).grid(row=i+1, column=4)
-                max_columns = max(max_columns,4)
+                max_columns = max(max_columns, 4)
             else:
                 tk.Label(self.frame, text='Variable price').grid(row=i+1, column=1)
-                tk.Label(self.frame, text='For price time series see:').grid(row=i+1, column=2)
-                tk.Label(self.frame, text=text_sale_price).grid(row=i+1, column=3)
-                max_columns = max(max_columns, 3)
+                max_columns = max(max_columns, 1)
 
             i += 2
         else:
@@ -175,8 +205,48 @@ class StreamFrame:
         button_frame.grid_columnconfigure(1, weight=1)
         button_frame.grid(row=i, column=0, columnspan=max_columns+1, sticky='ew')
 
-        for i in range(max_columns + 1):
-            self.frame.grid_columnconfigure(i, weight=1)
+        for j in range(max_columns + 1):
+            self.frame.grid_columnconfigure(j, weight=1)
+
+        # ------
+        # Profile file(s)
+
+        profile_frame = ttk.Frame(self.frame)
+
+        if self.profile_needed.get():
+            state = NORMAL
+        else:
+            state = DISABLED
+
+        ttk.Separator(profile_frame).grid(row=0, columnspan=2, sticky='ew')
+
+        self.rb_single = ttk.Radiobutton(profile_frame, text='Use single profile', value='single',
+                                         variable=self.profile_var, state=state)
+        self.rb_single.grid(row=1, column=0, sticky='w')
+
+        self.rb_several = ttk.Radiobutton(profile_frame, text='Use multiple profiles', value='multiple',
+                                          variable=self.profile_var, state=state)
+        self.rb_several.grid(row=1, column=1, sticky='w')
+
+        try:
+            path = self.pm_object.get_sell_purchase_data()
+            file_name = path.split('/')[-1]
+            self.textvar_profile.set(file_name)
+        except:
+            self.textvar_profile.set('')
+
+        ttk.Label(profile_frame, text='Profile file/Folder', state=state).grid(row=2, column=0, sticky='w')
+        self.profile_label = ttk.Label(profile_frame, text=self.textvar_profile.get(), state=state)
+        self.profile_label.grid(row=2, column=1, sticky='w')
+
+        self.select_profile_button = ttk.Button(profile_frame, text='Select profile(s)',
+                                                command=self.set_profile_purchase_selling,
+                                                state=state)
+        self.select_profile_button.grid(row=3, columnspan=2, sticky='ew')
+
+        profile_frame.grid_columnconfigure(0, weight=1)
+        profile_frame.grid_columnconfigure(1, weight=1)
+        profile_frame.grid(row=i+1, column=0, columnspan=max_columns + 1, sticky='ew')
 
     def initialize_stream(self):
 
@@ -186,18 +256,12 @@ class StreamFrame:
             self.available_var.set(False)
 
         if self.stream_object.is_purchasable():
+
             self.purchasable_var.set(True)
             self.purchase_price_type_var.set(self.stream_object.get_purchase_price_type())
 
             if self.stream_object.get_purchase_price_type() == 'fixed':
                 self.purchase_price_fixed_text_var.set(self.stream_object.get_purchase_price())
-                self.purchase_price_curve_text_var.set('')
-            else:
-                path = self.stream_object.get_purchase_price()
-                file_name = path.split('/')[-1]
-
-                self.purchase_price_fixed_text_var.set('')
-                self.purchase_price_curve_text_var.set(file_name)
         else:
             self.purchasable_var.set(False)
             self.purchase_price_type_var.set(self.stream_object.get_purchase_price_type())
@@ -212,15 +276,6 @@ class StreamFrame:
             if self.stream_object.get_sale_price_type() == 'fixed':
                 self.sale_price_type_var.set('fixed')
                 self.sale_price_fixed_text_var.set(self.stream_object.get_sale_price())
-                self.sale_price_curve_text_var.set('')
-            else:
-                self.sale_price_type_var.set('variable')
-
-                path = self.stream_object.get_sale_price()
-                file_name = path.split('/')[-1]
-
-                self.sale_price_fixed_text_var.set('')
-                self.sale_price_curve_text_var.set(file_name)
 
         else:
             self.saleable_var.set(False)
@@ -240,6 +295,19 @@ class StreamFrame:
 
         self.energy_content_var.set(self.stream_object.get_energy_content())
 
+        self.profile_needed.set(False)
+        for s in self.pm_object.get_all_streams():
+            stream_object = self.pm_object.get_stream(s)
+            if stream_object.is_final():
+                if (stream_object.is_purchasable()) or (stream_object.is_saleable()):
+                    if (stream_object.get_sale_price_type() == 'variable') | (stream_object.get_purchase_price_type() == 'variable'):
+                        self.profile_needed.set(True)
+                        if self.pm_object.get_sell_purchase_profile_status():
+                            self.profile_var.set('single')
+                        else:
+                            self.profile_var.set('multiple')
+                        self.textvar_profile.set(self.pm_object.get_sell_purchase_data())
+
     def __init__(self, parent, frame, stream, pm_object, pm_object_original):
 
         self.parent = parent
@@ -258,18 +326,20 @@ class StreamFrame:
         self.purchasable_var = tk.BooleanVar()
         self.purchase_price_type_var = tk.StringVar()
         self.purchase_price_fixed_text_var = tk.StringVar()
-        self.purchase_price_curve_text_var = tk.StringVar()
 
         self.saleable_var = tk.BooleanVar()
         self.sale_price_type_var = tk.StringVar()
         self.sale_price_fixed_text_var = tk.StringVar()
-        self.sale_price_curve_text_var = tk.StringVar()
 
         self.demand_var = tk.BooleanVar()
         self.total_demand_var = tk.BooleanVar()
         self.demand_text_var = StringVar()
 
         self.energy_content_var = StringVar()
+
+        self.profile_var = StringVar()
+        self.textvar_profile = StringVar()
+        self.profile_needed = BooleanVar()
 
         self.create_widgets_in_frame()
 
@@ -324,20 +394,13 @@ class AdjustStreamWindow:
                                                      command=self.set_purchase_fixed_price)
         self.purchase_fixed_price_radiobutton.grid(row=2, column=1, sticky='w')
 
-        self.purchase_price_curve_radiobutton.config(text='Price curve',
-                                                     variable=self.purchase_price_type_var, value='variable',
-                                                     command=self.set_purchase_fixed_price)
-        self.purchase_price_curve_radiobutton.grid(row=3, rowspan=2, column=1, sticky='w')
+        self.purchase_variable_radiobutton.config(text='Price curve',
+                                                  variable=self.purchase_price_type_var, value='variable',
+                                                  command=self.set_purchase_fixed_price)
+        self.purchase_variable_radiobutton.grid(row=3, rowspan=2, column=1, sticky='w')
 
         self.purchase_fixed_price_entry.config(text=self.purchase_price_fixed_text_var)
         self.purchase_fixed_price_entry.grid(row=2, column=2, sticky='ew')
-
-        self.purchase_price_button.config(text='Choose purchase price curve',
-                                          command=self.choose_purchase_price_curve)
-        self.purchase_price_button.grid(row=3, column=2, sticky='ew')
-
-        self.purchase_curve_label.config(text=self.purchase_price_curve_text_var.get())
-        self.purchase_curve_label.grid(row=4, column=2, sticky='w')
 
         ttk.Separator(self.newWindow).grid(row=5, columnspan=3, sticky='ew')
 
@@ -350,21 +413,14 @@ class AdjustStreamWindow:
                                                  command=self.set_sell_fixed_price)
         self.sale_fixed_price_radiobutton.grid(row=6, column=1, sticky='w')
 
-        self.sale_price_curve_radiobutton.config(text='Price curve',
-                                                 variable=self.sale_price_type_var,
-                                                 value='variable',
-                                                 command=self.set_sell_fixed_price)
-        self.sale_price_curve_radiobutton.grid(row=7, column=1, rowspan=2, sticky='w')
+        self.sale_variable_radiobutton.config(text='Price curve',
+                                              variable=self.sale_price_type_var,
+                                              value='variable',
+                                              command=self.set_sell_fixed_price)
+        self.sale_variable_radiobutton.grid(row=7, column=1, rowspan=2, sticky='w')
 
         self.sale_fixed_price_entry.config(text=self.sale_price_fixed_text_var)
         self.sale_fixed_price_entry.grid(row=6, column=2, sticky='ew')
-
-        self.sale_price_button.config(text='Choose selling price curve',
-                                      command=self.choose_sell_price_curve)
-        self.sale_price_button.grid(row=7, column=2, sticky='ew')
-
-        self.sale_curve_label.config(text=self.sale_price_curve_text_var.get())
-        self.sale_curve_label.grid(row=8, column=2, sticky='w')
 
         ttk.Separator(self.newWindow).grid(row=9, columnspan=3, sticky='ew')
 
@@ -426,46 +482,30 @@ class AdjustStreamWindow:
         else:
             self.available_var.set(False)
 
+        self.purchase_price_type_var.set(self.stream_object.get_purchase_price_type())
         if self.stream_object.is_purchasable():
             self.purchasable_var.set(True)
-            self.purchase_price_type_var.set(self.stream_object.get_purchase_price_type())
-
             if self.stream_object.get_purchase_price_type() == 'fixed':
-                self.purchase_price_fixed_text_var.set(self.stream_object.get_purchase_price())
-                self.purchase_price_curve_text_var.set('')
+                self.purchase_price_type_var.set('fixed')
             else:
-                path = self.stream_object.get_purchase_price()
-                file_name = path.split('/')[-1]
-
-                self.purchase_price_fixed_text_var.set('')
-                self.purchase_price_curve_text_var.set(file_name)
+                self.purchase_price_type_var.set('variable')
         else:
             self.purchasable_var.set(False)
-            self.purchase_price_type_var.set(self.stream_object.get_purchase_price_type())
 
         if self.stream_object.is_emittable():
             self.emitted_var.set(True)
         else:
             self.emitted_var.set(False)
 
+        self.sale_price_type_var.set(self.stream_object.get_sale_price_type())
         if self.stream_object.is_saleable():
             self.saleable_var.set(True)
             if self.stream_object.get_sale_price_type() == 'fixed':
                 self.sale_price_type_var.set('fixed')
-                self.sale_price_fixed_text_var.set(self.stream_object.get_sale_price())
-                self.sale_price_curve_text_var.set('')
             else:
                 self.sale_price_type_var.set('variable')
-
-                path = self.stream_object.get_sale_price()
-                file_name = path.split('/')[-1]
-
-                self.sale_price_fixed_text_var.set('')
-                self.sale_price_curve_text_var.set(file_name)
-
         else:
             self.saleable_var.set(False)
-            self.sale_price_type_var.set('fixed')
 
         if self.stream_object.is_demanded():
             self.demand_var.set(True)
@@ -484,35 +524,25 @@ class AdjustStreamWindow:
     def configure_purchasable_streams(self):
         if self.purchasable_var.get():
             self.purchase_fixed_price_radiobutton.config(state=NORMAL)
-            self.purchase_price_curve_radiobutton.config(state=NORMAL)
+            self.purchase_variable_radiobutton.config(state=NORMAL)
             self.purchase_fixed_price_entry.config(state=NORMAL)
-            self.purchase_price_button.config(state=NORMAL)
-            self.purchase_curve_label.config(state=NORMAL)
 
         else:
             self.purchase_fixed_price_radiobutton.config(state=DISABLED)
-            self.purchase_price_curve_radiobutton.config(state=DISABLED)
+            self.purchase_variable_radiobutton.config(state=DISABLED)
             self.purchase_fixed_price_entry.config(state=DISABLED)
-            self.purchase_price_button.config(state=DISABLED)
-            self.purchase_curve_label.config(state=DISABLED)
 
         self.set_purchase_fixed_price()
 
     def set_purchase_fixed_price(self):
         if not self.purchasable_var.get():
             self.purchase_fixed_price_radiobutton.config(state=DISABLED)
-            self.purchase_price_curve_radiobutton.config(state=DISABLED)
+            self.purchase_variable_radiobutton.config(state=DISABLED)
             self.purchase_fixed_price_entry.config(state=DISABLED)
-            self.purchase_price_button.config(state=DISABLED)
-            self.purchase_curve_label.config(state=DISABLED)
         else:
             if self.purchase_price_type_var.get() == 'fixed':
                 self.purchase_fixed_price_entry.config(state=NORMAL)
-                self.purchase_price_button.config(state=DISABLED)
-                self.purchase_curve_label.config(state=DISABLED)
             else:
-                self.purchase_price_button.config(state=NORMAL)
-                self.purchase_curve_label.config(state=NORMAL)
                 self.purchase_fixed_price_entry.config(state=DISABLED)
 
     def choose_purchase_price_curve(self):
@@ -523,34 +553,24 @@ class AdjustStreamWindow:
     def configure_saleable_streams(self):
         if self.saleable_var.get():
             self.sale_fixed_price_radiobutton.config(state=NORMAL)
-            self.sale_price_curve_radiobutton.config(state=NORMAL)
             self.sale_fixed_price_entry.config(state=NORMAL)
-            self.sale_price_button.config(state=NORMAL)
-            self.sale_curve_label.config(state=NORMAL)
+            self.sale_variable_radiobutton.config(state=NORMAL)
         else:
             self.sale_fixed_price_radiobutton.config(state=DISABLED)
-            self.sale_price_curve_radiobutton.config(state=DISABLED)
             self.sale_fixed_price_entry.config(state=DISABLED)
-            self.sale_price_button.config(state=DISABLED)
-            self.sale_curve_label.config(state=DISABLED)
+            self.sale_variable_radiobutton.config(state=DISABLED)
 
         self.set_sell_fixed_price()
 
     def set_sell_fixed_price(self):
         if not self.saleable_var.get():
             self.sale_fixed_price_radiobutton.config(state=DISABLED)
-            self.sale_price_curve_radiobutton.config(state=DISABLED)
+            self.sale_variable_radiobutton.config(state=DISABLED)
             self.sale_fixed_price_entry.config(state=DISABLED)
-            self.sale_price_button.config(state=DISABLED)
-            self.sale_curve_label.config(state=DISABLED)
         else:
             if self.sale_price_type_var.get() == 'fixed':
                 self.sale_fixed_price_entry.config(state=NORMAL)
-                self.sale_price_button.config(state=DISABLED)
-                self.sale_curve_label.config(state=DISABLED)
             else:
-                self.sale_price_button.config(state=NORMAL)
-                self.sale_curve_label.config(state=NORMAL)
                 self.sale_fixed_price_entry.config(state=DISABLED)
 
     def choose_sell_price_curve(self):
@@ -587,7 +607,6 @@ class AdjustStreamWindow:
                 self.stream_object.set_purchase_price_type('fixed')
             else:
                 self.stream_object.set_purchase_price_type('variable')
-                self.stream_object.set_purchase_price(self.purchase_price_curve_text_var.get())
         else:
             self.stream_object.set_purchasable(False)
 
@@ -604,7 +623,6 @@ class AdjustStreamWindow:
                 self.stream_object.set_sale_price_type('fixed')
             else:
                 self.stream_object.set_sale_price_type('variable')
-                self.stream_object.set_sale_price(self.sale_price_curve_text_var.get())
         else:
             self.stream_object.set_saleable(False)
 
@@ -624,14 +642,10 @@ class AdjustStreamWindow:
         if self.purchasable_var.get():
             if self.purchase_price_type_var.get() == 'fixed':
                 self.stream_object.set_purchase_price(self.purchase_fixed_price_entry.get())
-            else:
-                self.stream_object.set_purchase_price(self.purchase_price_curve_text_var.get())
 
         if self.saleable_var.get():
             if self.sale_price_type_var.get() == 'fixed':
                 self.stream_object.set_sale_price(self.sale_fixed_price_entry.get())
-            else:
-                self.stream_object.set_sale_price(self.sale_price_curve_text_var.get())
 
         self.stream_object.set_energy_content(self.energy_content_var.get())
 
@@ -674,16 +688,12 @@ class AdjustStreamWindow:
 
         # widgets
         self.purchase_fixed_price_radiobutton = ttk.Radiobutton(self.newWindow)
+        self.purchase_variable_radiobutton = ttk.Radiobutton(self.newWindow)
         self.purchase_fixed_price_entry = ttk.Entry(self.newWindow)
-        self.purchase_price_curve_radiobutton = ttk.Radiobutton(self.newWindow)
-        self.purchase_price_button = ttk.Button(self.newWindow)
-        self.purchase_curve_label = ttk.Label(self.newWindow)
 
         self.sale_fixed_price_radiobutton = ttk.Radiobutton(self.newWindow)
+        self.sale_variable_radiobutton = ttk.Radiobutton(self.newWindow)
         self.sale_fixed_price_entry = ttk.Entry(self.newWindow)
-        self.sale_price_curve_radiobutton = ttk.Radiobutton(self.newWindow)
-        self.sale_price_button = ttk.Button(self.newWindow)
-        self.sale_curve_label = ttk.Label(self.newWindow)
 
         self.demand_entry = ttk.Entry(self.newWindow)
         self.demand_total_demand_button = ttk.Checkbutton(self.newWindow)

@@ -6,7 +6,7 @@ from tkinter import ttk
 import pandas as pd
 from datetime import datetime
 
-from _helpers_gui import AssumptionsInterface, ComponentInterface, StreamInterface, StorageInterface, GeneratorInterface
+from _helpers_gui import AssumptionsInterface, ComponentInterface, StreamInterface, StorageInterface, GeneratorInterface, DataInterface
 from optimization_classes_and_methods import OptimizationProblem
 from analysis_classes_and_methods import Result
 from _helpers_visualization import create_visualization
@@ -33,10 +33,10 @@ class Interface:
 
         if self.path_custom is None:  # New project
 
-            self.pm_object_original = ParameterObject('parameter', integer_steps=10)
+            self.pm_object_original = ParameterObject('parameter', integer_steps=10, path_data=path_data)
             self.pm_object_original.create_new_project()
 
-            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10)
+            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10, path_data=path_data)
             self.pm_object_copy.create_new_project()
 
             self.root.title('New Project')
@@ -44,17 +44,19 @@ class Interface:
 
         else:  # Custom project
 
-            self.pm_object_original = ParameterObject('parameter', integer_steps=10)
-            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10)
+            custom_title = self.path_custom.split('/')[-1].split('.')[0]
+            self.root.title(custom_title)
+            self.project_name = custom_title
+
+            self.pm_object_original = ParameterObject('parameter', integer_steps=10,
+                                                      path_data=path_data, project_name=custom_title)
+            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10,
+                                                  path_data=path_data, project_name=custom_title)
 
             case_data = pd.read_excel(self.path_custom, index_col=0)
 
             self.pm_object_original = load_setting(self.pm_object_original, case_data)
             self.pm_object_copy = load_setting(self.pm_object_copy, case_data)
-
-            custom_title = self.path_custom.split('/')[-1].split('.')[0]
-            self.root.title(custom_title)
-            self.project_name = custom_title
 
         self.me_checked = False  # boolean if mass energy balance was checked
 
@@ -130,8 +132,6 @@ class Interface:
         else:
             self.overall_notebook = ttk.Notebook(self.root)
 
-            # def
-
             self.general_assumptions = AssumptionsInterface(self, self.overall_notebook,
                                                     pm_object_original=self.pm_object_original,
                                                     pm_object_copy=self.pm_object_copy,)
@@ -157,11 +157,17 @@ class Interface:
                                                  pm_object_copy=self.pm_object_copy)
             self.generators.pack(fill='both', expand=True)
 
+            self.data = DataInterface(self, self.overall_notebook,
+                                      pm_object_original=self.pm_object_original,
+                                      pm_object_copy=self.pm_object_copy)
+            self.data.pack(fill='both', expand=True)
+
             self.overall_notebook.add(self.general_assumptions, text='General Assumptions')
             self.overall_notebook.add(self.components, text='Components')
             self.overall_notebook.add(self.streams, text='Streams')
             self.overall_notebook.add(self.storages, text='Storages')
             self.overall_notebook.add(self.generators, text='Generators')
+            self.overall_notebook.add(self.data, text='Data')
 
             self.overall_notebook.pack(pady=10, expand=True, anchor='n')
 
@@ -174,27 +180,15 @@ class Interface:
         save_settings.grid(row=0, column=1, sticky='ew')
 
         self.optimize_button = ttk.Button(button_frame, text='Optimize', state=DISABLED, command=self.optimize)
-        self.optimize_button.grid(row=0, column=2, sticky='ew')
+        self.optimize_button.grid(row=1, column=0, sticky='ew')
+
+        return_to_start = ttk.Button(button_frame, text='Cancel', command=self.cancel)
+        return_to_start.grid(row=1, column=1, sticky='ew')
 
         button_frame.grid_columnconfigure(0, weight=1, uniform='a')
         button_frame.grid_columnconfigure(1, weight=1, uniform='a')
-        button_frame.grid_columnconfigure(2, weight=1, uniform='a')
 
         button_frame.pack(fill="both", expand=True)
-
-        button_frame_2 = ttk.Frame(self.root)
-
-        get_data_template_button = ttk.Button(button_frame_2, text='Get Data Template',
-                                              command=self.get_data_template)
-        get_data_template_button.grid(row=0, column=0, sticky='ew')
-
-        return_to_start = ttk.Button(button_frame_2, text='Cancel', command=self.cancel)
-        return_to_start.grid(row=0, column=1, sticky='ew')
-
-        button_frame_2.grid_columnconfigure(0, weight=1, uniform='a')
-        button_frame_2.grid_columnconfigure(1, weight=1, uniform='a')
-
-        button_frame_2.pack(fill="both", expand=True)
 
         self.root.mainloop()
 
@@ -215,6 +209,9 @@ class Interface:
 
         self.generators.update_self_pm_object(self.pm_object_copy)
         self.generators.update_frame()
+
+        self.data.update_self_pm_object(self.pm_object_copy)
+        self.data.update_frame()
 
         self.optimize_button.config(state=DISABLED)
 
@@ -627,33 +624,64 @@ class Interface:
             path_name = self.path_settings + "/" + name + ".xlsx"
 
             self.root.title(name)
+            self.pm_object_copy.set_project_name(name)
 
         case_data.to_excel(path_name, index=True)
 
     def optimize(self):
 
-        if self.pm_object_copy.get_generation_profile_status():
-            optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
-            self.analyze_results(optimization_problem)
-        else:
-            from os import walk
-            path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
+        """ Optimization either with one single case or several cases
+        depend on number of generation, purchase and sale data"""
 
-            # Get path of every object in folder
-            _, _, filenames = next(walk(path_to_generation_files))
-            for f in filenames:
-                self.pm_object_copy.set_generation_data(self.pm_object_copy.get_generation_data() + '/' + f)
-                self.pm_object_copy.set_single_profile(False)
+        if self.pm_object_copy.get_generation_profile_status():
+
+            if self.pm_object_copy.get_sell_purchase_profile_status():
+                #  one case
                 optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
                 self.analyze_results(optimization_problem)
+            else:
+                # Case with several purchase and selling price data
+                path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_sell_purchase_data()
+
+                _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                for fsp in filenames_sell_purchase:
+                    self.pm_object_copy.set_sell_purchase_data(self.pm_object_copy.get_sell_purchase_data() + '/' + fsp)
+                    self.pm_object_copy.get_sell_purchase_profile_status(False)
+                    optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                    self.analyze_results(optimization_problem)
+
+        else:
+            path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
+
+            if self.pm_object_copy.get_sell_purchase_profile_status():
+                # Case with several generation profiles
+                _, _, filenames_generation = next(walk(path_to_generation_files))
+                for fg in filenames_generation:
+                    self.pm_object_copy.set_generation_data(self.pm_object_copy.get_generation_data() + '/' + fg)
+                    self.pm_object_copy.set_generation_profile_status(False)
+                    optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                    self.analyze_results(optimization_problem)
+            else:
+                # Case with several generation and purchase/sale profiles
+                path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
+                path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_sell_purchase_data()
+
+                _, _, filenames_generation = next(walk(path_to_generation_files))
+                _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                for fg in filenames_generation:
+                    for fsp in filenames_sell_purchase:
+                        self.pm_object_copy.set_generation_data(self.pm_object_copy.get_generation_data() + '/' + fg)
+                        self.pm_object_copy.set_generation_profile_status(False)
+
+                        self.pm_object_copy.set_sell_purchase_data(self.pm_object_copy.get_sell_purchase_data() + '/' + fsp)
+                        self.pm_object_copy.get_sell_purchase_profile_status(False)
+
+                        optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                        self.analyze_results(optimization_problem)
 
     def analyze_results(self, optimization_problem):
 
         result = Result(optimization_problem, self.path_result, self.path_data, self.project_name)
-
-    def get_data_template(self):
-
-        os.system('start "excel" "data_template.xlsx"')
 
     def cancel(self):
 
@@ -693,6 +721,8 @@ class Interface:
             elif setting_window.radiobutton_variable.get() == 'optimize_only':
 
                 path_to_settings = setting_window.folder_optimize
+
+                print(path_to_settings)
 
                 # Get path of every object in folder
                 _, _, filenames = next(walk(path_to_settings))

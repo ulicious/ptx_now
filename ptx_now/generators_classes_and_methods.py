@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import *
-from tkinter import filedialog
 
 
 class GeneratorFrame:
@@ -13,9 +12,7 @@ class GeneratorFrame:
             self.capex_label.config(state=NORMAL)
             self.lifetime_label.config(state=NORMAL)
             self.maintenance_label.config(state=NORMAL)
-            self.set_profile_button.config(state=NORMAL)
             self.adjust_values_button.config(state=NORMAL)
-            self.profile_label.config(state=NORMAL)
             self.generated_stream_label.config(state=NORMAL)
 
             self.pm_object.get_component(self.generator).set_final(True)
@@ -25,9 +22,7 @@ class GeneratorFrame:
             self.capex_label.config(state=DISABLED)
             self.lifetime_label.config(state=DISABLED)
             self.maintenance_label.config(state=DISABLED)
-            self.set_profile_button.config(state=DISABLED)
             self.adjust_values_button.config(state=DISABLED)
-            self.profile_label.config(state=DISABLED)
             self.generated_stream_label.config(state=DISABLED)
 
             self.pm_object.get_component(self.generator).set_final(False)
@@ -93,40 +88,6 @@ class GeneratorFrame:
         window.grid_columnconfigure(0, weight=1, uniform='a')
         window.grid_columnconfigure(1, weight=1, uniform='a')
 
-    def set_profile_generation(self):
-        if self.profile_var.get() == 'single':
-            path = filedialog.askopenfilename()
-            file_name = path.split('/')[-1]
-
-            if file_name != '':
-                if file_name.split('.')[-1] == 'xlsx':
-                    self.textvar_profile.set(file_name)
-                    self.pm_object.set_generation_data(file_name)
-                    self.pm_object.set_generation_profile_status(True)
-
-                    self.parent.parent.pm_object_copy = self.pm_object
-                    self.parent.parent.update_widgets()
-
-                else:
-                    wrong_file_window = Toplevel()
-                    wrong_file_window.title('')
-                    wrong_file_window.grab_set()
-
-                    ttk.Label(wrong_file_window, text='File is not xlsx format').pack(fill='both', expand=True)
-
-                    ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
-                                                                                                     expand=True)
-        else:
-            path = filedialog.askdirectory()
-            folder_name = path.split('/')[-1]
-
-            self.textvar_profile.set(folder_name)
-            self.pm_object.set_generation_data(folder_name)
-            self.pm_object.set_generation_profile_status(False)
-
-            self.parent.parent.pm_object_copy = self.pm_object
-            self.parent.parent.update_widgets()
-
     def set_generator_settings_to_default(self):
 
         self.pm_object.remove_component_entirely(self.generator)
@@ -136,6 +97,8 @@ class GeneratorFrame:
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
+
+
 
     def initialize_generator_frame(self):
 
@@ -210,35 +173,6 @@ class GeneratorFrame:
 
         button_frame.grid(row=7, columnspan=2, sticky='ew')
 
-        # ------
-        # Profile file(s)
-
-        ttk.Separator(self.frame).grid(row=8, columnspan=2, sticky='ew')
-
-        self.rb_single = ttk.Radiobutton(self.frame, text='Use single profile', value='single',
-                                         variable=self.profile_var)
-        self.rb_single.grid(row=9, column=0, sticky='w')
-
-        self.rb_several = ttk.Radiobutton(self.frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.profile_var)
-        self.rb_several.grid(row=9, column=1, sticky='w')
-
-        try:
-            path = self.pm_object.get_generation_data()
-            file_name = path.split('/')[-1]
-            self.textvar_profile.set(file_name)
-        except:
-            self.textvar_profile.set('')
-
-        ttk.Label(self.frame, text='Profile file/Folder').grid(row=10, column=0, sticky='w')
-        self.profile_label = ttk.Label(self.frame, text=self.textvar_profile.get(), state=state)
-        self.profile_label.grid(row=10, column=1, sticky='w')
-
-        self.select_profile_button = ttk.Button(self.frame, text='Select profile(s)',
-                                                command=self.set_profile_generation,
-                                                state=state)
-        self.select_profile_button.grid(row=11, columnspan=2, sticky='ew')
-
     def __init__(self, parent, frame, generator, pm_object, pm_object_original):
 
         self.parent = parent
@@ -257,12 +191,6 @@ class GeneratorFrame:
 
         self.textvar_profile = StringVar()
         self.checkbox_var = BooleanVar()
-
-        self.profile_var = StringVar()
-        if self.pm_object.get_generation_profile_status():
-            self.profile_var.set('single')
-        else:
-            self.profile_var.set('multiple')
 
         self.capex = StringVar()
         self.lifetime = StringVar()

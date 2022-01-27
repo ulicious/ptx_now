@@ -587,7 +587,7 @@ class OptimizationProblem:
                         purchase_price_dict.update({(stream_name, t): float(stream.get_purchase_price())})
 
                 else:
-                    purchase_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Purchase']
+                    purchase_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Purchase_Price']
                     for t in model.TIME:
                         purchase_price_dict.update({(stream_name, t): float(purchase_price_curve.loc[t])})
 
@@ -597,7 +597,7 @@ class OptimizationProblem:
                     for t in model.TIME:
                         sell_price_dict.update({(stream_name, t): float(stream.get_sale_price())})
                 else:
-                    sale_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Selling']
+                    sale_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Selling_Price']
                     for t in model.TIME:
                         sell_price_dict.update({(stream_name, t): float(sale_price_curve.loc[t])})
 

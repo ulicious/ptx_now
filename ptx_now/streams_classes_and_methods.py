@@ -3,45 +3,15 @@ from tkinter import ttk
 from tkinter import *
 from tkinter import filedialog
 
+import os
+from datetime import datetime
+import pandas as pd
+
 
 class StreamFrame:
 
     def adjust_values(self):
         AdjustStreamWindow(self, self.pm_object, self.stream)
-
-    def set_profile_purchase_selling(self):
-        if self.profile_var.get() == 'single':
-            path = filedialog.askopenfilename()
-            file_name = path.split('/')[-1]
-
-            if file_name != '':
-                if file_name.split('.')[-1] == 'xlsx':
-                    self.textvar_profile.set(file_name)
-                    self.pm_object.set_sell_purchase_data(file_name)
-                    self.pm_object.set_sell_purchase_profile_status(True)
-
-                    self.parent.parent.pm_object_copy = self.pm_object
-                    self.parent.parent.update_widgets()
-
-                else:
-                    wrong_file_window = Toplevel()
-                    wrong_file_window.title('')
-                    wrong_file_window.grab_set()
-
-                    ttk.Label(wrong_file_window, text='File is not xlsx format').pack(fill='both', expand=True)
-
-                    ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
-                                                                                                     expand=True)
-        else:
-            path = filedialog.askdirectory()
-            folder_name = path.split('/')[-1]
-
-            self.textvar_profile.set(folder_name)
-            self.pm_object.set_sell_purchase_data(folder_name)
-            self.pm_object.set_sell_purchase_profile_status(False)
-
-            self.parent.parent.pm_object_copy = self.pm_object
-            self.parent.parent.update_widgets()
 
     def set_stream_settings_to_default(self):
 
@@ -207,46 +177,6 @@ class StreamFrame:
 
         for j in range(max_columns + 1):
             self.frame.grid_columnconfigure(j, weight=1)
-
-        # ------
-        # Profile file(s)
-
-        profile_frame = ttk.Frame(self.frame)
-
-        if self.profile_needed.get():
-            state = NORMAL
-        else:
-            state = DISABLED
-
-        ttk.Separator(profile_frame).grid(row=0, columnspan=2, sticky='ew')
-
-        self.rb_single = ttk.Radiobutton(profile_frame, text='Use single profile', value='single',
-                                         variable=self.profile_var, state=state)
-        self.rb_single.grid(row=1, column=0, sticky='w')
-
-        self.rb_several = ttk.Radiobutton(profile_frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.profile_var, state=state)
-        self.rb_several.grid(row=1, column=1, sticky='w')
-
-        try:
-            path = self.pm_object.get_sell_purchase_data()
-            file_name = path.split('/')[-1]
-            self.textvar_profile.set(file_name)
-        except:
-            self.textvar_profile.set('')
-
-        ttk.Label(profile_frame, text='Profile file/Folder', state=state).grid(row=2, column=0, sticky='w')
-        self.profile_label = ttk.Label(profile_frame, text=self.textvar_profile.get(), state=state)
-        self.profile_label.grid(row=2, column=1, sticky='w')
-
-        self.select_profile_button = ttk.Button(profile_frame, text='Select profile(s)',
-                                                command=self.set_profile_purchase_selling,
-                                                state=state)
-        self.select_profile_button.grid(row=3, columnspan=2, sticky='ew')
-
-        profile_frame.grid_columnconfigure(0, weight=1)
-        profile_frame.grid_columnconfigure(1, weight=1)
-        profile_frame.grid(row=i+1, column=0, columnspan=max_columns + 1, sticky='ew')
 
     def initialize_stream(self):
 

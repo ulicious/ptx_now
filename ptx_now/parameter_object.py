@@ -244,6 +244,15 @@ class ParameterObject:
     def get_sell_purchase_data(self):
         return self.sell_purchase_data
 
+    def get_path_data(self):
+        return self.path_data
+
+    def get_project_name(self):
+        return self.project_name
+
+    def set_project_name(self, project_name):
+        self.project_name = project_name
+
     def create_new_project(self):
         """ Create new project """
 
@@ -327,6 +336,7 @@ class ParameterObject:
                  generation_data=None, generation_profile_status=True,
                  sell_purchase_data=None, sell_purchase_profile_status=None,
                  uses_representative_weeks=False, path_weighting='',  covered_period=8760,
+                 project_name=None, path_data=None,
                  copy_object=False):
 
         """
@@ -390,6 +400,9 @@ class ParameterObject:
 
         self.sell_purchase_data = sell_purchase_data
         self.sell_purchase_profile_status = bool(sell_purchase_profile_status)
+
+        self.path_data = path_data
+        self.project_name = project_name
 
 
 ParameterObjectCopy = type('CopyOfB', ParameterObject.__bases__, dict(ParameterObject.__dict__))

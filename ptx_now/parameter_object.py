@@ -244,6 +244,18 @@ class ParameterObject:
     def get_sell_purchase_data(self):
         return self.sell_purchase_data
 
+    def check_market_data_status(self):
+        several_market_data_files = False
+        for s in self.get_all_streams():
+            if self.get_stream(s).is_purchasable():
+                if self.get_stream(s).get_purchase_price_type() == 'variable':
+                    several_market_data_files = True
+            elif self.get_stream(s).is_saleable():
+                if self.get_stream(s).get_sale_price_type() == 'variable':
+                    several_market_data_files = True
+
+        self.several_market_data_files = several_market_data_files
+
     def get_path_data(self):
         return self.path_data
 
@@ -403,6 +415,9 @@ class ParameterObject:
 
         self.path_data = path_data
         self.project_name = project_name
+
+        self.several_market_data_files = False
+        self.check_market_data_status()
 
 
 ParameterObjectCopy = type('CopyOfB', ParameterObject.__bases__, dict(ParameterObject.__dict__))

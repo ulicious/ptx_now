@@ -588,6 +588,8 @@ class AdjustStreamWindow:
                     if (stream_object.get_sale_price_type() == 'variable') | (stream_object.get_purchase_price_type() == 'variable'):
                         self.pm_object.set_sell_purchase_profile_status(False)
 
+        self.pm_object.check_market_data_status()
+
         self.parent.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.parent.update_widgets()
 

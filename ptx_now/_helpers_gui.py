@@ -122,9 +122,11 @@ class ComponentInterface(ttk.Frame):
         ttk.Button(button_frame, text='Reset all components',
                    command=self.set_components_to_default).grid(row=0, column=2, sticky='ew')
 
-        button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid_columnconfigure(2, weight=1)
+        button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(2, weight=1, uniform='a')
+
+        button_frame.grid(row=0, sticky='ew')
 
         entries = []
         for c in self.pm_object_copy.get_specific_components(component_group='final', component_type='conversion'):
@@ -132,13 +134,15 @@ class ComponentInterface(ttk.Frame):
 
         self.components_combo = ttk.Combobox(widget_frame, values=entries, state='readonly')
         self.components_combo.bind("<<ComboboxSelected>>", self.callbackFuncDecideComponent)
+        self.components_combo.set('Choose component')
         self.components_combo.delete(0, 'end')
 
-        button_frame.pack(fill="both", expand=True)
-        self.components_combo.pack(fill='x', expand=True, anchor='n')
-        self.components_combo.set('Choose component')
+        self.components_combo.grid(row=1, sticky='ew')
 
-        widget_frame.pack(fill="both", expand=True)
+        widget_frame.grid_columnconfigure(0, weight=1)
+        widget_frame.grid(row=0, sticky='ew')#pack(fill="both", expand=True)
+
+        self.component_frame.grid_columnconfigure(0, weight=1)
         self.component_frame.pack(fill="both", expand=True)
 
     def update_self_pm_object(self, pm_object):
@@ -166,7 +170,7 @@ class ComponentInterface(ttk.Frame):
                             self.components_combo.set(component_nice_name)
                             self.parameter_frame = ComponentFrame(self, self.component_frame, self.component,
                                                                   self.pm_object_copy, self.pm_object_original)
-                            self.parameter_frame.frame.pack(fill='both', expand=True)
+                            self.parameter_frame.frame.grid(row=1, sticky='ew')#pack(fill='both', expand=True)
                             break
                         else:
                             self.components_combo.set('Choose component')
@@ -187,7 +191,7 @@ class ComponentInterface(ttk.Frame):
 
         self.parameter_frame = ComponentFrame(self, self.component_frame, self.component,
                                               self.pm_object_copy, self.pm_object_original)
-        self.parameter_frame.frame.pack(fill="both", expand=True)
+        self.parameter_frame.frame.grid(row=1, sticky='ew')#pack(fill="both", expand=True)
 
     def set_components_to_default(self):
         # Set all component parameters and streams to default
@@ -263,8 +267,8 @@ class ComponentInterface(ttk.Frame):
                                                                                                     sticky='we')
         ttk.Button(delete_component_window, text='Cancel', command=kill_only).grid(row=i + 1, column=1, sticky='we')
 
-        delete_component_window.grid_columnconfigure(0, weight=1)
-        delete_component_window.grid_columnconfigure(2, weight=1)
+        delete_component_window.grid_columnconfigure(0, weight=1, uniform='a')
+        delete_component_window.grid_columnconfigure(1, weight=1, uniform='a')
 
         delete_component_window.mainloop()
 
@@ -298,22 +302,24 @@ class StreamInterface(ttk.Frame):
         if unused_streams:
             self.delete_stream_button = ttk.Button(widget_frame, text='Delete unused streams',
                                                    command=self.delete_unused_streams)
-            self.delete_stream_button.pack(fill='x', expand=True)
         else:
             self.delete_stream_button = ttk.Button(widget_frame, text='Delete unused streams',
                                                    command=self.delete_unused_streams, state=DISABLED)
-            self.delete_stream_button.pack(fill='x', expand=True)
+        self.delete_stream_button.grid(row=0, sticky='ew')
 
         self.nice_names = []
         for stream in self.pm_object_copy.get_specific_streams(final_stream=True):
             self.nice_names.append(stream.get_nice_name())
 
         self.combobox_stream = ttk.Combobox(widget_frame, values=self.nice_names, state='readonly')
-        self.combobox_stream.pack(fill="x", expand=True)
+        self.combobox_stream.grid(row=1, sticky='ew')
         self.combobox_stream.bind("<<ComboboxSelected>>", self.callbackFuncDecideStream)
         self.combobox_stream.set('Choose stream')
 
-        widget_frame.pack(expand=True, fill='both')
+        widget_frame.grid_columnconfigure(0, weight=1)
+        widget_frame.grid(row=0, sticky='ew')#pack(expand=True, fill='both')
+
+        self.stream_frame.grid_columnconfigure(0, weight=1)
         self.stream_frame.pack(expand=True, fill='both')
 
     def update_self_pm_object(self, pm_object):
@@ -350,7 +356,7 @@ class StreamInterface(ttk.Frame):
 
                 self.parameter_frame = StreamFrame(self, self.stream_frame, self.stream, self.pm_object_copy,
                                                    self.pm_object_original)
-                self.parameter_frame.frame.pack(fill="both", expand=True)
+                self.parameter_frame.frame.grid(row=1, sticky='ew') #pack(fill="both", expand=True)
 
     def callbackFuncDecideStream(self, event=None):
         # Function of stream combo box
@@ -369,7 +375,7 @@ class StreamInterface(ttk.Frame):
         if self.combobox_stream.get() != 'Choose stream':
             self.parameter_frame = StreamFrame(self, self.stream_frame, self.stream, self.pm_object_copy,
                                                self.pm_object_original)
-            self.parameter_frame.frame.pack(fill="both", expand=True)
+            self.parameter_frame.frame.grid(row=1, sticky='ew')#pack(fill="both", expand=True)
 
     def delete_unused_streams(self):
 
@@ -447,12 +453,15 @@ class StorageInterface(ttk.Frame):
                     self.pm_object_copy.set_applied_parameter_for_component(p, s.get_name(), True)
 
         self.combobox_storage = ttk.Combobox(widget_frame, values=self.storages_nice_names, state='readonly')
-        self.combobox_storage.pack(fill='x', expand=True)
+        self.combobox_storage.grid(sticky='ew')
         self.combobox_storage.set('Choose storage')
         self.combobox_storage.bind("<<ComboboxSelected>>", self.callbackFuncStorage)
 
-        widget_frame.pack(fill='both', expand='True')
-        self.storage_frame.pack(fill='both', expand='True')
+        widget_frame.grid_columnconfigure(0, weight=1)
+        widget_frame.grid(row=0, sticky='ew') #pack(fill='both', expand=True)
+
+        self.storage_frame.grid_columnconfigure(0, weight=1)
+        self.storage_frame.pack(fill='both', expand=True)
 
     def update_self_pm_object(self, pm_object):
         # Updates the Parameter object
@@ -493,7 +502,7 @@ class StorageInterface(ttk.Frame):
 
                 self.parameter_frame = StorageFrame(self, self.storage_frame, self.storage,
                                       self.pm_object_copy, self.pm_object_original)
-                self.parameter_frame.frame.pack(fill='both', expand=True)
+                self.parameter_frame.frame.grid(row=1, sticky='ew') #pack(fill='both', expand=True)
 
             else:
                 self.combobox_storage.set('Choose Storage')
@@ -508,7 +517,7 @@ class StorageInterface(ttk.Frame):
 
         self.parameter_frame = StorageFrame(self, self.storage_frame, self.storage,
                                           self.pm_object_copy, self.pm_object_original)
-        self.parameter_frame.frame.pack(fill='both', expand=True)
+        self.parameter_frame.frame.grid(row=1, sticky='ew') #pack(fill='both', expand=True)
 
 
 class GeneratorInterface(ttk.Frame):
@@ -560,10 +569,11 @@ class GeneratorInterface(ttk.Frame):
         self.components_generator_combo.set('Choose generator')
         self.components_generator_combo.bind("<<ComboboxSelected>>", self.callbackFuncDecideGenerator)
 
-        widget_frame.grid_columnconfigure(0, weight=1)
-        widget_frame.grid_columnconfigure(1, weight=1)
-        widget_frame.pack(fill='both', expand=True)
+        widget_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        widget_frame.grid_columnconfigure(1, weight=1, uniform='a')
+        widget_frame.grid(row=0, sticky='ew')  # pack(fill='both', expand=True)
 
+        self.generator_frame.grid_columnconfigure(0, weight=1)
         self.generator_frame.pack(fill='both', expand=True)
 
     def update_self_pm_object(self, pm_object):
@@ -581,7 +591,7 @@ class GeneratorInterface(ttk.Frame):
 
         self.parameter_frame = GeneratorFrame(self, self.generator_frame, self.generator,
                                               self.pm_object_copy, self.pm_object_original)
-        self.parameter_frame.frame.pack(fill="both", expand=True)
+        self.parameter_frame.frame.grid(row=1, sticky='ew')  # pack(fill="both", expand=True)
 
     def update_frame(self):
         # If changes in parameters etc. occur, the whole frame is updated so that updates are shown immediately
@@ -612,7 +622,7 @@ class GeneratorInterface(ttk.Frame):
             else:  # create new parameter frame if generator was chosen and exists
                 self.parameter_frame = GeneratorFrame(self, self.generator_frame, self.generator,
                                                       self.pm_object_copy, self.pm_object_original)
-                self.parameter_frame.frame.pack(fill='both', expand=True)
+                self.parameter_frame.frame.grid(row=1, sticky='ew')  # pack(fill='both', expand=True)
 
     def add_generator(self):
         # Adds dummy generator, which then can be adjusted
@@ -929,6 +939,7 @@ class DataInterface(ttk.Frame):
         market_data_frame.grid_columnconfigure(1, weight=1)
         market_data_frame.pack(fill='both', expand=True)
 
+        self.data_frame.grid_columnconfigure(0, weight=1)
         self.data_frame.pack(fill='both', expand=True)
 
     def __init__(self, parent, notebook, pm_object_copy=None, pm_object_original=None):
@@ -962,11 +973,11 @@ class DataInterface(ttk.Frame):
 
         self.rb_single_generation = ttk.Radiobutton(generation_data_frame, text='Use single profile', value='single',
                                          variable=self.generation_profile_var)
-        self.rb_single_generation.grid(row=1, column=0, sticky='w')
+        self.rb_single_generation.grid(row=0, column=0, sticky='ew')
 
         self.rb_several = ttk.Radiobutton(generation_data_frame, text='Use multiple profiles', value='multiple',
                                           variable=self.generation_profile_var)
-        self.rb_several.grid(row=1, column=1, sticky='w')
+        self.rb_several.grid(row=0, column=1, sticky='ew')
 
         self.generation_profile_textvar = StringVar()
         try:
@@ -976,22 +987,21 @@ class DataInterface(ttk.Frame):
         except:
             self.generation_profile_textvar.set('')
 
-        ttk.Label(generation_data_frame, text='Profile file/Folder').grid(row=2, column=0, sticky='w')
+        ttk.Label(generation_data_frame, text='Profile file/Folder').grid(row=1, column=0, sticky='w')
         self.profile_label = ttk.Label(generation_data_frame, text=self.generation_profile_textvar.get())
-        self.profile_label.grid(row=2, column=1, sticky='w')
+        self.profile_label.grid(row=1, column=1, sticky='ew')
 
         self.select_profile_button = ttk.Button(generation_data_frame, text='Select profile(s)',
                                                 command=self.set_profile_generation)
-        self.select_profile_button.grid(row=3, column=0, sticky='ew')
+        self.select_profile_button.grid(row=2, column=0, sticky='ew')
 
-        self.create_generation_template_button = ttk.Button(generation_data_frame, text='Create new Generation Template',
+        self.create_generation_template_button = ttk.Button(generation_data_frame, text='Create new generation template',
                                                             command=self.create_generation_template)
-        self.create_generation_template_button.grid(row=3, column=1, sticky='ew')
+        self.create_generation_template_button.grid(row=2, column=1, sticky='ew')
 
-        generation_data_frame.grid_columnconfigure(0, weight=1)
-        generation_data_frame.grid_columnconfigure(1, weight=1)
-
-        generation_data_frame.pack(fill='both', expand=True)
+        generation_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        generation_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
+        generation_data_frame.grid(row=0, sticky='ew')
 
         # ----------
         # Market data
@@ -1028,14 +1038,15 @@ class DataInterface(ttk.Frame):
         self.select_profile_button = ttk.Button(market_data_frame, text='Select profile(s)',
                                                 command=self.set_profile_purchase_selling)
         self.select_profile_button.grid(row=3, column=0, sticky='ew')
-        self.create_market_price_template_button = ttk.Button(market_data_frame, text='Create new Market Price Template',
+        self.create_market_price_template_button = ttk.Button(market_data_frame, text='Create new price template',
                                                               command=self.create_market_price_template)
         self.create_market_price_template_button.grid(row=3, column=1, sticky='ew')
 
-        market_data_frame.grid_columnconfigure(0, weight=1)
-        market_data_frame.grid_columnconfigure(1, weight=1)
-        market_data_frame.pack(fill='both', expand=True)
+        market_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        market_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
+        market_data_frame.grid(row=1, sticky='ew')
 
+        self.data_frame.grid_columnconfigure(0, weight=1)
         self.data_frame.pack(fill='both', expand=True)
 
 
@@ -1617,8 +1628,8 @@ class ToggledFrame(tk.Frame):
                                                                                                     sticky='we')
         ttk.Button(delete_component_window, text='Cancel', command=kill_only).grid(row=i + 1, column=1, sticky='we')
 
-        delete_component_window.grid_columnconfigure(0, weight=1)
-        delete_component_window.grid_columnconfigure(2, weight=1)
+        delete_component_window.grid_columnconfigure(0, weight=1, uniform='a')
+        delete_component_window.grid_columnconfigure(2, weight=1, uniform='a')
 
         delete_component_window.mainloop()
 
@@ -1784,10 +1795,10 @@ class SettingWindow:
         self.path_visualization = self.base_settings.loc['path_visualization'].values[0]
 
         radiobutton_frame = ttk.Frame(self.frame)
-        radiobutton_frame.grid_columnconfigure(0, weight=1)
-        radiobutton_frame.grid_columnconfigure(1, weight=1)
-        radiobutton_frame.grid_columnconfigure(2, weight=1)
-        radiobutton_frame.grid_columnconfigure(3, weight=1)
+        radiobutton_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        radiobutton_frame.grid_columnconfigure(1, weight=1, uniform='a')
+        radiobutton_frame.grid_columnconfigure(2, weight=1, uniform='a')
+        radiobutton_frame.grid_columnconfigure(3, weight=1, uniform='a')
 
         self.radiobutton_variable = StringVar()
 
@@ -1906,8 +1917,8 @@ class SettingWindow:
         self.visualize_only_path_label.grid(row=7, column=1, sticky='w')
 
         button_frame = ttk.Frame(self.frame)
-        button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(1, weight=1)
+        button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(1, weight=1, uniform='a')
 
         self.button_ok = ttk.Button(button_frame, text='Ok', command=self.kill_window)
         self.button_ok.grid(row=0, column=0, sticky='ew')

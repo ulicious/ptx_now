@@ -579,6 +579,15 @@ class AdjustStreamWindow:
 
         self.stream_object.set_energy_content(self.energy_content_var.get())
 
+        # Check if any stream has variable purchase or selling profile --> If not, deactivate
+        self.pm_object.set_sell_purchase_profile_status(True)
+        for s in self.pm_object.get_all_streams():
+            stream_object = self.pm_object.get_stream(s)
+            if stream_object.is_final():
+                if (stream_object.is_purchasable()) or (stream_object.is_saleable()):
+                    if (stream_object.get_sale_price_type() == 'variable') | (stream_object.get_purchase_price_type() == 'variable'):
+                        self.pm_object.set_sell_purchase_profile_status(False)
+
         self.parent.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.parent.update_widgets()
 

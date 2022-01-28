@@ -1275,7 +1275,7 @@ class Result:
 
             generation_df = pd.DataFrame(index=pd.Index([self.pm_object.get_component(s).get_nice_name()
                                                          for s in self.model.GENERATORS]))
-            generation_profile = pd.read_excel(self.path_data + self.pm_object.get_generation_data(), index_col=0)
+            generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
 
             for generator in self.model.GENERATORS:
 
@@ -1858,30 +1858,28 @@ class Result:
     def copy_input_data(self):
         import shutil
         if self.model.GENERATORS:
-            shutil.copy(self.path_data + self.pm_object.get_generation_data(),
+            shutil.copy(self.pm_object.get_generation_data(),
                         self.new_result_folder + '/8_generation_profile.xlsx')
 
-        if self.pm_object.get_sell_purchase_profile_status():
-            pd.read_excel(self.path_data + self.pm_object.get_sell_purchase_data(),
+        if not self.pm_object.get_sell_purchase_profile_status():
+            pd.read_excel( self.pm_object.get_sell_purchase_data(),
                           index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
 
-    def __init__(self, optimization_problem, path_result, path_data, file_name=None):
+    def __init__(self, optimization_problem, path_result):
 
         self.optimization_problem = optimization_problem
         self.model = optimization_problem.model
         self.instance = optimization_problem.instance
         self.pm_object = optimization_problem.pm_object
-        self.file_name = file_name
+        self.file_name = self.pm_object.get_project_name()
 
         now = datetime.now()
         dt_string = now.strftime("%Y%m%d_%H%M%S")
         if self.file_name is None:
             self.new_result_folder = path_result + dt_string
         else:
-            self.new_result_folder = path_result + dt_string + '_' + file_name
+            self.new_result_folder = path_result + dt_string + '_' + self.file_name
         os.makedirs(self.new_result_folder)
-
-        self.path_data = path_data
 
         self.capacity_df = pd.DataFrame()
         self.financial_df = pd.DataFrame()

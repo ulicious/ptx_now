@@ -572,10 +572,6 @@ class OptimizationProblem:
         demand_dict = {}
         generation_profiles_dict = {}
 
-        if self.pm_object.get_sell_purchase_profile_status():
-            sell_purchase_price_curve = pd.read_excel(self.path_data + self.pm_object.get_sell_purchase_data(),
-                                                      index_col=0)
-
         for stream in pm_object.get_specific_streams('final'):
             stream_name = stream.get_name()
             stream_nice_name = stream.get_nice_name()
@@ -587,6 +583,8 @@ class OptimizationProblem:
                         purchase_price_dict.update({(stream_name, t): float(stream.get_purchase_price())})
 
                 else:
+                    sell_purchase_price_curve = pd.read_excel(self.path_data + self.pm_object.get_sell_purchase_data(),
+                                                              index_col=0)
                     purchase_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Purchase_Price']
                     for t in model.TIME:
                         purchase_price_dict.update({(stream_name, t): float(purchase_price_curve.loc[t])})
@@ -597,6 +595,8 @@ class OptimizationProblem:
                     for t in model.TIME:
                         sell_price_dict.update({(stream_name, t): float(stream.get_sale_price())})
                 else:
+                    sell_purchase_price_curve = pd.read_excel(self.path_data + self.pm_object.get_sell_purchase_data(),
+                                                              index_col=0)
                     sale_price_curve = sell_purchase_price_curve.loc[:, stream_nice_name + '_Selling_Price']
                     for t in model.TIME:
                         sell_price_dict.update({(stream_name, t): float(sale_price_curve.loc[t])})
@@ -610,14 +610,15 @@ class OptimizationProblem:
         model.selling_price = Param(model.SALEABLE_STREAMS, model.TIME, initialize=sell_price_dict)
         model.stream_demand = Param(model.DEMANDED_STREAMS, model.TIME, initialize=demand_dict)
 
-        generation_profile = pd.read_excel(self.path_data + self.pm_object.get_generation_data(), index_col=0)
-        for generator in pm_object.get_specific_components('final', 'generator'):
-            generator_name = generator.get_name()
-            for t in model.TIME:
-                ind = generation_profile.index[t]
-                generation_profiles_dict.update({(generator_name, t): float(generation_profile.loc[ind, generator.get_nice_name()])})
+        if len(model.GENERATORS) > 0:
+            generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+            for generator in pm_object.get_specific_components('final', 'generator'):
+                generator_name = generator.get_name()
+                for t in model.TIME:
+                    ind = generation_profile.index[t]
+                    generation_profiles_dict.update({(generator_name, t): float(generation_profile.loc[ind, generator.get_nice_name()])})
 
-        model.generation_profiles = Param(model.GENERATORS, model.TIME, initialize=generation_profiles_dict)
+            model.generation_profiles = Param(model.GENERATORS, model.TIME, initialize=generation_profiles_dict)
 
         # Get weighting file for representative weeks if used
         weightings_dict = {}

@@ -228,9 +228,9 @@ class Interface:
         streams_without_sink = []
         profile_not_exist = []
 
-        if not self.pm_object_copy.get_sell_purchase_profile_status():
+        if not self.pm_object_copy.get_market_data_status():
             try:
-                sell_purchase_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_sell_purchase_data(),
+                sell_purchase_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_market_data(),
                                                       index_col=0)
             except:
                 sell_purchase_profile = None
@@ -320,7 +320,7 @@ class Interface:
 
         # Check if a profile for the generation unit exists, if generation unit is enabled
         profiles_exist = True
-        if self.pm_object_copy.get_generation_profile_status():
+        if self.pm_object_copy.get_generation_data_status():
             generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_generation_data(), index_col=0)
         else:
             path_to_generation_files = self.path_data + '\\' + self.pm_object_copy.get_generation_data()
@@ -460,14 +460,14 @@ class Interface:
         k += 1
 
         case_data.loc[k, 'type'] = 'generation_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_generation_profile_status()
+        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_generation_data_status()
         case_data.loc[k, 'generation_data'] = self.pm_object_copy.get_generation_data()
 
         k += 1
 
-        case_data.loc[k, 'type'] = 'purchase_sell_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_sell_purchase_profile_status()
-        case_data.loc[k, 'purchase_sell_data'] = self.pm_object_copy.get_sell_purchase_data()
+        case_data.loc[k, 'type'] = 'market_data'
+        case_data.loc[k, 'single_profile'] = self.pm_object_copy.get_market_data_status()
+        case_data.loc[k, 'market_data'] = self.pm_object_copy.get_market_data()
 
         k += 1
 
@@ -632,43 +632,76 @@ class Interface:
         depend on number of generation, purchase and sale data"""
 
         generation_data_before = self.pm_object_copy.get_generation_data()
-        market_data_before = self.pm_object_copy.get_sell_purchase_data()
+        market_data_before = self.pm_object_copy.get_market_data()
 
         if len(self.pm_object_copy.get_specific_components('final', 'generator')) > 0:
             # Case generators are used
 
-            if self.pm_object_copy.get_generation_profile_status():
+            if self.pm_object_copy.get_market_data_needed():  # Case market data available
 
-                path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
-                self.pm_object_copy.set_generation_data(path_to_generation_files)
+                if self.pm_object_copy.get_generation_data_status():  # Case single file generation
 
-                path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_sell_purchase_data()
+                    path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
+                    self.pm_object_copy.set_generation_data(path_to_generation_files)
 
-                if self.pm_object_copy.get_sell_purchase_profile_status():
-                    #  one case
+                    path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_market_data()
 
-                    self.pm_object_copy.set_sell_purchase_data(path_to_sell_purchase_files)
+                    if self.pm_object_copy.get_market_data_status():  # Case single market data file
 
-                    optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
-                    self.analyze_results(optimization_problem)
-                else:
-                    # Case with several purchase and selling price data
-
-                    _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
-                    for fsp in filenames_sell_purchase:
-                        self.pm_object_copy.set_sell_purchase_data(path_to_sell_purchase_files + '/' + fsp)
+                        self.pm_object_copy.set_market_data(path_to_sell_purchase_files)
 
                         optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
                         self.analyze_results(optimization_problem)
 
-            else:
-                path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
-                path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_sell_purchase_data()
+                    else:  # Case with several market data files
 
-                if self.pm_object_copy.get_sell_purchase_profile_status():
-                    # Case with several generation profiles but only one market profile
+                        _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                        for fsp in filenames_sell_purchase:
+                            self.pm_object_copy.set_market_data(path_to_sell_purchase_files + '/' + fsp)
 
-                    self.pm_object_copy.set_sell_purchase_data(path_to_sell_purchase_files)
+                            optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                            self.analyze_results(optimization_problem)
+
+                else:  # Case several generation files
+                    path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
+                    path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_market_data()
+
+                    if self.pm_object_copy.get_market_data_status():
+                        # Case with several generation profiles but only one market profile
+
+                        self.pm_object_copy.set_market_data(path_to_sell_purchase_files)
+
+                        _, _, filenames_generation = next(walk(path_to_generation_files))
+                        for fg in filenames_generation:
+                            self.pm_object_copy.set_generation_data(path_to_generation_files + '/' + fg)
+
+                            optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                            self.analyze_results(optimization_problem)
+                    else:
+                        # Case with several generation and purchase/sale profiles
+
+                        _, _, filenames_generation = next(walk(path_to_generation_files))
+                        _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                        for fg in filenames_generation:
+                            for fsp in filenames_sell_purchase:
+                                self.pm_object_copy.set_generation_data(path_to_generation_files + '/' + fg)
+
+                                self.pm_object_copy.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+
+                                optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                                self.analyze_results(optimization_problem)
+
+            else:  # Case no market data
+                if self.pm_object_copy.get_generation_data_status():  # Case only generation with single file
+
+                    path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
+                    self.pm_object_copy.set_generation_data(path_to_generation_files)
+
+                    optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                    self.analyze_results(optimization_problem)
+
+                else:  # Case only generation with several files
+                    path_to_generation_files = self.path_data + self.pm_object_copy.get_generation_data()
 
                     _, _, filenames_generation = next(walk(path_to_generation_files))
                     for fg in filenames_generation:
@@ -676,38 +709,27 @@ class Interface:
 
                         optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
                         self.analyze_results(optimization_problem)
-                else:
-                    # Case with several generation and purchase/sale profiles
-
-                    _, _, filenames_generation = next(walk(path_to_generation_files))
-                    _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
-                    for fg in filenames_generation:
-                        for fsp in filenames_sell_purchase:
-                            self.pm_object_copy.set_generation_data(path_to_generation_files + '/' + fg)
-
-                            self.pm_object_copy.set_sell_purchase_data(path_to_sell_purchase_files + '/' + fsp)
-
-                            optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
-                            self.analyze_results(optimization_problem)
 
         else:  # Case generators are not used
-            if self.pm_object_copy.get_sell_purchase_profile_status():
-                #  one case
-                optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
-                self.analyze_results(optimization_problem)
-            else:
-                # Case with several purchase and selling price data
-                path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_sell_purchase_data()
 
-                _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
-                for fsp in filenames_sell_purchase:
-                    self.pm_object_copy.set_sell_purchase_data(path_to_sell_purchase_files + '/' + fsp)
-
+            if self.pm_object_copy.get_market_data_needed():
+                if self.pm_object_copy.get_market_data_status():
+                    #  one case
                     optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
                     self.analyze_results(optimization_problem)
+                else:
+                    # Case with several purchase and selling price data
+                    path_to_sell_purchase_files = self.path_data + self.pm_object_copy.get_market_data()
+
+                    _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                    for fsp in filenames_sell_purchase:
+                        self.pm_object_copy.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+
+                        optimization_problem = OptimizationProblem(self.pm_object_copy, self.path_data, self.solver)
+                        self.analyze_results(optimization_problem)
 
         self.pm_object_copy.set_generation_data(generation_data_before)
-        self.pm_object_copy.set_sell_purchase_data(market_data_before)
+        self.pm_object_copy.set_market_data(market_data_before)
 
     def analyze_results(self, optimization_problem):
 

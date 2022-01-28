@@ -220,11 +220,11 @@ class ParameterObject:
     def get_covered_period(self):
         return self.covered_period
 
-    def set_generation_profile_status(self, status):
-        self.generation_profile_status = status
+    def set_generation_data_status(self, status):
+        self.generation_data_status = status
 
-    def get_generation_profile_status(self):
-        return self.generation_profile_status
+    def get_generation_data_status(self):
+        return self.generation_data_status
 
     def set_generation_data(self, generation_data):
         self.generation_data = generation_data
@@ -232,29 +232,32 @@ class ParameterObject:
     def get_generation_data(self):
         return self.generation_data
 
-    def set_sell_purchase_profile_status(self, status):
-        self.sell_purchase_profile_status = status
+    def set_market_data_status(self, status):
+        self.market_data_status = status
 
-    def get_sell_purchase_profile_status(self):
-        return self.sell_purchase_profile_status
+    def get_market_data_status(self):
+        return self.market_data_status
 
-    def set_sell_purchase_data(self, sell_purchase_data):
-        self.sell_purchase_data = sell_purchase_data
+    def set_market_data(self, market_data):
+        self.market_data = market_data
 
-    def get_sell_purchase_data(self):
-        return self.sell_purchase_data
+    def get_market_data(self):
+        return self.market_data
 
     def check_market_data_status(self):
-        several_market_data_files = False
+        market_data_needed = False
         for s in self.get_all_streams():
             if self.get_stream(s).is_purchasable():
                 if self.get_stream(s).get_purchase_price_type() == 'variable':
-                    several_market_data_files = True
+                    market_data_needed = True
             elif self.get_stream(s).is_saleable():
                 if self.get_stream(s).get_sale_price_type() == 'variable':
-                    several_market_data_files = True
+                    market_data_needed = True
 
-        self.several_market_data_files = several_market_data_files
+        self.market_data_needed = market_data_needed
+
+    def get_market_data_needed(self):
+        return self.market_data_needed
 
     def get_path_data(self):
         return self.path_data
@@ -334,9 +337,9 @@ class ParameterObject:
                                streams=streams,
                                components=self.components,
                                generation_data=self.generation_data,
-                               generation_profile_status=self.generation_profile_status,
-                               sell_purchase_data=self.sell_purchase_data,
-                               sell_purchase_profile_status=self.sell_purchase_profile_status,
+                               generation_data_status=self.generation_data_status,
+                               market_data=self.market_data,
+                               market_data_status=self.market_data_status,
                                uses_representative_weeks=self.uses_representative_weeks,
                                path_weighting=self.path_weighting,
                                covered_period=self.covered_period,
@@ -345,9 +348,9 @@ class ParameterObject:
     def __init__(self, name=None, integer_steps=5,
                  general_parameters=None, general_parameter_values=None,
                  nice_names=None, abbreviations_dict=None, streams=None, components=None,
-                 generation_data=None, generation_profile_status=True,
-                 sell_purchase_data=None, sell_purchase_profile_status=None,
-                 uses_representative_weeks=False, path_weighting='',  covered_period=8760,
+                 generation_data=None, generation_data_status=True,
+                 market_data=None, market_data_status=None,
+                 uses_representative_weeks=False, path_weighting='', covered_period=8760,
                  project_name=None, path_data=None,
                  copy_object=False):
 
@@ -408,15 +411,15 @@ class ParameterObject:
         self.integer_steps = integer_steps
 
         self.generation_data = generation_data
-        self.generation_profile_status = bool(generation_profile_status)
+        self.generation_data_status = bool(generation_data_status)
 
-        self.sell_purchase_data = sell_purchase_data
-        self.sell_purchase_profile_status = bool(sell_purchase_profile_status)
+        self.market_data = market_data
+        self.market_data_status = bool(market_data_status)
 
         self.path_data = path_data
         self.project_name = project_name
 
-        self.several_market_data_files = False
+        self.market_data_needed = False
         self.check_market_data_status()
 
 

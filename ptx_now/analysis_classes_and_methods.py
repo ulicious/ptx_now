@@ -1701,14 +1701,14 @@ class Result:
         k += 1
 
         case_data.loc[k, 'type'] = 'generation_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object.get_generation_profile_status()
+        case_data.loc[k, 'single_profile'] = self.pm_object.get_generation_data_status()
         case_data.loc[k, 'generation_data'] = self.pm_object.get_generation_data()
 
         k += 1
 
-        case_data.loc[k, 'type'] = 'purchase_sell_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object.get_sell_purchase_profile_status()
-        case_data.loc[k, 'purchase_sell_data'] = self.pm_object.get_sell_purchase_data()
+        case_data.loc[k, 'type'] = 'market_data'
+        case_data.loc[k, 'single_profile'] = self.pm_object.get_market_data_status()
+        case_data.loc[k, 'market_data'] = self.pm_object.get_market_data()
 
         k += 1
 
@@ -1861,8 +1861,8 @@ class Result:
             shutil.copy(self.pm_object.get_generation_data(),
                         self.new_result_folder + '/8_generation_profile.xlsx')
 
-        if not self.pm_object.get_sell_purchase_profile_status():
-            pd.read_excel( self.pm_object.get_sell_purchase_data(),
+        if self.pm_object.get_market_data_needed():
+            pd.read_excel(self.pm_object.get_sell_purchase_data(),
                           index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
 
     def __init__(self, optimization_problem, path_result):

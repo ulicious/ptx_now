@@ -42,14 +42,14 @@ def load_005(pm_object, case_data):
     """ Add generation data """
     generation_data_df = case_data[case_data['type'] == 'generation_data']
     index = generation_data_df.index[0]
-    pm_object.set_generation_profile_status(generation_data_df.loc[index, 'single_profile'])
+    pm_object.set_generation_data_status(generation_data_df.loc[index, 'single_profile'])
     pm_object.set_generation_data(generation_data_df.loc[index, 'generation_data'])
 
     """ Add purchase/sale data """
-    purchase_sell_data = case_data[case_data['type'] == 'purchase_sell_data']
-    index = purchase_sell_data.index[0]
-    pm_object.set_sell_purchase_profile_status(purchase_sell_data.loc[index, 'single_profile'])
-    pm_object.set_sell_purchase_data(purchase_sell_data.loc[index, 'purchase_sell_data'])
+    market_data = case_data[case_data['type'] == 'market_data']
+    index = market_data.index[0]
+    pm_object.set_market_data_status(market_data.loc[index, 'single_profile'])
+    pm_object.set_market_data(market_data.loc[index, 'market_data'])
 
     """Allocate components and parameters"""
     component_df = case_data[case_data['type'] == 'component']

@@ -707,15 +707,15 @@ class GeneratorInterface(ttk.Frame):
 
 class DataInterface(ttk.Frame):
 
-    def set_profile_generation(self):
-        if self.generation_profile_var.get() == 'single':
+    def set_generation_data(self):
+        if self.generation_data_status_var.get() == 'single':
             path = filedialog.askopenfilename()
             file_name = path.split('/')[-1]
 
             if file_name != '':
                 if file_name.split('.')[-1] == 'xlsx':
                     self.pm_object_copy.set_generation_data(file_name)
-                    self.pm_object_copy.set_generation_profile_status(True)
+                    self.pm_object_copy.set_generation_data_status(True)
 
                     self.parent.pm_object_copy = self.pm_object_copy
                     self.parent.update_widgets()
@@ -734,7 +734,7 @@ class DataInterface(ttk.Frame):
             folder_name = path.split('/')[-1]
 
             self.pm_object_copy.set_generation_data(folder_name)
-            self.pm_object_copy.set_generation_profile_status(False)
+            self.pm_object_copy.set_generation_data_status(False)
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
@@ -766,21 +766,20 @@ class DataInterface(ttk.Frame):
         os.system('start excel.exe "%s"' % (path,))
 
         self.pm_object_copy.set_generation_data(dt_string + '_' + project_name + '_generation_profiles.xlsx')
-        self.pm_object_copy.set_generation_profile_status(True)
+        self.pm_object_copy.set_generation_data_status(True)
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
 
-    def set_profile_purchase_selling(self):
-        if self.market_data_profile_var.get() == 'single':
+    def set_market_data(self):
+        if self.market_data_status_var.get() == 'single':
             path = filedialog.askopenfilename()
             file_name = path.split('/')[-1]
 
             if file_name != '':
                 if file_name.split('.')[-1] == 'xlsx':
-                    self.market_data_profile_textvar.set(file_name)
-                    self.pm_object_copy.set_sell_purchase_data(file_name)
-                    self.pm_object_copy.set_sell_purchase_profile_status(True)
+                    self.pm_object_copy.set_market_data(file_name)
+                    self.pm_object_copy.set_market_data_status(True)
 
                     self.parent.pm_object_copy = self.pm_object_copy
                     self.parent.update_widgets()
@@ -798,14 +797,13 @@ class DataInterface(ttk.Frame):
             path = filedialog.askdirectory()
             folder_name = path.split('/')[-1]
 
-            self.market_data_profile_textvar.set(folder_name)
-            self.pm_object_copy.set_sell_purchase_data(folder_name)
-            self.pm_object_copy.set_sell_purchase_profile_status(False)
+            self.pm_object_copy.set_market_data(folder_name)
+            self.pm_object_copy.set_market_data_status(False)
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
 
-    def create_market_price_template(self):
+    def create_market_data_template(self):
 
         if self.pm_object_copy.get_project_name() is None:
             project_name = ''
@@ -834,8 +832,8 @@ class DataInterface(ttk.Frame):
 
         os.system('start excel.exe "%s"' % (path, ))
 
-        self.pm_object_copy.set_sell_purchase_data(dt_string + '_' + project_name + '_market_prices.xlsx')
-        self.pm_object_copy.set_sell_purchase_profile_status(True)
+        self.pm_object_copy.set_market_data(dt_string + '_' + project_name + '_market_prices.xlsx')
+        self.pm_object_copy.set_market_data_status(True)
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
@@ -855,34 +853,32 @@ class DataInterface(ttk.Frame):
         # Generation data
         generation_data_frame = ttk.Frame(self.data_frame)
 
-        self.generation_profile_var = StringVar()
-        if self.pm_object_copy.get_generation_profile_status():
-            self.generation_profile_var.set('single')
+        if self.pm_object_copy.get_generation_data_status():
+            self.generation_data_status_var.set('single')
         else:
-            self.generation_profile_var.set('multiple')
+            self.generation_data_status_var.set('multiple')
 
         self.rb_single_generation = ttk.Radiobutton(generation_data_frame, text='Use single profile', value='single',
-                                                    variable=self.generation_profile_var)
+                                                    variable=self.generation_data_status_var)
         self.rb_single_generation.grid(row=1, column=0, sticky='w')
 
         self.rb_several = ttk.Radiobutton(generation_data_frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.generation_profile_var)
+                                          variable=self.generation_data_status_var)
         self.rb_several.grid(row=1, column=1, sticky='w')
 
-        self.generation_profile_textvar = StringVar()
         try:
             path_generation = self.pm_object_copy.get_generation_data()
             file_name_generation = path_generation.split('/')[-1]
-            self.generation_profile_textvar.set(file_name_generation)
+            self.generation_data_textvar.set(file_name_generation)
         except:
-            self.generation_profile_textvar.set('')
+            self.generation_data_textvar.set('')
 
         ttk.Label(generation_data_frame, text='Profile file/Folder').grid(row=2, column=0, sticky='w')
-        self.profile_label = ttk.Label(generation_data_frame, text=self.generation_profile_textvar.get())
+        self.profile_label = ttk.Label(generation_data_frame, text=self.generation_data_textvar.get())
         self.profile_label.grid(row=2, column=1, sticky='w')
 
         self.select_profile_button = ttk.Button(generation_data_frame, text='Select profile(s)',
-                                                command=self.set_profile_generation)
+                                                command=self.set_generation_data)
         self.select_profile_button.grid(row=3, column=0, sticky='ew')
 
         self.create_generation_template_button = ttk.Button(generation_data_frame,
@@ -901,38 +897,36 @@ class DataInterface(ttk.Frame):
         market_data_frame = ttk.Frame(self.data_frame)
         ttk.Separator(market_data_frame).grid(row=0, columnspan=2, sticky='ew')
 
-        self.market_data_profile_var = StringVar()
-        if self.pm_object_copy.get_sell_purchase_profile_status():
-            self.market_data_profile_var.set('single')
+        if self.pm_object_copy.get_market_data_status():
+            self.market_data_status_var.set('single')
         else:
-            self.market_data_profile_var.set('multiple')
+            self.market_data_status_var.set('multiple')
 
         self.rb_single = ttk.Radiobutton(market_data_frame, text='Use single profile', value='single',
-                                         variable=self.market_data_profile_var)
+                                         variable=self.market_data_status_var)
         self.rb_single.grid(row=1, column=0, sticky='ew')
 
         self.rb_several = ttk.Radiobutton(market_data_frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.market_data_profile_var)
+                                          variable=self.market_data_status_var)
         self.rb_several.grid(row=1, column=1, sticky='ew')
 
-        self.market_data_profile_textvar = StringVar()
         try:
-            path = self.pm_object_copy.get_sell_purchase_data()
+            path = self.pm_object_copy.get_market_data()
             file_name = path.split('/')[-1]
-            self.market_data_profile_textvar.set(file_name)
+            self.market_data_textvar.set(file_name)
         except:
-            self.market_data_profile_textvar.set('')
+            self.market_data_textvar.set('')
 
         ttk.Label(market_data_frame, text='Profile file/Folder').grid(row=2, column=0, sticky='ew')
-        self.profile_label = ttk.Label(market_data_frame, text=self.market_data_profile_textvar.get())
+        self.profile_label = ttk.Label(market_data_frame, text=self.market_data_textvar.get())
         self.profile_label.grid(row=2, column=1, sticky='ew')
 
         self.select_profile_button = ttk.Button(market_data_frame, text='Select profile(s)',
-                                                command=self.set_profile_purchase_selling)
+                                                command=self.set_market_data)
         self.select_profile_button.grid(row=3, column=0, sticky='ew')
         self.create_market_price_template_button = ttk.Button(market_data_frame,
                                                               text='Create new Market Price Template',
-                                                              command=self.create_market_price_template)
+                                                              command=self.create_market_data_template)
         self.create_market_price_template_button.grid(row=3, column=1, sticky='ew')
 
         market_data_frame.grid_columnconfigure(0, weight=1)
@@ -965,34 +959,34 @@ class DataInterface(ttk.Frame):
         # Generation data
         generation_data_frame = ttk.Frame(self.data_frame)
 
-        self.generation_profile_var = StringVar()
-        if self.pm_object_copy.get_generation_profile_status():
-            self.generation_profile_var.set('single')
+        self.generation_data_status_var = StringVar()
+        if self.pm_object_copy.get_generation_data_status():
+            self.generation_data_status_var.set('single')
         else:
-            self.generation_profile_var.set('multiple')
+            self.generation_data_status_var.set('multiple')
 
         self.rb_single_generation = ttk.Radiobutton(generation_data_frame, text='Use single profile', value='single',
-                                         variable=self.generation_profile_var)
+                                         variable=self.generation_data_status_var)
         self.rb_single_generation.grid(row=0, column=0, sticky='ew')
 
         self.rb_several = ttk.Radiobutton(generation_data_frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.generation_profile_var)
+                                          variable=self.generation_data_status_var)
         self.rb_several.grid(row=0, column=1, sticky='ew')
 
-        self.generation_profile_textvar = StringVar()
+        self.generation_data_textvar = StringVar()
         try:
             path_generation = self.pm_object_copy.get_generation_data()
             file_name_generation = path_generation.split('/')[-1]
-            self.generation_profile_textvar.set(file_name_generation)
+            self.generation_data_textvar.set(file_name_generation)
         except:
-            self.generation_profile_textvar.set('')
+            self.generation_data_textvar.set('')
 
         ttk.Label(generation_data_frame, text='Profile file/Folder').grid(row=1, column=0, sticky='w')
-        self.profile_label = ttk.Label(generation_data_frame, text=self.generation_profile_textvar.get())
+        self.profile_label = ttk.Label(generation_data_frame, text=self.generation_data_textvar.get())
         self.profile_label.grid(row=1, column=1, sticky='ew')
 
         self.select_profile_button = ttk.Button(generation_data_frame, text='Select profile(s)',
-                                                command=self.set_profile_generation)
+                                                command=self.set_generation_data)
         self.select_profile_button.grid(row=2, column=0, sticky='ew')
 
         self.create_generation_template_button = ttk.Button(generation_data_frame, text='Create new generation template',
@@ -1009,37 +1003,37 @@ class DataInterface(ttk.Frame):
         market_data_frame = ttk.Frame(self.data_frame)
         ttk.Separator(market_data_frame).grid(row=0, columnspan=2, sticky='ew')
 
-        self.market_data_profile_var = StringVar()
-        if self.pm_object_copy.get_sell_purchase_profile_status():
-            self.market_data_profile_var.set('single')
+        self.market_data_status_var = StringVar()
+        if self.pm_object_copy.get_market_data_status():
+            self.market_data_status_var.set('single')
         else:
-            self.market_data_profile_var.set('multiple')
+            self.market_data_status_var.set('multiple')
 
         self.rb_single = ttk.Radiobutton(market_data_frame, text='Use single profile', value='single',
-                                         variable=self.market_data_profile_var)
+                                         variable=self.market_data_status_var)
         self.rb_single.grid(row=1, column=0, sticky='ew')
 
         self.rb_several = ttk.Radiobutton(market_data_frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.market_data_profile_var)
+                                          variable=self.market_data_status_var)
         self.rb_several.grid(row=1, column=1, sticky='ew')
 
-        self.market_data_profile_textvar = StringVar()
+        self.market_data_textvar = StringVar()
         try:
-            path = self.pm_object_copy.get_sell_purchase_data()
+            path = self.pm_object_copy.get_market_data()
             file_name = path.split('/')[-1]
-            self.market_data_profile_textvar.set(file_name)
+            self.market_data_textvar.set(file_name)
         except:
-            self.market_data_profile_textvar.set('')
+            self.market_data_textvar.set('')
 
         ttk.Label(market_data_frame, text='Profile file/Folder').grid(row=2, column=0, sticky='ew')
-        self.profile_label = ttk.Label(market_data_frame, text=self.market_data_profile_textvar.get())
+        self.profile_label = ttk.Label(market_data_frame, text=self.market_data_textvar.get())
         self.profile_label.grid(row=2, column=1, sticky='ew')
 
         self.select_profile_button = ttk.Button(market_data_frame, text='Select profile(s)',
-                                                command=self.set_profile_purchase_selling)
+                                                command=self.set_market_data)
         self.select_profile_button.grid(row=3, column=0, sticky='ew')
         self.create_market_price_template_button = ttk.Button(market_data_frame, text='Create new price template',
-                                                              command=self.create_market_price_template)
+                                                              command=self.create_market_data_template)
         self.create_market_price_template_button.grid(row=3, column=1, sticky='ew')
 
         market_data_frame.grid_columnconfigure(0, weight=1, uniform='a')

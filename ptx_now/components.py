@@ -147,19 +147,25 @@ class ConversionComponent(Component):
     def get_start_up_time(self):
         return self.start_up_time
 
+    def set_start_up_costs(self, start_up_costs):
+        self.start_up_costs = start_up_costs
+
+    def get_start_up_costs(self):
+        return self.start_up_costs
+
     def set_hot_standby_ability(self, hot_standby_ability):
         self.hot_standby_ability = bool(hot_standby_ability)
 
     def get_hot_standby_ability(self):
         return self.hot_standby_ability
 
-    def set_hot_standby_demand(self, stream, demand=None):
+    def set_hot_standby_demand(self, commodity, demand=None):
         if demand is not None:
-            hot_standby_demand = {stream: demand}
+            hot_standby_demand = {commodity: demand}
             self.hot_standby_demand.clear()
             self.hot_standby_demand = hot_standby_demand
         else:
-            self.hot_standby_demand = stream
+            self.hot_standby_demand = commodity
 
     def get_hot_standby_demand(self):
         return self.hot_standby_demand
@@ -173,16 +179,16 @@ class ConversionComponent(Component):
     def get_inputs(self):
         return self.inputs
 
-    def add_input(self, input_stream, coefficient):
-        self.inputs.update({input_stream: float(coefficient)})
-        self.add_stream(input_stream)
+    def add_input(self, input_commodity, coefficient):
+        self.inputs.update({input_commodity: float(coefficient)})
+        self.add_commodity(input_commodity)
 
-    def remove_input(self, input_stream):
-        self.inputs.pop(input_stream)
-        self.remove_stream(input_stream)
+    def remove_input(self, input_commodity):
+        self.inputs.pop(input_commodity)
+        self.remove_commodity(input_commodity)
 
-    def set_main_input(self, input_stream):
-        self.main_input = input_stream
+    def set_main_input(self, input_commodity):
+        self.main_input = input_commodity
 
     def get_main_input(self):
         return self.main_input
@@ -190,16 +196,16 @@ class ConversionComponent(Component):
     def get_outputs(self):
         return self.outputs
 
-    def add_output(self, output_stream, coefficient):
-        self.outputs.update({output_stream: float(coefficient)})
-        self.add_stream(output_stream)
+    def add_output(self, output_commodity, coefficient):
+        self.outputs.update({output_commodity: float(coefficient)})
+        self.add_commodity(output_commodity)
 
-    def remove_output(self, output_stream):
-        self.outputs.pop(output_stream)
-        self.remove_stream(output_stream)
+    def remove_output(self, output_commodity):
+        self.outputs.pop(output_commodity)
+        self.remove_commodity(output_commodity)
 
-    def set_main_output(self, output_stream):
-        self.main_output = output_stream
+    def set_main_output(self, output_commodity):
+        self.main_output = output_commodity
 
     def get_main_output(self):
         return self.main_output
@@ -210,16 +216,16 @@ class ConversionComponent(Component):
     def get_capex_basis(self):
         return self.capex_basis
 
-    def add_stream(self, stream):
-        if stream not in self.streams:
-            self.streams.append(stream)
+    def add_commodity(self, commodity):
+        if commodity not in self.commodities:
+            self.commodities.append(commodity)
 
-    def remove_stream(self, stream):
-        if stream in self.streams:
-            self.streams.remove(stream)
+    def remove_commodity(self, commodity):
+        if commodity in self.commodities:
+            self.commodities.remove(commodity)
 
-    def get_streams(self):
-        return self.streams
+    def get_commodities(self):
+        return self.commodities
 
     def set_min_p(self, min_p):
         self.min_p = float(min_p)
@@ -243,7 +249,7 @@ class ConversionComponent(Component):
         # deepcopy mutable objects
         inputs = copy.deepcopy(self.inputs)
         outputs = copy.deepcopy(self.outputs)
-        streams = copy.deepcopy(self.streams)
+        commodities = copy.deepcopy(self.commodities)
         hot_standby_demand = copy.deepcopy(self.hot_standby_demand)
 
         return ConversionComponent(name=name, nice_name=nice_name, lifetime=self.lifetime,
@@ -259,15 +265,16 @@ class ConversionComponent(Component):
                                    hot_standby_startup_time=self.hot_standby_startup_time,
                                    number_parallel_units=self.number_parallel_units,
                                    min_p=self.min_p, max_p=self.max_p, inputs=inputs, outputs=outputs,
-                                   main_input=self.main_input, main_output=self.main_output, streams=streams,
+                                   main_input=self.main_input, main_output=self.main_output, commodities=commodities,
                                    final_unit=self.final_unit)
 
     def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
                  capex_basis='input', scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
-                 max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1., shut_down_ability=False,
-                 start_up_time=0., hot_standby_ability=False, hot_standby_demand=None, hot_standby_startup_time=0,
+                 max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1.,
+                 shut_down_ability=False, start_up_time=0., start_up_costs=0,
+                 hot_standby_ability=False, hot_standby_demand=None, hot_standby_startup_time=0,
                  number_parallel_units=1,
-                 min_p=0., max_p=1., inputs=None, outputs=None, main_input=None, main_output=None, streams=None,
+                 min_p=0., max_p=1., inputs=None, outputs=None, main_input=None, main_output=None, commodities=None,
                  final_unit=False, custom_unit=False):
 
         """
@@ -294,7 +301,7 @@ class ConversionComponent(Component):
         :param main_output: [str] - main output of component
         :param min_p: [float] - Minimal power of the unit when operating
         :param max_p: [float] - Maximal power of the unit when operating
-        :param streams: [list] - Streams of the unit
+        :param commodities: [list] - Commodities of the unit
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if unit is custom
         """
@@ -315,17 +322,20 @@ class ConversionComponent(Component):
             self.main_input = main_input
             self.main_output = main_output
 
-        if streams is None:
-            self.streams = []
+        if commodities is None:
+            self.commodities = []
         else:
-            self.streams = streams
+            self.commodities = commodities
 
         self.min_p = min_p
         self.max_p = max_p
         self.ramp_down = ramp_down
         self.ramp_up = ramp_up
+
         self.shut_down_ability = bool(shut_down_ability)
         self.start_up_time = int(start_up_time)
+        self.start_up_costs = start_up_costs
+
         self.hot_standby_ability = bool(hot_standby_ability)
         if hot_standby_demand is None:
             self.hot_standby_demand = {}
@@ -369,24 +379,6 @@ class StorageComponent(Component):
     def get_ratio_capacity_p(self):
         return self.ratio_capacity_p
 
-    def set_limitation(self, status):
-        self.limited_storage = status
-
-    def is_limited(self):
-        return self.limited_storage
-
-    def set_storage_limiting_component(self, component):
-        self.storage_limiting_component = component
-
-    def get_storage_limiting_component(self):
-        return self.storage_limiting_component
-
-    def set_storage_limiting_component_ratio(self, storage_limiting_component_ratio):
-        self.storage_limiting_component_ratio = float(storage_limiting_component_ratio)
-
-    def get_storage_limiting_component_ratio(self):
-        return self.storage_limiting_component_ratio
-
     def set_max_soc(self, max_soc_component):
         self.max_soc = float(max_soc_component)
 
@@ -412,15 +404,11 @@ class StorageComponent(Component):
                                 discharging_efficiency=self.discharging_efficiency,
                                 min_soc=self.min_soc, max_soc=self.max_soc, initial_soc=self.initial_soc,
                                 leakage=self.leakage, ratio_capacity_p=self.ratio_capacity_p,
-                                limited_storage=self.limited_storage,
-                                storage_limiting_component=self.storage_limiting_component,
-                                storage_limiting_component_ratio=self.storage_limiting_component_ratio,
                                 final_unit=self.final_unit, custom_unit=self.custom_unit)
 
     def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
                  charging_efficiency=1., discharging_efficiency=1., min_soc=0., max_soc=1.,
                  initial_soc=0.5, leakage=0., ratio_capacity_p=1.,
-                 limited_storage=False, storage_limiting_component=None, storage_limiting_component_ratio=None,
                  final_unit=False, custom_unit=False):
 
         """
@@ -438,9 +426,6 @@ class StorageComponent(Component):
         :param initial_soc: [float] - Initial SOC of storage
         :param leakage: [float] - Leakage over time #todo: delete or implement
         :param ratio_capacity_p: [float] - Ratio between capacity of storage and charging or discharging power
-        :param limited_storage: [boolean] - Boolean, if storage is limited by certain component
-        :param storage_limiting_component: [string] - Component, which limits storage
-        :param storage_limiting_component_ratio: [float] - Ratio between limiting component capacity and storage capacity
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
@@ -455,14 +440,6 @@ class StorageComponent(Component):
         self.leakage = float(leakage)
         self.ratio_capacity_p = float(ratio_capacity_p)
 
-        self.limited_storage = limited_storage
-        if limited_storage:
-            self.storage_limiting_component = storage_limiting_component
-            self.storage_limiting_component_ratio = float(storage_limiting_component_ratio)
-        else:
-            self.storage_limiting_component = None
-            self.storage_limiting_component_ratio = 0.
-
         self.min_soc = float(min_soc)
         self.max_soc = float(max_soc)
         self.initial_soc = float(initial_soc)
@@ -470,11 +447,11 @@ class StorageComponent(Component):
 
 class GenerationComponent(Component):
 
-    def set_generated_stream(self, generated_stream):
-        self.generated_stream = generated_stream
+    def set_generated_commodity(self, generated_commodity):
+        self.generated_commodity = generated_commodity
 
-    def get_generated_stream(self):
-        return self.generated_stream
+    def get_generated_commodity(self):
+        return self.generated_commodity
 
     def set_curtailment_possible(self, status):
         self.curtailment_possible = status
@@ -485,11 +462,11 @@ class GenerationComponent(Component):
     def __copy__(self):
         return GenerationComponent(name=self.name, nice_name=self.nice_name, lifetime=self.lifetime,
                                    maintenance=self.maintenance, capex=self.capex,
-                                   generated_stream=self.generated_stream,
+                                   generated_commodity=self.generated_commodity,
                                    curtailment_possible=self.curtailment_possible,
                                    final_unit=self.final_unit, custom_unit=self.custom_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., generated_stream='electricity',
+    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., generated_commodity='electricity',
                  curtailment_possible=True,
                  final_unit=False, custom_unit=False):
 
@@ -501,7 +478,7 @@ class GenerationComponent(Component):
         :param lifetime: [int] - lifetime of unit
         :param maintenance: [float] - maintenance of unit in % of investment
         :param capex: [float] - CAPEX of unit
-        :param generated_stream: [string] - Stream, which is generated by generator
+        :param generated_commodity: [string] - Stream, which is generated by generator
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
@@ -510,5 +487,5 @@ class GenerationComponent(Component):
 
         self.component_type = 'generator'
 
-        self.generated_stream = generated_stream
+        self.generated_commodity = generated_commodity
         self.curtailment_possible = bool(curtailment_possible)

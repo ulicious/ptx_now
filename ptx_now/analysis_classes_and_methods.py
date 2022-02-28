@@ -36,185 +36,179 @@ class Result:
                 self.all_variables_dict.update({str(v): list_value})
                 self.variable_zero_index.append(str(v))
 
-                if str(v) == 'test_b':
-                    print(list_value)
-
-                if str(v) == 'power_penalty':
-                    print(list_value)
-
             elif number_keys == 1:
                 self.all_variables_dict.update({str(v): variable_dict})
                 self.variable_one_index.append(str(v))
             elif number_keys == 2:
 
                 variable_list = []
-                stream_dict = {}
-                stream = ''
+                commodity_dict = {}
+                commodity = ''
                 first = True
                 for key in [*variable_dict]:
 
                     if first:
-                        stream = key[0]
+                        commodity = key[0]
                         first = False
 
-                    if stream != key[0]:
+                    if commodity != key[0]:
 
-                        stream_dict.update({stream: variable_list})
-                        stream = key[0]
+                        commodity_dict.update({commodity: variable_list})
+                        commodity = key[0]
                         variable_list = []
 
                     variable_list.append(variable_dict[key])
 
-                stream_dict.update({stream: variable_list})
+                commodity_dict.update({commodity: variable_list})
 
-                self.all_variables_dict.update({str(v): stream_dict})
+                self.all_variables_dict.update({str(v): commodity_dict})
                 self.variable_two_index.append(str(v))
 
             elif number_keys == 3:
 
                 variable_list = []
                 component_dict = {}
-                stream_dict = {}
-                stream = ''
+                commodity_dict = {}
+                commodity = ''
                 c = ''
                 first = True
                 for key in [*variable_dict]:
 
                     if first:
-                        stream = key[1]
+                        commodity = key[1]
                         c = key[0]
                         first = False
 
-                    if (stream != key[1]) & (c == key[0]):
-                        stream_dict.update({stream: variable_list})
-                        stream = key[1]
+                    if (commodity != key[1]) & (c == key[0]):
+                        commodity_dict.update({commodity: variable_list})
+                        commodity = key[1]
                         c = key[0]
                         variable_list = []
                     elif c != key[0]:
-                        stream_dict.update({stream: variable_list})
-                        component_dict.update({c: stream_dict})
-                        stream_dict = {}
-                        stream = key[1]
+                        commodity_dict.update({commodity: variable_list})
+                        component_dict.update({c: commodity_dict})
+                        commodity_dict = {}
+                        commodity = key[1]
                         c = key[0]
                         variable_list = []
 
                     variable_list.append(variable_dict[key])
 
-                stream_dict.update({stream: variable_list})
-                component_dict.update({c: stream_dict})
+                commodity_dict.update({commodity: variable_list})
+                component_dict.update({c: commodity_dict})
 
                 self.all_variables_dict.update({str(v): component_dict})
                 self.variable_three_index.append(str(v))
 
     def process_variables(self):
 
-        """ Allocates costs to streams """
+        """ Allocates costs to commodities """
 
-        # Calculate the total availability of each stream (purchase, from conversion, available)
-        variable_names = ['mass_energy_purchase_stream', 'mass_energy_available',
-                          'mass_energy_component_out_streams', 'mass_energy_total_generation',
-                          'mass_energy_storage_in_streams', 'mass_energy_sell_stream', 'mass_energy_emitted',
+        # Calculate the total availability of each commodity (purchase, from conversion, available)
+        variable_names = ['mass_energy_purchase_commodity', 'mass_energy_available',
+                          'mass_energy_component_out_commodities', 'mass_energy_total_generation',
+                          'mass_energy_storage_in_commodities', 'mass_energy_sell_commodity', 'mass_energy_emitted',
                           'nominal_cap', 'mass_energy_generation', 'mass_energy_hot_standby_demand']
 
-        for stream in self.model.ME_STREAMS:
-            self.purchased_stream.update({stream: 0})
-            self.purchase_costs.update({stream: 0})
-            self.sold_stream.update({stream: 0})
-            self.selling_costs.update({stream: 0})
-            self.generated_stream.update({stream: 0})
-            self.available_stream.update({stream: 0})
-            self.emitted_stream.update({stream: 0})
-            self.stored_stream.update({stream: 0})
-            self.conversed_stream.update({stream: 0})
-            self.total_generated_stream.update({stream: 0})
+        for commodity in self.model.ME_STREAMS:
+            self.purchased_commodity.update({commodity: 0})
+            self.purchase_costs.update({commodity: 0})
+            self.sold_commodity.update({commodity: 0})
+            self.selling_costs.update({commodity: 0})
+            self.generated_commodity.update({commodity: 0})
+            self.available_commodity.update({commodity: 0})
+            self.emitted_commodity.update({commodity: 0})
+            self.stored_commodity.update({commodity: 0})
+            self.conversed_commodity.update({commodity: 0})
+            self.total_generated_commodity.update({commodity: 0})
 
         for variable_name in [*self.all_variables_dict]:
 
             if variable_name in self.variable_two_index:
 
                 if variable_name in variable_names:
-                    for stream in [*self.all_variables_dict[variable_name]]:
+                    for commodity in [*self.all_variables_dict[variable_name]]:
 
-                        list_values = self.all_variables_dict[variable_name][stream]
-                        sum_values = sum(self.all_variables_dict[variable_name][stream])
+                        list_values = self.all_variables_dict[variable_name][commodity]
+                        sum_values = sum(self.all_variables_dict[variable_name][commodity])
 
-                        if not self.pm_object.get_uses_representative_weeks():
+                        if not self.pm_object.get_uses_representative_periods():
 
                             if variable_name == "mass_energy_available":
-                                self.available_stream[stream] = (self.available_stream[stream] + sum_values)
+                                self.available_commodity[commodity] = (self.available_commodity[commodity] + sum_values)
 
                             if variable_name == 'mass_energy_emitted':
-                                if stream in self.model.EMITTED_STREAMS:
-                                    self.emitted_stream[stream] = (self.emitted_stream[stream] + sum_values)
+                                if commodity in self.model.EMITTED_STREAMS:
+                                    self.emitted_commodity[commodity] = (self.emitted_commodity[commodity] + sum_values)
 
-                            if variable_name == 'mass_energy_purchase_stream':  # Calculate costs of purchase
-                                if stream in self.model.PURCHASABLE_STREAMS:
-                                    self.purchased_stream[stream] = (self.purchased_stream[stream] + sum_values)
-                                    self.purchase_costs[stream] = (self.purchase_costs[stream] +
+                            if variable_name == 'mass_energy_purchase_commodity':  # Calculate costs of purchase
+                                if commodity in self.model.PURCHASABLE_STREAMS:
+                                    self.purchased_commodity[commodity] = (self.purchased_commodity[commodity] + sum_values)
+                                    self.purchase_costs[commodity] = (self.purchase_costs[commodity] +
                                                                    sum(list_values[t]
-                                                                       * self.model.purchase_price[stream, t]
+                                                                       * self.model.purchase_price[commodity, t]
                                                                        for t in self.model.TIME))
 
-                            if variable_name == 'mass_energy_sell_stream':  # Calculate costs of purchase
-                                if stream in self.model.SALEABLE_STREAMS:
-                                    self.sold_stream[stream] = (self.sold_stream[stream] + sum_values)
-                                    self.selling_costs[stream] = (self.selling_costs[stream]
+                            if variable_name == 'mass_energy_sell_commodity':  # Calculate costs of purchase
+                                if commodity in self.model.SALEABLE_STREAMS:
+                                    self.sold_commodity[commodity] = (self.sold_commodity[commodity] + sum_values)
+                                    self.selling_costs[commodity] = (self.selling_costs[commodity]
                                                                   + sum(list_values[t]
-                                                                        * self.model.selling_price[stream, t] * (-1)
+                                                                        * self.model.selling_price[commodity, t] * (-1)
                                                                         for t in self.model.TIME))
 
                             if variable_name == 'mass_energy_total_generation':
-                                if stream in self.model.GENERATED_STREAMS:
-                                    self.total_generated_stream[stream] = (self.total_generated_stream[stream]
+                                if commodity in self.model.GENERATED_STREAMS:
+                                    self.total_generated_commodity[commodity] = (self.total_generated_commodity[commodity]
                                                                            + sum_values)
 
-                            if variable_name == 'mass_energy_storage_in_streams':
-                                if stream in self.model.STORAGES:
-                                    self.stored_stream[stream] = (self.stored_stream[stream] + sum_values)
+                            if variable_name == 'mass_energy_storage_in_commodities':
+                                if commodity in self.model.STORAGES:
+                                    self.stored_commodity[commodity] = (self.stored_commodity[commodity] + sum_values)
 
                         else:
 
                             if variable_name == "mass_energy_available":
-                                self.available_stream[stream] = (self.available_stream[stream]
+                                self.available_commodity[commodity] = (self.available_commodity[commodity]
                                                                  + sum(list_values[t] * self.model.weightings[t]
                                                                        for t in self.model.TIME))
 
                             if variable_name == 'mass_energy_emitted':
-                                if stream in self.model.EMITTED_STREAMS:
-                                    self.emitted_stream[stream] = (self.emitted_stream[stream] +
+                                if commodity in self.model.EMITTED_STREAMS:
+                                    self.emitted_commodity[commodity] = (self.emitted_commodity[commodity] +
                                                                    sum(list_values[t] * self.model.weightings[t]
                                                                        for t in self.model.TIME))
 
-                            if variable_name == 'mass_energy_purchase_stream':  # Calculate costs of purchase
-                                if stream in self.model.PURCHASABLE_STREAMS:
-                                    self.purchased_stream[stream] = (self.purchased_stream[stream]
+                            if variable_name == 'mass_energy_purchase_commodity':  # Calculate costs of purchase
+                                if commodity in self.model.PURCHASABLE_STREAMS:
+                                    self.purchased_commodity[commodity] = (self.purchased_commodity[commodity]
                                                                      + sum(list_values[t] * self.model.weightings[t]
                                                                            for t in self.model.TIME))
-                                    self.purchase_costs[stream] = (self.purchase_costs[stream]
+                                    self.purchase_costs[commodity] = (self.purchase_costs[commodity]
                                                                    + sum(list_values[t] * self.model.weightings[t]
-                                                                         * self.model.purchase_price[stream, t]
+                                                                         * self.model.purchase_price[commodity, t]
                                                                          for t in self.model.TIME))
 
-                            if variable_name == 'mass_energy_sell_stream':  # Calculate costs of purchase
-                                if stream in self.model.SALEABLE_STREAMS:
-                                    self.sold_stream[stream] = (self.sold_stream[stream]
+                            if variable_name == 'mass_energy_sell_commodity':  # Calculate costs of purchase
+                                if commodity in self.model.SALEABLE_STREAMS:
+                                    self.sold_commodity[commodity] = (self.sold_commodity[commodity]
                                                                 + sum(list_values[t] * self.model.weightings[t]
                                                                       for t in self.model.TIME))
-                                    self.selling_costs[stream] = (self.selling_costs[stream]
+                                    self.selling_costs[commodity] = (self.selling_costs[commodity]
                                                                   + sum(list_values[t] * self.model.weightings[t]
-                                                                        * self.model.selling_price[stream, t] * (-1)
+                                                                        * self.model.selling_price[commodity, t] * (-1)
                                                                         for t in self.model.TIME))
 
                             if variable_name == 'mass_energy_total_generation':
-                                if stream in self.model.GENERATED_STREAMS:
-                                    self.total_generated_stream[stream] = (self.total_generated_stream[stream]
+                                if commodity in self.model.GENERATED_STREAMS:
+                                    self.total_generated_commodity[commodity] = (self.total_generated_commodity[commodity]
                                                                            + sum(list_values[t]
                                                                                  * self.model.weightings[t]
                                                                                  for t in self.model.TIME))
 
-                            if variable_name == 'mass_energy_storage_in_streams':
-                                if stream in self.model.STORAGES:
-                                    self.stored_stream[stream] = (self.stored_stream[stream]
+                            if variable_name == 'mass_energy_storage_in_commodities':
+                                if commodity in self.model.STORAGES:
+                                    self.stored_commodity[commodity] = (self.stored_commodity[commodity]
                                                                   + sum(list_values[t] * self.model.weightings[t]
                                                                         for t in self.model.TIME))
 
@@ -226,70 +220,70 @@ class Result:
                         component_object = self.pm_object.get_component(c)
 
                         conversion = False
-                        for i in self.pm_object.get_specific_components('final', 'conversion'):
+                        for i in self.pm_object.get_final_conversion_components_objects():
                             if c == i.get_name():
                                 conversion = True
-                                if variable_name == 'mass_energy_component_out_streams':
-                                    self.conversed_stream_per_component[c] = {}
+                                if variable_name == 'mass_energy_component_out_commodities':
+                                    self.conversed_commodity_per_component[c] = {}
                                 elif variable_name == 'mass_energy_hot_standby_demand':
                                     self.hot_standby_demand[c] = {}
 
-                        for stream in [*self.all_variables_dict[variable_name][c]]:
+                        for commodity in [*self.all_variables_dict[variable_name][c]]:
 
-                            list_values = self.all_variables_dict[variable_name][c][stream]
-                            sum_values = sum(self.all_variables_dict[variable_name][c][stream])
+                            list_values = self.all_variables_dict[variable_name][c][commodity]
+                            sum_values = sum(self.all_variables_dict[variable_name][c][commodity])
 
                             ratio = 1
                             if conversion:
                                 inputs = component_object.get_inputs()
                                 outputs = component_object.get_outputs()
 
-                                # Case stream is conversed but not fully
-                                if (stream in [*inputs.keys()]) & (stream in [*outputs.keys()]):
-                                    sum_values = sum_values * outputs[stream] / inputs[stream]
-                                    ratio = sum_values * outputs[stream] / inputs[stream]
+                                # Case commodity is conversed but not fully
+                                if (commodity in [*inputs.keys()]) & (commodity in [*outputs.keys()]):
+                                    sum_values = sum_values * outputs[commodity] / inputs[commodity]
+                                    ratio = sum_values * outputs[commodity] / inputs[commodity]
 
-                            if not self.pm_object.get_uses_representative_weeks():
+                            if not self.pm_object.get_uses_representative_periods():
 
-                                if variable_name == 'mass_energy_component_out_streams':
-                                    if stream == component_object.get_main_output():
-                                        self.conversed_stream[stream] = self.conversed_stream[stream] + sum_values
-                                        self.conversed_stream_per_component[c][stream] = sum_values
+                                if variable_name == 'mass_energy_component_out_commodities':
+                                    if commodity == component_object.get_main_output():
+                                        self.conversed_commodity[commodity] = self.conversed_commodity[commodity] + sum_values
+                                        self.conversed_commodity_per_component[c][commodity] = sum_values
                                     else:
-                                        self.conversed_stream[stream] = self.conversed_stream[stream] + 0
-                                        self.conversed_stream_per_component[c][stream] = 0
+                                        self.conversed_commodity[commodity] = self.conversed_commodity[commodity] + 0
+                                        self.conversed_commodity_per_component[c][commodity] = 0
 
                                 if variable_name == 'mass_energy_hot_standby_demand':
-                                    if stream in [*component_object.get_hot_standby_demand().keys()]:
-                                        self.hot_standby_demand[c][stream] = sum_values
+                                    if commodity in [*component_object.get_hot_standby_demand().keys()]:
+                                        self.hot_standby_demand[c][commodity] = sum_values
 
                                 if variable_name == 'mass_energy_generation':
-                                    if stream in self.model.GENERATED_STREAMS:
-                                        self.generated_stream[c] = sum_values
+                                    if commodity in self.model.GENERATED_STREAMS:
+                                        self.generated_commodity[c] = sum_values
 
                             else:
-                                if variable_name == 'mass_energy_component_out_streams':
-                                    if stream == component_object.get_main_output():
-                                        self.conversed_stream[stream] = (self.conversed_stream[stream]
+                                if variable_name == 'mass_energy_component_out_commodities':
+                                    if commodity == component_object.get_main_output():
+                                        self.conversed_commodity[commodity] = (self.conversed_commodity[commodity]
                                                                          + sum(list_values[t] * self.model.weightings[t]
                                                                                * ratio for t in self.model.TIME))
-                                        self.conversed_stream_per_component[c][stream] = sum(list_values[t]
+                                        self.conversed_commodity_per_component[c][commodity] = sum(list_values[t]
                                                                                              * self.model.weightings[t]
                                                                                              * ratio
                                                                                              for t in self.model.TIME)
                                     else:
-                                        self.conversed_stream[stream] = self.conversed_stream[stream] + 0
-                                        self.conversed_stream_per_component[c][stream] = 0
+                                        self.conversed_commodity[commodity] = self.conversed_commodity[commodity] + 0
+                                        self.conversed_commodity_per_component[c][commodity] = 0
 
                                 if variable_name == 'mass_energy_hot_standby_demand':
-                                    if stream in [*component_object.get_hot_standby_demand().keys()]:
-                                        self.hot_standby_demand[c][stream] = sum(list_values[t]
+                                    if commodity in [*component_object.get_hot_standby_demand().keys()]:
+                                        self.hot_standby_demand[c][commodity] = sum(list_values[t]
                                                                                  * self.model.weightings[t] * ratio
                                                                                  for t in self.model.TIME)
 
                                 if variable_name == 'mass_energy_generation':
-                                    if stream in self.model.GENERATED_STREAMS:
-                                        self.generated_stream[c] = sum(list_values[t] * self.model.weightings[t] * ratio
+                                    if commodity in self.model.GENERATED_STREAMS:
+                                        self.generated_commodity[c] = sum(list_values[t] * self.model.weightings[t] * ratio
                                                                        for t in self.model.TIME)
 
     def create_assumptions_file(self):
@@ -306,8 +300,9 @@ class Result:
         overhead = []
         working_capital = []
         lifetime = []
+        start_up_costs = []
 
-        for c in self.pm_object.get_specific_components('final'):
+        for c in self.pm_object.get_final_components_objects():
 
             if self.all_variables_dict['investment'][c.get_name()] == 0:
                 continue
@@ -341,22 +336,27 @@ class Result:
                 if capex_basis == 'input':
                     capex.append(self.all_variables_dict['investment'][c.get_name()] /
                                  self.all_variables_dict['nominal_cap'][c.get_name()])
-                    stream_name = self.pm_object.get_stream(main_input).get_nice_name()
-                    unit = self.pm_object.get_stream(main_input).get_unit()
+                    commodity_name = self.pm_object.get_commodity(main_input).get_nice_name()
+                    unit = self.pm_object.get_commodity(main_input).get_unit()
                 else:
                     capex.append(self.all_variables_dict['investment'][c.get_name()] / (
                             self.all_variables_dict['nominal_cap'][c.get_name()] * coefficient))
-                    stream_name = self.pm_object.get_stream(main_output).get_nice_name()
-                    unit = self.pm_object.get_stream(main_output).get_unit()
+                    commodity_name = self.pm_object.get_commodity(main_output).get_nice_name()
+                    unit = self.pm_object.get_commodity(main_output).get_unit()
 
                 if unit == 'MWh':
-                    text_capex_unit = '€ / MW ' + stream_name
+                    text_capex_unit = self.monetary_unit + ' / MW ' + commodity_name
                 elif unit == 'kWh':
-                    text_capex_unit = '€ / kW ' + stream_name
+                    text_capex_unit = self.monetary_unit + ' / kW ' + commodity_name
                 else:
-                    text_capex_unit = '€ / ' + unit + ' ' + stream_name + ' * h'
+                    text_capex_unit = self.monetary_unit + ' / ' + unit + ' ' + commodity_name + ' * h'
 
                 capex_unit.append(text_capex_unit)
+
+                if c.get_shut_down_ability():
+                    start_up_costs.append(c.get_start_up_costs())
+                else:
+                    start_up_costs.append(0)
 
             elif c.component_type == 'storage':
 
@@ -365,9 +365,11 @@ class Result:
                 scaling_factor.append('')
 
                 capex.append(c.get_capex())
-                stream_name = self.pm_object.get_stream(c.get_name()).get_nice_name()
-                unit = self.pm_object.get_stream(c.get_name()).get_unit()
-                capex_unit.append('€ / ' + unit + ' ' + stream_name)
+                commodity_name = self.pm_object.get_commodity(c.get_name()).get_nice_name()
+                unit = self.pm_object.get_commodity(c.get_name()).get_unit()
+                capex_unit.append(self.monetary_unit + ' / ' + unit + ' ' + commodity_name)
+
+                start_up_costs.append(0)
 
             else:
                 base_investment.append('')
@@ -375,17 +377,19 @@ class Result:
                 scaling_factor.append('')
 
                 capex.append(c.get_capex())
-                unit = self.pm_object.get_stream(c.get_generated_stream()).get_unit()
-                generated_stream = self.pm_object.get_stream(c.get_generated_stream()).get_nice_name()
+                unit = self.pm_object.get_commodity(c.get_generated_commodity()).get_unit()
+                generated_commodity = self.pm_object.get_commodity(c.get_generated_commodity()).get_nice_name()
 
                 if unit == 'MWh':
-                    text_capex_unit = '€ / MW ' + generated_stream
+                    text_capex_unit = self.monetary_unit + ' / MW ' + generated_commodity
                 elif unit == 'kWh':
-                    text_capex_unit = '€ / kW ' + generated_stream
+                    text_capex_unit = self.monetary_unit + ' / kW ' + generated_commodity
                 else:
-                    text_capex_unit = '€ / ' + unit + ' ' + generated_stream + ' * h'
+                    text_capex_unit = self.monetary_unit + ' / ' + unit + ' ' + generated_commodity + ' * h'
 
                 capex_unit.append(text_capex_unit)
+
+                start_up_costs.append(0)
 
             maintenance.append(c.get_maintenance())
 
@@ -421,23 +425,24 @@ class Result:
         assumptions_df['Overhead'] = overhead
         assumptions_df['Working Capital'] = working_capital
         assumptions_df['Lifetime'] = lifetime
+        assumptions_df['Start-Up Costs'] = start_up_costs
 
         assumptions_df.to_excel(self.new_result_folder + '/0_assumptions.xlsx')
 
     def create_and_print_vector(self, plots=False):
 
-        """ Uses the created dataframes to plot the stream vectors over time """
+        """ Uses the created dataframes to plot the commodity vectors over time """
 
-        variable_nice_names = {'mass_energy_purchase_stream': 'Purchase',
+        variable_nice_names = {'mass_energy_purchase_commodity': 'Purchase',
                                'mass_energy_available': 'Freely Available',
-                               'mass_energy_component_in_streams': 'Input',
-                               'mass_energy_component_out_streams': 'Output',
+                               'mass_energy_component_in_commodities': 'Input',
+                               'mass_energy_component_out_commodities': 'Output',
                                'mass_energy_generation': 'Generation',
                                'mass_energy_total_generation': 'Total Generation',
-                               'mass_energy_storage_in_streams': 'Charging',
-                               'mass_energy_storage_out_streams': 'Discharging',
+                               'mass_energy_storage_in_commodities': 'Charging',
+                               'mass_energy_storage_out_commodities': 'Discharging',
                                'soc': 'State of Charge',
-                               'mass_energy_sell_stream': 'Selling',
+                               'mass_energy_sell_commodity': 'Selling',
                                'mass_energy_emitted': 'Emitting',
                                'mass_energy_demand': 'Demand',
                                'mass_energy_hot_standby_demand': 'Hot Standby Demand'}
@@ -445,25 +450,25 @@ class Result:
         time_depending_variables = {}
 
         # Two index vectors
-        all_streams = []
-        for stream in self.pm_object.get_specific_streams('final'):
-            all_streams.append(stream.get_name())
+        all_commodities = []
+        for commodity in self.pm_object.get_final_commodities_objects():
+            all_commodities.append(commodity.get_name())
 
         for variable_name in [*self.all_variables_dict]:
 
             if variable_name in self.variable_two_index:
 
-                for stream in [*self.all_variables_dict[variable_name]]:
+                for commodity in [*self.all_variables_dict[variable_name]]:
 
-                    if stream not in all_streams:
+                    if commodity not in all_commodities:
                         continue
 
                     if (variable_name == 'storage_charge_binary') | (variable_name == 'storage_discharge_binary'):
-                        if self.all_variables_dict['nominal_cap'][stream] == 0:
+                        if self.all_variables_dict['nominal_cap'][commodity] == 0:
                             continue
 
-                    list_values = self.all_variables_dict[variable_name][stream]
-                    unit = self.pm_object.get_stream(stream).get_unit()
+                    list_values = self.all_variables_dict[variable_name][commodity]
+                    unit = self.pm_object.get_commodity(commodity).get_unit()
                     if unit == 'MWh':
                         unit = 'MW'
                     elif unit == 'kWh':
@@ -483,15 +488,15 @@ class Result:
                             plt.xlabel('Hours')
                             plt.ylabel(unit)
                             plt.title(variable_nice_names[variable_name] + ' '
-                                      + self.pm_object.get_nice_name(stream))
+                                      + self.pm_object.get_nice_name(commodity))
 
                             plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
-                                        + self.pm_object.get_nice_name(stream) + '.png')
+                                        + self.pm_object.get_nice_name(commodity) + '.png')
                             plt.close()
 
                         if variable_name in [*variable_nice_names.keys()]:
                             time_depending_variables[(variable_nice_names[variable_name], '',
-                                                      self.pm_object.get_nice_name(stream))] = list_values
+                                                      self.pm_object.get_nice_name(commodity))] = list_values
 
             elif variable_name in self.variable_three_index:
 
@@ -500,13 +505,13 @@ class Result:
                     if self.all_variables_dict['nominal_cap'][c] == 0:
                         continue
 
-                    for stream in [*self.all_variables_dict[variable_name][c]]:
+                    for commodity in [*self.all_variables_dict[variable_name][c]]:
 
-                        if stream not in all_streams:
+                        if commodity not in all_commodities:
                             continue
 
-                        list_values = self.all_variables_dict[variable_name][c][stream]
-                        unit = self.pm_object.get_stream(stream).get_unit()
+                        list_values = self.all_variables_dict[variable_name][c][commodity]
+                        unit = self.pm_object.get_commodity(commodity).get_unit()
                         if unit == 'MWh':
                             unit = 'MW'
                         elif unit == 'kWh':
@@ -526,25 +531,25 @@ class Result:
                                 plt.xlabel('Hours')
                                 plt.ylabel(unit)
                                 plt.title(variable_nice_names[variable_name] + ' '
-                                          + self.pm_object.get_nice_name(stream) + ' '
+                                          + self.pm_object.get_nice_name(commodity) + ' '
                                           + self.pm_object.get_nice_name(c))
 
                                 plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
-                                            + self.pm_object.get_nice_name(stream) + ' '
+                                            + self.pm_object.get_nice_name(commodity) + ' '
                                             + self.pm_object.get_nice_name(c) + '.png')
                                 plt.close()
 
                             if variable_name in [*variable_nice_names.keys()]:
                                 time_depending_variables[(variable_nice_names[variable_name],
                                                           self.pm_object.get_nice_name(c),
-                                                          self.pm_object.get_nice_name(stream))] = list_values
+                                                          self.pm_object.get_nice_name(commodity))] = list_values
 
-        ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component', 'Stream'))
+        ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component', 'Commodity'))
         self.time_depending_variables_df = pd.DataFrame(index=ind)
         self.time_depending_variables_df = self.time_depending_variables_df.sort_index()
 
         for key in [*time_depending_variables.keys()]:
-            unit = self.pm_object.get_stream(self.pm_object.get_abbreviation(key[2])).get_unit()
+            unit = self.pm_object.get_commodity(self.pm_object.get_abbreviation(key[2])).get_unit()
             if unit == 'MWh':
                 unit = 'MW'
             elif unit == 'kWh':
@@ -567,74 +572,91 @@ class Result:
             if index:
                 index_order += self.time_depending_variables_df[self.time_depending_variables_df.index.get_level_values(0) == o].index.tolist()
 
-        self.time_depending_variables_df = self.time_depending_variables_df.reindex(index_order)
-        self.time_depending_variables_df.to_excel(self.new_result_folder + '/5_time_series_streams.xlsx')
+        self.time_depending_variables_df = self.time_depending_variables_df.reindex(index_order).round(3)
+        self.time_depending_variables_df.to_excel(self.new_result_folder + '/5_time_series_commodities.xlsx')
 
-    def analyze_streams(self):
+    def analyze_commodities(self):
 
-        # Calculate total stream availability
-        for stream in self.model.ME_STREAMS:
+        # Calculate total commodity availability
+        for commodity in self.model.ME_STREAMS:
             is_input = False
             for input_tuples in self.optimization_problem.input_tuples:
-                if input_tuples[1] == stream:
+                if input_tuples[1] == commodity:
                     is_input = True
 
-            if is_input:
-                self.total_availability[stream] = (self.purchased_stream[stream] + self.total_generated_stream[stream]
-                                                   + self.conversed_stream[stream] - self.emitted_stream[stream]
-                                                   - self.sold_stream[stream])
-            else:
-                self.total_availability[stream] = self.conversed_stream[stream]
+            difference = 0
+            if commodity in self.model.STORAGES:
+                # Due to charging and discharging efficiency, some mass or energy gets 'lost'. This has to be considered
+                total_in = sum(self.all_variables_dict['mass_energy_storage_in_commodities'][commodity][t]
+                               * self.model.weightings[t] for t in self.model.TIME)
+                total_out = sum(self.all_variables_dict['mass_energy_storage_out_commodities'][commodity][t]
+                                * self.model.weightings[t] for t in self.model.TIME)
+                difference = total_in - total_out
 
-        not_used_streams = []
+            if is_input:
+                self.total_availability[commodity] = (self.purchased_commodity[commodity] + self.total_generated_commodity[commodity]
+                                                   + self.conversed_commodity[commodity] - self.emitted_commodity[commodity]
+                                                   - self.sold_commodity[commodity] - difference)
+            else:
+                self.total_availability[commodity] = self.conversed_commodity[commodity]
+
+        not_used_commodities = []
         for key in [*self.total_availability]:
             if self.total_availability[key] == 0:
-                not_used_streams.append(key)
+                not_used_commodities.append(key)
 
-        # Calculate the total cost of conversion. Important: conversion costs only occur for stream, where
-        # output is main stream (E.g., electrolysis produces hydrogen and oxygen -> oxygen will not have conversion cost
+        # Calculate the total cost of conversion. Important: conversion costs only occur for commodity, where
+        # output is main commodity (E.g., electrolysis produces hydrogen and oxygen -> oxygen will not have conversion cost
 
-        for stream in self.model.ME_STREAMS:
-            self.storage_costs.update({stream: 0})
-            self.storage_costs_per_unit.update({stream: 0})
-            self.generation_costs.update({stream: 0})
-            self.generation_costs_per_unit.update({stream: 0})
-            self.maintenance.update({stream: 0})
+        for commodity in self.model.ME_STREAMS:
+            self.storage_costs.update({commodity: 0})
+            self.storage_costs_per_unit.update({commodity: 0})
+            self.generation_costs.update({commodity: 0})
+            self.generation_costs_per_unit.update({commodity: 0})
+            self.maintenance.update({commodity: 0})
 
-            self.total_conversion_costs.update({stream: 0})
-            self.total_generation_costs.update({stream: 0})
+            self.total_conversion_costs.update({commodity: 0})
+            self.total_generation_costs.update({commodity: 0})
 
-        # Get fix costs for each stream
-        for component in self.pm_object.get_specific_components('final', 'conversion'):
+        # Get fix costs for each commodity
+        for component in self.pm_object.get_final_conversion_components_objects():
             c = component.get_name()
-            out_stream = component.get_main_output()
-            self.total_conversion_costs[out_stream] = (self.total_conversion_costs[out_stream]
+
+            if component.get_shut_down_ability():
+                start_up_costs = self.all_variables_dict['total_start_up_costs_component'][c]
+            else:
+                start_up_costs = 0
+
+            out_commodity = component.get_main_output()
+            self.total_conversion_costs[out_commodity] = (self.total_conversion_costs[out_commodity]
                                                        + self.all_variables_dict['annuity'][c]
                                                        + self.all_variables_dict['maintenance_costs'][c]
                                                        + self.all_variables_dict['taxes_and_insurance_costs'][c]
                                                        + self.all_variables_dict['personnel_costs'][c]
                                                        + self.all_variables_dict['overhead_costs'][c]
-                                                       + self.all_variables_dict['working_capital_costs'][c])
+                                                       + self.all_variables_dict['working_capital_costs'][c]
+                                                       + start_up_costs)
             self.conversion_component_costs[c] = (self.all_variables_dict['annuity'][c]
                                                   + self.all_variables_dict['maintenance_costs'][c]
                                                   + self.all_variables_dict['taxes_and_insurance_costs'][c]
                                                   + self.all_variables_dict['personnel_costs'][c]
                                                   + self.all_variables_dict['overhead_costs'][c]
-                                                  + self.all_variables_dict['working_capital_costs'][c])
+                                                  + self.all_variables_dict['working_capital_costs'][c]
+                                                  + start_up_costs)
 
         # Get annuity of storage units
-        for stream in self.model.STORAGES:
-            self.storage_costs[stream] = (self.all_variables_dict['annuity'][stream]
-                                          + self.all_variables_dict['maintenance_costs'][stream]
-                                          + self.all_variables_dict['taxes_and_insurance_costs'][stream]
-                                          + self.all_variables_dict['personnel_costs'][stream]
-                                          + self.all_variables_dict['overhead_costs'][stream]
-                                          + self.all_variables_dict['working_capital_costs'][stream])
+        for commodity in self.model.STORAGES:
+            self.storage_costs[commodity] = (self.all_variables_dict['annuity'][commodity]
+                                          + self.all_variables_dict['maintenance_costs'][commodity]
+                                          + self.all_variables_dict['taxes_and_insurance_costs'][commodity]
+                                          + self.all_variables_dict['personnel_costs'][commodity]
+                                          + self.all_variables_dict['overhead_costs'][commodity]
+                                          + self.all_variables_dict['working_capital_costs'][commodity])
 
         # Get annuity of generation units
         for generator in self.model.GENERATORS:
-            generated_stream = self.pm_object.get_component(generator).get_generated_stream()
-            self.total_generation_costs[generated_stream] = (self.total_generation_costs[generated_stream]
+            generated_commodity = self.pm_object.get_component(generator).get_generated_commodity()
+            self.total_generation_costs[generated_commodity] = (self.total_generation_costs[generated_commodity]
                                                        + self.all_variables_dict['annuity'][generator]
                                                        + self.all_variables_dict['maintenance_costs'][generator]
                                                        + self.all_variables_dict['taxes_and_insurance_costs'][generator]
@@ -648,30 +670,30 @@ class Result:
                                                 + self.all_variables_dict['overhead_costs'][generator]
                                                 + self.all_variables_dict['working_capital_costs'][generator])
 
-        # COST DISTRIBUTION: Distribute the costs to each stream
-        # First: The intrinsic costs of each stream.
+        # COST DISTRIBUTION: Distribute the costs to each commodity
+        # First: The intrinsic costs of each commodity.
         # Intrinsic costs include generation, storage, purchase and selling costs
         intrinsic_costs = {}
         intrinsic_costs_per_available_unit = {}
-        for stream in self.model.ME_STREAMS:
-            intrinsic_costs[stream] = (self.total_generation_costs[stream]
-                                       + self.purchase_costs[stream]
-                                       + self.storage_costs[stream]
-                                       + self.selling_costs[stream])
+        for commodity in self.model.ME_STREAMS:
+            intrinsic_costs[commodity] = (self.total_generation_costs[commodity]
+                                       + self.purchase_costs[commodity]
+                                       + self.storage_costs[commodity]
+                                       + self.selling_costs[commodity])
 
-            # If intrinsic costs exist, distribute them on the total stream available
-            # Available stream = Generated, Purchased, Conversed minus Sold, Emitted
-            if intrinsic_costs[stream] >= 0:
-                if self.total_availability[stream] == 0:
-                    intrinsic_costs_per_available_unit[stream] = 0
+            # If intrinsic costs exist, distribute them on the total commodity available
+            # Available commodity = Generated, Purchased, Conversed minus Sold, Emitted
+            if intrinsic_costs[commodity] >= 0:
+                if self.total_availability[commodity] == 0:
+                    intrinsic_costs_per_available_unit[commodity] = 0
                 else:
-                    intrinsic_costs_per_available_unit[stream] = (intrinsic_costs[stream]
-                                                                  / self.total_availability[stream])
-            elif intrinsic_costs[stream] < 0:
+                    intrinsic_costs_per_available_unit[commodity] = (intrinsic_costs[commodity]
+                                                                  / self.total_availability[commodity])
+            elif intrinsic_costs[commodity] < 0:
                 # If intrinsic costs are negative (due to selling of side products),
-                # the total costs are distributed to the total stream sold
-                intrinsic_costs_per_available_unit[stream] = (-intrinsic_costs[stream]
-                                                              / self.sold_stream[stream])
+                # the total costs are distributed to the total commodity sold
+                intrinsic_costs_per_available_unit[commodity] = (-intrinsic_costs[commodity]
+                                                              / self.sold_commodity[commodity])
 
         if False:
             pd.DataFrame.from_dict(intrinsic_costs, orient='index').to_excel(
@@ -680,11 +702,11 @@ class Result:
                 self.new_result_folder + '/intrinsic_costs_per_available_unit.xlsx')
 
         # Second: Next to intrinsic costs, conversion costs exist.
-        # Each stream, which is the main output of a conversion unit,
+        # Each commodity, which is the main output of a conversion unit,
         # will be matched with the costs this conversion unit produces
         conversion_costs_per_conversed_unit = {}
         total_intrinsic_costs_per_available_unit = {}
-        for component in self.pm_object.get_specific_components('final', 'conversion'):
+        for component in self.pm_object.get_final_conversion_components_objects():
             component_name = component.get_name()
             main_output = component.get_main_output()
 
@@ -694,9 +716,9 @@ class Result:
 
             # Calculate the conversion costs per conversed unit
             conversion_costs_per_conversed_unit[component_name] = (self.conversion_component_costs[component_name]
-                                                              / self.conversed_stream_per_component[component_name][main_output])
+                                                              / self.conversed_commodity_per_component[component_name][main_output])
 
-            # To this conversion costs, the intrinsic costs of the stream are added
+            # To this conversion costs, the intrinsic costs of the commodity are added
             total_intrinsic_costs_per_available_unit[component_name] = (intrinsic_costs_per_available_unit[main_output]
                                                                    + conversion_costs_per_conversed_unit[component_name])
 
@@ -706,9 +728,9 @@ class Result:
             pd.DataFrame.from_dict(total_intrinsic_costs_per_available_unit, orient='index').to_excel(
                 self.new_result_folder + '/total_intrinsic_costs_per_available_unit.xlsx')
 
-        stream_equations_constant = {}
-        columns_index = [*self.pm_object.get_all_streams().keys()]
-        for s in self.pm_object.get_specific_components('final', 'conversion'):
+        commodity_equations_constant = {}
+        columns_index = [*self.pm_object.get_all_commodities().keys()]
+        for s in self.pm_object.get_final_conversion_components_objects():
             component_name = s.get_name()
             if self.all_variables_dict['nominal_cap'][component_name] > 0:
                 columns_index.append(component_name)
@@ -718,14 +740,14 @@ class Result:
 
         main_outputs = []
         main_output_coefficients = {}
-        for component in self.pm_object.get_specific_components('final', 'conversion'):
+        for component in self.pm_object.get_final_conversion_components_objects():
             main_output = component.get_main_output()
             main_outputs.append(main_output)
             main_output_coefficients[component.get_main_output()] = component.get_outputs()[main_output]
 
         all_inputs = []
-        final_stream = None
-        for component in self.pm_object.get_specific_components('final', 'conversion'):
+        final_commodity = None
+        for component in self.pm_object.get_final_conversion_components_objects():
             component_name = component.get_name()
             inputs = component.get_inputs()
             outputs = component.get_outputs()
@@ -734,30 +756,30 @@ class Result:
             if self.all_variables_dict['nominal_cap'][component_name] == 0:
                 continue
 
-            hot_standby_stream = ''
+            hot_standby_commodity = ''
             hot_standby_demand = 0
             if component.get_hot_standby_ability():
-                hot_standby_stream = [*component.get_hot_standby_demand().keys()][0]
-                hot_standby_demand = (self.hot_standby_demand[component_name][hot_standby_stream]
-                                      / self.conversed_stream_per_component[component_name][main_output])
+                hot_standby_commodity = [*component.get_hot_standby_demand().keys()][0]
+                hot_standby_demand = (self.hot_standby_demand[component_name][hot_standby_commodity]
+                                      / self.conversed_commodity_per_component[component_name][main_output])
 
             # First of all, associate inputs to components
             # If hot standby possible: input + hot standby demand -> hot standby demand prt conversed unit
-            # If same stream in input and output: input - output
+            # If same commodity in input and output: input - output
             # If neither: just input
-            for i in [*inputs.keys()]:  # stream in input
-                if i not in [*outputs.keys()]:  # stream not in output
+            for i in [*inputs.keys()]:  # commodity in input
+                if i not in [*outputs.keys()]:  # commodity not in output
                     if component.get_hot_standby_ability():  # component has hot standby ability
-                        if i != hot_standby_stream:
+                        if i != hot_standby_commodity:
                             coefficients_df.loc[i, component_name] = inputs[i]
                         else:
                             coefficients_df.loc[i, component_name] = inputs[i] + hot_standby_demand
                     else:  # component has no hot standby ability
                         coefficients_df.loc[i, component_name] = inputs[i]
-                else:  # stream in output
+                else:  # commodity in output
                     if (i in main_outputs) | (intrinsic_costs_per_available_unit[i] != 0):
                         if component.get_hot_standby_ability():    # component has hot standby ability
-                            if i != hot_standby_stream:  # hot standby stream is not stream
+                            if i != hot_standby_commodity:  # hot standby commodity is not commodity
                                 coefficients_df.loc[i, component_name] = inputs[i] - outputs[i]
                             else:
                                 coefficients_df.loc[i, component_name] = inputs[i] + hot_standby_demand - outputs[i]
@@ -772,16 +794,16 @@ class Result:
                     if intrinsic_costs_per_available_unit[o] != 0:
                         coefficients_df.loc[o, component_name] = -outputs[o]
 
-                if self.pm_object.get_stream(o).is_demanded():
-                    final_stream = o
+                if self.pm_object.get_commodity(o).is_demanded():
+                    final_commodity = o
 
             coefficients_df.loc[component_name, component_name] = -1
 
-        # Matching of costs, which do not influence demanded stream directly (via inputs)
-        # Costs of side streams with no demand (e.g., flares to burn excess gases)
-        # will be added to final stream
-        for component in self.pm_object.get_specific_components('final', 'conversion'):
-            main_output = self.pm_object.get_stream(component.get_main_output())
+        # Matching of costs, which do not influence demanded commodity directly (via inputs)
+        # Costs of side commodities with no demand (e.g., flares to burn excess gases)
+        # will be added to final commodity
+        for component in self.pm_object.get_final_conversion_components_objects():
+            main_output = self.pm_object.get_commodity(component.get_main_output())
             main_output_name = main_output.get_name()
 
             component_name = component.get_name()
@@ -790,30 +812,30 @@ class Result:
 
             if main_output_name not in all_inputs:  # Check if main output is input of other conversion
                 if not main_output.is_demanded():  # Check if main output is demanded
-                    coefficients_df.loc[component.get_name(), final_stream] = 1
+                    coefficients_df.loc[component.get_name(), final_commodity] = 1
 
-        # Each stream, if main output, has its intrinsic costs and the costs of the conversion component
-        for stream in self.model.ME_STREAMS:
-            for component in self.pm_object.get_specific_components('final', 'conversion'):
+        # Each commodity, if main output, has its intrinsic costs and the costs of the conversion component
+        for commodity in self.model.ME_STREAMS:
+            for component in self.pm_object.get_final_conversion_components_objects():
                 component_name = component.get_name()
 
                 if self.all_variables_dict['nominal_cap'][component_name] == 0:
-                    if stream in main_outputs:
-                        coefficients_df.loc[stream, stream] = -1
+                    if commodity in main_outputs:
+                        coefficients_df.loc[commodity, commodity] = -1
                     continue
 
                 main_output = component.get_main_output()
                 outputs = component.get_outputs()
-                if stream == main_output:
+                if commodity == main_output:
                     # ratio is when several components have same output
-                    ratio = (self.conversed_stream_per_component[component_name][stream]
-                             / self.conversed_stream[stream])
-                    coefficients_df.loc[component_name, stream] = 1 / outputs[stream] * ratio
+                    ratio = (self.conversed_commodity_per_component[component_name][commodity]
+                             / self.conversed_commodity[commodity])
+                    coefficients_df.loc[component_name, commodity] = 1 / outputs[commodity] * ratio
 
-                    coefficients_df.loc[stream, stream] = -1
+                    coefficients_df.loc[commodity, commodity] = -1
 
-            if stream not in main_outputs:
-                coefficients_df.loc[stream, stream] = -1
+            if commodity not in main_outputs:
+                coefficients_df.loc[commodity, commodity] = -1
 
         if False:
             coefficients_df.to_excel(self.new_result_folder + '/equations.xlsx')
@@ -825,119 +847,119 @@ class Result:
             if column in self.model.ME_STREAMS:
                 if column in [main_output_coefficients.keys()]:
                     if False:
-                        stream_equations_constant.update({column: (-intrinsic_costs_per_available_unit[column]
+                        commodity_equations_constant.update({column: (-intrinsic_costs_per_available_unit[column]
                                                                    * main_output_coefficients[column])})
                     else:
-                        stream_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
+                        commodity_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
                 else:
-                    stream_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
+                    commodity_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
             else:
                 if self.all_variables_dict['nominal_cap'][column] == 0:
                     continue
 
                 component = self.pm_object.get_component(column)
                 main_output = component.get_main_output()
-                stream_equations_constant.update({column: (-conversion_costs_per_conversed_unit[column]
+                commodity_equations_constant.update({column: (-conversion_costs_per_conversed_unit[column]
                                                            * main_output_coefficients[main_output])})
 
         if False:
-            pd.DataFrame.from_dict(stream_equations_constant, orient='index').to_excel(
-                self.new_result_folder + '/stream_equations_constant.xlsx')
+            pd.DataFrame.from_dict(commodity_equations_constant, orient='index').to_excel(
+                self.new_result_folder + '/commodity_equations_constant.xlsx')
 
         values_equations = coefficients_dict.values()
         A = np.array(list(values_equations))
-        values_constant = stream_equations_constant.values()
+        values_constant = commodity_equations_constant.values()
         B = np.array(list(values_constant))
         X = np.linalg.solve(A, B)
 
         for i, c in enumerate(columns_index):
-            self.production_cost_stream_per_unit.update({c: X[i]})
+            self.production_cost_commodity_per_unit.update({c: X[i]})
 
-        streams_and_costs = pd.DataFrame()
+        commodities_and_costs = pd.DataFrame()
         dataframe_dict = {}
 
         for column in columns_index:
 
             if column in self.model.ME_STREAMS:
-                stream = column
-                stream_object = self.pm_object.get_stream(stream)
-                nice_name = stream_object.get_nice_name()
-                streams_and_costs.loc[nice_name, 'unit'] = stream_object.get_unit()
-                streams_and_costs.loc[nice_name, 'MWh per unit'] = stream_object.get_energy_content()
+                commodity = column
+                commodity_object = self.pm_object.get_commodity(commodity)
+                nice_name = commodity_object.get_nice_name()
+                commodities_and_costs.loc[nice_name, 'unit'] = commodity_object.get_unit()
+                commodities_and_costs.loc[nice_name, 'MWh per unit'] = commodity_object.get_energy_content()
 
-                streams_and_costs.loc[nice_name, 'Available Stream'] = self.available_stream[stream]
-                streams_and_costs.loc[nice_name, 'Emitted Stream'] = self.emitted_stream[stream]
-                streams_and_costs.loc[nice_name, 'Purchased Stream'] = self.purchased_stream[stream]
-                streams_and_costs.loc[nice_name, 'Sold Stream'] = self.sold_stream[stream]
-                streams_and_costs.loc[nice_name, 'Generated Stream'] = self.total_generated_stream[stream]
-                streams_and_costs.loc[nice_name, 'Stored Stream'] = self.stored_stream[stream]
-                streams_and_costs.loc[nice_name, 'Conversed Stream'] = self.conversed_stream[stream]
-                streams_and_costs.loc[nice_name, 'Total Stream'] = self.total_availability[stream]
+                commodities_and_costs.loc[nice_name, 'Available Commodity'] = self.available_commodity[commodity]
+                commodities_and_costs.loc[nice_name, 'Emitted Commodity'] = self.emitted_commodity[commodity]
+                commodities_and_costs.loc[nice_name, 'Purchased Commodity'] = self.purchased_commodity[commodity]
+                commodities_and_costs.loc[nice_name, 'Sold Commodity'] = self.sold_commodity[commodity]
+                commodities_and_costs.loc[nice_name, 'Generated Commodity'] = self.total_generated_commodity[commodity]
+                commodities_and_costs.loc[nice_name, 'Stored Commodity'] = self.stored_commodity[commodity]
+                commodities_and_costs.loc[nice_name, 'Conversed Commodity'] = self.conversed_commodity[commodity]
+                commodities_and_costs.loc[nice_name, 'Total Commodity'] = self.total_availability[commodity]
 
-                streams_and_costs.loc[nice_name, 'Total Purchase Costs'] = self.purchase_costs[stream]
-                if self.purchased_stream[stream] > 0:
-                    purchase_costs = self.purchase_costs[stream] / self.purchased_stream[stream]
-                    streams_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = purchase_costs
+                commodities_and_costs.loc[nice_name, 'Total Purchase Costs'] = self.purchase_costs[commodity]
+                if self.purchased_commodity[commodity] > 0:
+                    purchase_costs = self.purchase_costs[commodity] / self.purchased_commodity[commodity]
+                    commodities_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = purchase_costs
                 else:
-                    streams_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = 0
+                    commodities_and_costs.loc[nice_name, 'Average Purchase Costs per purchased Unit'] = 0
 
-                streams_and_costs.loc[nice_name, 'Total Selling Revenue/Disposal Costs'] = self.selling_costs[stream]
-                if self.sold_stream[stream] > 0:
-                    revenue = self.selling_costs[stream] / self.sold_stream[stream]
-                    streams_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit']\
+                commodities_and_costs.loc[nice_name, 'Total Selling Revenue/Disposal Costs'] = self.selling_costs[commodity]
+                if self.sold_commodity[commodity] > 0:
+                    revenue = self.selling_costs[commodity] / self.sold_commodity[commodity]
+                    commodities_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit']\
                         = revenue
                 else:
-                    streams_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit']\
+                    commodities_and_costs.loc[nice_name, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit']\
                         = 0
 
-                self.total_variable_costs[stream] = self.purchase_costs[stream] + self.selling_costs[stream]
-                streams_and_costs.loc[nice_name, 'Total Variable Costs'] = self.total_variable_costs[stream]
+                self.total_variable_costs[commodity] = self.purchase_costs[commodity] + self.selling_costs[commodity]
+                commodities_and_costs.loc[nice_name, 'Total Variable Costs'] = self.total_variable_costs[commodity]
 
-                streams_and_costs.loc[nice_name, 'Total Generation Fix Costs'] = self.total_generation_costs[stream]
-                if self.total_generated_stream[stream] > 0:
-                    streams_and_costs.loc[nice_name, 'Costs per used unit'] \
-                        = self.total_generation_costs[stream] / (self.total_generated_stream[stream]
-                                                                 - self.emitted_stream[stream])
+                commodities_and_costs.loc[nice_name, 'Total Generation Fix Costs'] = self.total_generation_costs[commodity]
+                if self.total_generated_commodity[commodity] > 0:
+                    commodities_and_costs.loc[nice_name, 'Costs per used unit'] \
+                        = self.total_generation_costs[commodity] / (self.total_generated_commodity[commodity]
+                                                                 - self.emitted_commodity[commodity])
                 else:
-                    streams_and_costs.loc[nice_name, 'Costs per used unit'] = 0
+                    commodities_and_costs.loc[nice_name, 'Costs per used unit'] = 0
 
-                streams_and_costs.loc[nice_name, 'Total Storage Fix Costs'] = self.storage_costs[stream]
-                if self.stored_stream[stream] > 0:
-                    stored_costs = self.storage_costs[stream] / self.stored_stream[stream]
-                    streams_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = stored_costs
+                commodities_and_costs.loc[nice_name, 'Total Storage Fix Costs'] = self.storage_costs[commodity]
+                if self.stored_commodity[commodity] > 0:
+                    stored_costs = self.storage_costs[commodity] / self.stored_commodity[commodity]
+                    commodities_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = stored_costs
                 else:
-                    streams_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = 0
+                    commodities_and_costs.loc[nice_name, 'Total Storage Fix Costs per stored Unit'] = 0
 
-                streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs'] = self.total_conversion_costs[stream]
-                if self.conversed_stream[stream] > 0:
-                    conversion_costs = self.total_conversion_costs[stream] / self.conversed_stream[stream]
-                    streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = conversion_costs
+                commodities_and_costs.loc[nice_name, 'Total Conversion Fix Costs'] = self.total_conversion_costs[commodity]
+                if self.conversed_commodity[commodity] > 0:
+                    conversion_costs = self.total_conversion_costs[commodity] / self.conversed_commodity[commodity]
+                    commodities_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = conversion_costs
                 else:
-                    streams_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = 0
+                    commodities_and_costs.loc[nice_name, 'Total Conversion Fix Costs per conversed Unit'] = 0
 
-                self.total_fix_costs[stream] \
-                    = (self.total_conversion_costs[stream] + self.storage_costs[stream]
-                       + self.total_generation_costs[stream])
-                streams_and_costs.loc[nice_name, 'Total Fix Costs'] = self.total_fix_costs[stream]
+                self.total_fix_costs[commodity] \
+                    = (self.total_conversion_costs[commodity] + self.storage_costs[commodity]
+                       + self.total_generation_costs[commodity])
+                commodities_and_costs.loc[nice_name, 'Total Fix Costs'] = self.total_fix_costs[commodity]
 
-                self.total_costs[stream] = self.total_variable_costs[stream] + self.total_fix_costs[stream]
-                streams_and_costs.loc[nice_name, 'Total Costs'] = self.total_costs[stream]
+                self.total_costs[commodity] = self.total_variable_costs[commodity] + self.total_fix_costs[commodity]
+                commodities_and_costs.loc[nice_name, 'Total Costs'] = self.total_costs[commodity]
 
-                if self.total_availability[stream] > 0:
-                    streams_and_costs.loc[nice_name, 'Total Costs per Unit'] \
-                        = self.total_costs[stream] / self.total_availability[stream]
+                if self.total_availability[commodity] > 0:
+                    commodities_and_costs.loc[nice_name, 'Total Costs per Unit'] \
+                        = self.total_costs[commodity] / self.total_availability[commodity]
                 else:
-                    streams_and_costs.loc[nice_name, 'Total Costs per Unit'] = 0
+                    commodities_and_costs.loc[nice_name, 'Total Costs per Unit'] = 0
 
-                if intrinsic_costs[stream] >= 0:
-                    streams_and_costs.loc[nice_name, 'Production Costs per Unit'] \
-                        = self.production_cost_stream_per_unit[stream]
+                if intrinsic_costs[commodity] >= 0:
+                    commodities_and_costs.loc[nice_name, 'Production Costs per Unit'] \
+                        = self.production_cost_commodity_per_unit[commodity]
                 else:
-                    streams_and_costs.loc[nice_name, 'Production Costs per Unit'] \
-                        = -self.production_cost_stream_per_unit[stream]
+                    commodities_and_costs.loc[nice_name, 'Production Costs per Unit'] \
+                        = -self.production_cost_commodity_per_unit[commodity]
 
-                streams_and_costs.to_excel(self.new_result_folder + '/4_streams.xlsx')
-                self.streams_and_costs = streams_and_costs
+                commodities_and_costs.to_excel(self.new_result_folder + '/4_commodities.xlsx')
+                self.commodities_and_costs = commodities_and_costs
 
             else:
                 component_name = column
@@ -947,8 +969,8 @@ class Result:
                 main_output = component.get_main_output()
                 main_output_nice_name = self.pm_object.get_nice_name(component.get_main_output())
 
-                stream_object = self.pm_object.get_stream(main_output)
-                unit = stream_object.get_unit()
+                commodity_object = self.pm_object.get_commodity(main_output)
+                unit = commodity_object.get_unit()
 
                 index = component_nice_name + ' [' + unit + ' ' + main_output_nice_name + ']'
 
@@ -974,8 +996,8 @@ class Result:
                     input_nice_name = self.pm_object.get_nice_name(i)
 
                     in_coeff = round(inputs[i] / main_output_coefficient, 3)
-                    prod_costs = round(self.production_cost_stream_per_unit[i], 3)
-                    input_costs = round(self.production_cost_stream_per_unit[i] * inputs[i]
+                    prod_costs = round(self.production_cost_commodity_per_unit[i], 3)
+                    input_costs = round(self.production_cost_commodity_per_unit[i] * inputs[i]
                                         / main_output_coefficient, 3)
 
                     input_nice_name += ' (Input)'
@@ -987,22 +1009,22 @@ class Result:
                     total_costs += input_costs
 
                     if i in [*outputs.keys()]:
-                        # Handle output earlier s.t. its close to input of same stream in excel file
+                        # Handle output earlier s.t. its close to input of same commodity in excel file
                         output_nice_name = self.pm_object.get_nice_name(i)
                         out_coeff = round(outputs[i] / main_output_coefficient, 3)
 
                         # Three cases occur
-                        # 1: The output stream has a positive intrinsic value because it can be used again -> negative
+                        # 1: The output commodity has a positive intrinsic value because it can be used again -> negative
                         # 2: The output can be sold with revenue -> negative
-                        # 3: The output produces costs because the stream needs to be disposed, for example -> positive
+                        # 3: The output produces costs because the commodity needs to be disposed, for example -> positive
 
                         if self.selling_costs[i] > 0:  # Case 3
-                            prod_costs = round(self.production_cost_stream_per_unit[i], 3)
-                            output_costs = round(self.production_cost_stream_per_unit[i] * outputs[i]
+                            prod_costs = round(self.production_cost_commodity_per_unit[i], 3)
+                            output_costs = round(self.production_cost_commodity_per_unit[i] * outputs[i]
                                                 / main_output_coefficient, 3)
                         else:  # Case 1 & 2
-                            prod_costs = - round(self.production_cost_stream_per_unit[i], 3)
-                            output_costs = - round(self.production_cost_stream_per_unit[i] * outputs[i]
+                            prod_costs = - round(self.production_cost_commodity_per_unit[i], 3)
+                            output_costs = - round(self.production_cost_commodity_per_unit[i] * outputs[i]
                                                 / main_output_coefficient, 3)
 
                         output_nice_name += ' (Output)'
@@ -1025,17 +1047,17 @@ class Result:
                         out_coeff = round(outputs[o] / main_output_coefficient, 3)
 
                         # Three cases occur
-                        # 1: The output stream has a positive intrinsic value because it can be used again -> negative
+                        # 1: The output commodity has a positive intrinsic value because it can be used again -> negative
                         # 2: The output can be sold with revenue -> negative
-                        # 3: The output produces costs because the stream needs to be disposed, for example -> positive
+                        # 3: The output produces costs because the commodity needs to be disposed, for example -> positive
 
                         if self.selling_costs[o] > 0:  # Case 3: Disposal costs exist
-                            prod_costs = round(self.production_cost_stream_per_unit[o], 3)
-                            output_costs = round(self.production_cost_stream_per_unit[o] * outputs[o]
+                            prod_costs = round(self.production_cost_commodity_per_unit[o], 3)
+                            output_costs = round(self.production_cost_commodity_per_unit[o] * outputs[o]
                                                 / main_output_coefficient, 3)
                         else:  # Case 1 & 2
-                            prod_costs = - round(self.production_cost_stream_per_unit[o], 3)
-                            output_costs = - round(self.production_cost_stream_per_unit[o] * outputs[o]
+                            prod_costs = - round(self.production_cost_commodity_per_unit[o], 3)
+                            output_costs = - round(self.production_cost_commodity_per_unit[o] * outputs[o]
                                                   / main_output_coefficient, 3)
 
                         output_nice_name += ' (Output)'
@@ -1046,30 +1068,30 @@ class Result:
 
                         total_costs += output_costs
 
-                # Further costs, which are not yet in stream, need to be associated
+                # Further costs, which are not yet in commodity, need to be associated
                 # In case that several components have same main output, costs are matched regarding share of production
-                ratio = (self.conversed_stream_per_component[component_name][main_output]
-                         / self.conversed_stream[main_output])
+                ratio = (self.conversed_commodity_per_component[component_name][main_output]
+                         / self.conversed_commodity[main_output])
 
                 if main_output in self.model.STORAGES:
                     column_name = 'Storage Costs'
                     components_and_costs.loc[(index, 'Coefficient'), column_name] = ratio
-                    prod_costs = (self.storage_costs[main_output] / self.conversed_stream[main_output])
+                    prod_costs = (self.storage_costs[main_output] / self.conversed_commodity[main_output])
                     components_and_costs.loc[(index, 'Cost per Unit'), column_name] = prod_costs
                     components_and_costs.loc[(index, 'Total Costs'), column_name] = prod_costs * ratio
 
                     total_costs += prod_costs * ratio
 
-                if stream_object.is_demanded():
-                    for stream in self.model.ME_STREAMS:
-                        if (stream not in all_inputs) & (stream in main_outputs) & (stream != main_output):
-                            stream_nice_name = self.pm_object.get_nice_name(stream)
+                if commodity_object.is_demanded():
+                    for commodity in self.model.ME_STREAMS:
+                        if (commodity not in all_inputs) & (commodity in main_outputs) & (commodity != main_output):
+                            commodity_nice_name = self.pm_object.get_nice_name(commodity)
 
-                            column_name = stream_nice_name + ' (Associated Costs)'
+                            column_name = commodity_nice_name + ' (Associated Costs)'
                             components_and_costs.loc[(index, 'Coefficient'), column_name] = ratio
-                            prod_costs = (self.production_cost_stream_per_unit[stream]
-                                          * self.conversed_stream[stream]
-                                          / self.conversed_stream[main_output])
+                            prod_costs = (self.production_cost_commodity_per_unit[commodity]
+                                          * self.conversed_commodity[commodity]
+                                          / self.conversed_commodity[main_output])
                             components_and_costs.loc[(index, 'Cost per Unit'), column_name] = prod_costs
                             components_and_costs.loc[(index, 'Total Costs'), column_name] = prod_costs * ratio
 
@@ -1093,9 +1115,9 @@ class Result:
     def analyze_components(self):
 
         columns = ['Capacity [input]', 'Capacity Unit [input]', 'Investment [per input]',
-                   'Capacity [output]', 'Capacity Unit [output]', 'Investment [per output]',
+                   'Capacity [output]', 'Capacity Unit [output]', 'Investment [per output]', 'Full-load Hours',
                    'Total Investment', 'Annuity', 'Maintenance', 'Taxes and Insurance',
-                   'Personnel', 'Overhead', 'Working Capital']
+                   'Personnel', 'Overhead', 'Working Capital', 'Start-up Costs']
 
         capacity_df = pd.DataFrame(columns=columns)
         for key in self.all_variables_dict['nominal_cap']:
@@ -1119,31 +1141,31 @@ class Result:
                 capex_basis = component_object.get_capex_basis()
 
                 main_input = component_object.get_main_input()
-                stream_object_input = self.pm_object.get_stream(main_input)
-                nice_name_stream = stream_object_input.get_nice_name()
-                unit_input = stream_object_input.get_unit()
+                commodity_object_input = self.pm_object.get_commodity(main_input)
+                nice_name_commodity = commodity_object_input.get_nice_name()
+                unit_input = commodity_object_input.get_unit()
 
                 main_output = component_object.get_main_output()
-                stream_object_output = self.pm_object.get_stream(main_output)
-                nice_name_stream_output = stream_object_output.get_nice_name()
-                unit_output = stream_object_output.get_unit()
+                commodity_object_output = self.pm_object.get_commodity(main_output)
+                nice_name_commodity_output = commodity_object_output.get_nice_name()
+                unit_output = commodity_object_output.get_unit()
 
                 inputs = component_object.get_inputs()
                 outputs = component_object.get_outputs()
 
                 if unit_input == 'MWh':
-                    unit_input = 'MW ' + nice_name_stream
+                    unit_input = 'MW ' + nice_name_commodity
                 elif unit_input == 'kWh':
-                    unit_input = 'kW ' + nice_name_stream
+                    unit_input = 'kW ' + nice_name_commodity
                 else:
-                    unit_input = unit_input + ' ' + nice_name_stream + ' / h'
+                    unit_input = unit_input + ' ' + nice_name_commodity + ' / h'
 
                 if unit_output == 'MWh':
-                    unit_output = 'MW ' + nice_name_stream_output
+                    unit_output = 'MW ' + nice_name_commodity_output
                 elif unit_output == 'kWh':
-                    unit_output = 'kW ' + nice_name_stream_output
+                    unit_output = 'kW ' + nice_name_commodity_output
                 else:
-                    unit_output = unit_output + ' ' + nice_name_stream_output + ' / h'
+                    unit_output = unit_output + ' ' + nice_name_commodity_output + ' / h'
 
                 coefficient = outputs[main_output] / inputs[main_input]
 
@@ -1158,24 +1180,31 @@ class Result:
 
                 total_input_component = sum(self.time_depending_variables_df.loc[('Input',
                                                                                   nice_name,
-                                                                                  nice_name_stream), t]
+                                                                                  nice_name_commodity), t]
                                        * self.model.weightings[t] for t in self.model.TIME)
                 full_load_hours = total_input_component / (capacity * 8760) * 8760
 
                 capacity_df.loc[nice_name, 'Full-load Hours'] = full_load_hours
 
+                if component_object.get_shut_down_ability():
+                    start_up_costs = self.all_variables_dict['total_start_up_costs_component'][key]
+                else:
+                    start_up_costs = 0
+
+                capacity_df.loc[nice_name, 'Start-Up Costs'] = start_up_costs
+
             elif component_object.get_component_type() == 'generator':
-                stream_object = self.pm_object.get_stream(component_object.get_generated_stream())
-                nice_name_stream = stream_object.get_nice_name()
-                unit = stream_object.get_unit()
+                commodity_object = self.pm_object.get_commodity(component_object.get_generated_commodity())
+                nice_name_commodity = commodity_object.get_nice_name()
+                unit = commodity_object.get_unit()
 
                 capacity_df.loc[nice_name, 'Capacity [output]'] = capacity
                 if unit == 'MWh':
-                    unit = 'MW ' + nice_name_stream
+                    unit = 'MW ' + nice_name_commodity
                 elif unit == 'kWh':
-                    unit = 'kW ' + nice_name_stream
+                    unit = 'kW ' + nice_name_commodity
                 else:
-                    unit = unit + ' ' + nice_name_stream + ' / h'
+                    unit = unit + ' ' + nice_name_commodity + ' / h'
 
                 capacity_df.loc[nice_name, 'Capacity Unit [output]'] = unit
 
@@ -1184,12 +1213,12 @@ class Result:
             else:
                 nice_name += ' Storage'
 
-                stream_object = self.pm_object.get_stream(key)
-                nice_name_stream = stream_object.get_nice_name()
-                unit = stream_object.get_unit()
+                commodity_object = self.pm_object.get_commodity(key)
+                nice_name_commodity = commodity_object.get_nice_name()
+                unit = commodity_object.get_unit()
 
                 capacity_df.loc[nice_name, 'Capacity [input]'] = capacity
-                capacity_df.loc[nice_name, 'Capacity Unit [input]'] = unit + ' ' + nice_name_stream
+                capacity_df.loc[nice_name, 'Capacity Unit [input]'] = unit + ' ' + nice_name_commodity
 
                 capacity_df.loc[nice_name, 'Investment [per input]'] = investment / capacity
 
@@ -1211,29 +1240,29 @@ class Result:
             input_time_series = self.time_depending_variables_df.iloc[
                 self.time_depending_variables_df.index.get_level_values('Variable') == ip]
 
-            input_streams = input_time_series.index.get_level_values(2)
-            for i in input_streams:
-                energy_content = float(self.streams_and_costs.loc[i, 'MWh per unit'])
-                input_per_stream = float(input_time_series.iloc[
-                                       input_time_series.index.get_level_values('Stream') == i].loc[
+            input_commodities = input_time_series.index.get_level_values(2)
+            for i in input_commodities:
+                energy_content = float(self.commodities_and_costs.loc[i, 'MWh per unit'])
+                input_per_commodity = float(input_time_series.iloc[
+                                       input_time_series.index.get_level_values('Commodity') == i].loc[
                                    :, 1:].sum().sum())
 
-                energy_input_per_stream = input_per_stream * energy_content
-                energy_input += energy_input_per_stream
+                energy_input_per_commodity = input_per_commodity * energy_content
+                energy_input += energy_input_per_commodity
 
         if energy_input != 0:
             energy_output = 0
             output_time_series = self.time_depending_variables_df.iloc[
                 self.time_depending_variables_df.index.get_level_values('Variable') == 'Demand']
-            output_streams = output_time_series.index.get_level_values(2)
-            for o in output_streams:
-                energy_content = self.streams_and_costs.loc[o, 'MWh per unit']
-                output_per_stream = output_time_series.iloc[
-                                        output_time_series.index.get_level_values('Stream') == o].loc[:,
+            output_commodities = output_time_series.index.get_level_values(2)
+            for o in output_commodities:
+                energy_content = self.commodities_and_costs.loc[o, 'MWh per unit']
+                output_per_commodity = output_time_series.iloc[
+                                        output_time_series.index.get_level_values('Commodity') == o].loc[:,
                                     1:].sum().sum()
 
-                energy_output_per_stream = float(output_per_stream) * float(energy_content)
-                energy_output += energy_output_per_stream
+                energy_output_per_commodity = float(output_per_commodity) * float(energy_content)
+                energy_output += energy_output_per_commodity
 
             efficiency = str(round(energy_output / energy_input, 4))
         else:
@@ -1243,21 +1272,23 @@ class Result:
                           'Annual Costs', 'Production Costs per Unit', 'Efficiency']
 
         total_production = 0
-        for stream in [*self.all_variables_dict['mass_energy_demand'].keys()]:
-            total_production += sum(self.all_variables_dict['mass_energy_demand'][stream][t]
+        for commodity in [*self.all_variables_dict['mass_energy_demand'].keys()]:
+            total_production += sum(self.all_variables_dict['mass_energy_demand'][commodity][t]
                                     * self.model.weightings[t] for t in self.model.TIME)
 
         total_investment = capacity_df['Total Investment'].sum()
         fix_costs = (capacity_df['Annuity'].sum() + capacity_df['Maintenance'].sum()
-                        + capacity_df['Taxes and Insurance'].sum() + capacity_df['Personnel'].sum()
-                        + capacity_df['Overhead'].sum() + capacity_df['Working Capital'].sum())
+                     + capacity_df['Taxes and Insurance'].sum() + capacity_df['Personnel'].sum()
+                     + capacity_df['Overhead'].sum() + capacity_df['Working Capital'].sum())
 
         variable_costs = 0
-        for stream in self.model.ME_STREAMS:
-            if self.purchase_costs[stream] != 0:
-                variable_costs += self.purchase_costs[stream]
-            if self.selling_costs[stream] != 0:
-                variable_costs += self.selling_costs[stream]
+        for commodity in self.model.ME_STREAMS:
+            if self.purchase_costs[commodity] != 0:
+                variable_costs += self.purchase_costs[commodity]
+            if self.selling_costs[commodity] != 0:
+                variable_costs += self.selling_costs[commodity]
+
+        variable_costs += self.all_variables_dict['total_start_up_costs']
 
         annual_costs = fix_costs + variable_costs
         production_costs_per_unit = annual_costs / total_production
@@ -1277,18 +1308,20 @@ class Result:
                                                          for s in self.model.GENERATORS]))
             generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
 
+            covered_period = self.pm_object.get_covered_period()-1
+
             for generator in self.model.GENERATORS:
 
                 generator_object = self.pm_object.get_component(generator)
                 generator_nice_name = generator_object.get_nice_name()
-                generated_stream = self.pm_object.get_stream(generator_object.get_generated_stream()).get_nice_name()
+                generated_commodity = self.pm_object.get_commodity(generator_object.get_generated_commodity()).get_nice_name()
 
-                generator_profile = generation_profile[generator_nice_name]
+                generator_profile = generation_profile.loc[0:covered_period, generator_nice_name]
 
                 investment = self.all_variables_dict['investment'][generator]
                 capacity = self.all_variables_dict['nominal_cap'][generator]
 
-                generation_df.loc[generator_nice_name, 'Generated Stream'] = generated_stream
+                generation_df.loc[generator_nice_name, 'Generated Commodity'] = generated_commodity
                 generation_df.loc[generator_nice_name, 'Capacity'] = capacity
                 generation_df.loc[generator_nice_name, 'Investment'] = investment
                 generation_df.loc[generator_nice_name, 'Annuity'] = self.all_variables_dict['annuity'][generator]
@@ -1308,7 +1341,7 @@ class Result:
                                                                                + generation_df.loc[generator_nice_name, 'Overhead']
                                                                                + generation_df.loc[generator_nice_name, 'Personnel']) / potential_generation
 
-                    generation = self.generated_stream[generator]
+                    generation = self.generated_commodity[generator]
                     generation_df.loc[generator_nice_name, 'Actual Generation'] = generation
                     generation_df.loc[generator_nice_name, 'Actual Full-load Hours'] = generation / (capacity * 8760) * 8760
 
@@ -1322,7 +1355,7 @@ class Result:
                                                                               / generation)
 
                 else:
-                    potential_generation = generator_profile.multiply(self.model.weightings, axis=0).sum().sum()
+                    potential_generation = sum(generator_profile.loc[generator_profile.index[t]] * self.model.weightings[t] for t in self.model.TIME)
                     generation_df.loc[generator_nice_name, 'Potential Generation'] = 0
                     generation_df.loc[generator_nice_name, 'Potential Full-load Hours'] = potential_generation
 
@@ -1339,8 +1372,8 @@ class Result:
     def analyze_total_costs(self):
         # Total costs: annuity, maintenance, buying and selling, taxes and insurance, etc.
         total_production = 0
-        for stream in [*self.all_variables_dict['mass_energy_demand'].keys()]:
-            total_production += sum(self.all_variables_dict['mass_energy_demand'][stream][t]
+        for commodity in [*self.all_variables_dict['mass_energy_demand'].keys()]:
+            total_production += sum(self.all_variables_dict['mass_energy_demand'][commodity][t]
                                     * self.model.weightings[t] for t in self.model.TIME)
 
         cost_distribution = pd.DataFrame()
@@ -1387,22 +1420,29 @@ class Result:
                 cost_distribution.loc[nice_name + ' Working Capital Costs', 'Total'] = working_capital
                 total_costs += working_capital
 
-        for stream in self.model.ME_STREAMS:
-            if self.purchase_costs[stream] != 0:
-                cost_distribution.loc['Purchase Costs ' + self.pm_object.get_nice_name(stream), 'Total'] \
-                    = self.purchase_costs[stream]
-                total_costs += self.purchase_costs[stream]
+            if component_object.get_component_type() == 'conversion':
+                if component_object.get_shut_down_ability():
+                    start_up_costs = self.all_variables_dict['total_start_up_costs_component'][key]
+                    if start_up_costs != 0:
+                        cost_distribution.loc[nice_name + ' Start-Up Costs', 'Total'] = start_up_costs
+                        total_costs += working_capital
 
-        for stream in self.model.ME_STREAMS:
-            if self.selling_costs[stream] < 0:
-                cost_distribution.loc['Disposal ' + self.pm_object.get_nice_name(stream), 'Total'] \
-                    = self.selling_costs[stream]
-                total_costs += self.selling_costs[stream]
+        for commodity in self.model.ME_STREAMS:
+            if self.purchase_costs[commodity] != 0:
+                cost_distribution.loc['Purchase Costs ' + self.pm_object.get_nice_name(commodity), 'Total'] \
+                    = self.purchase_costs[commodity]
+                total_costs += self.purchase_costs[commodity]
 
-            if self.selling_costs[stream] > 0:
-                cost_distribution.loc['Revenue ' + self.pm_object.get_nice_name(stream), 'Total'] \
-                    = self.selling_costs[stream]
-                total_costs += self.selling_costs[stream]
+        for commodity in self.model.ME_STREAMS:
+            if self.selling_costs[commodity] < 0:
+                cost_distribution.loc['Disposal ' + self.pm_object.get_nice_name(commodity), 'Total'] \
+                    = self.selling_costs[commodity]
+                total_costs += self.selling_costs[commodity]
+
+            if self.selling_costs[commodity] > 0:
+                cost_distribution.loc['Revenue ' + self.pm_object.get_nice_name(commodity), 'Total'] \
+                    = self.selling_costs[commodity]
+                total_costs += self.selling_costs[commodity]
 
         cost_distribution.loc['Total', 'Total'] = total_costs
 
@@ -1453,19 +1493,19 @@ class Result:
             for i, elem in enumerate(time_depending_variables[key]):
                 time_depending_variables_df.loc[key, i] = elem
 
-        if False:
+        if True:
             # Only for maintenance
             if len(time_depending_variables_df.index) > 0:
                 time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_binaries.xlsx')
 
-    def build_sankey_diagram(self, only_energy=False, specific_stream='Hydrogen', average_streams=True,
+    def build_sankey_diagram(self, only_energy=False, specific_commodity='Hydrogen', average_commodities=True,
                              specific_period=0):
 
-        # todo: Add colors of stream and options of method
+        # todo: Add colors of commodity and options of method
 
-        all_streams = []
-        for stream in self.pm_object.get_specific_streams('final'):
-            all_streams.append(stream.get_name())
+        all_commodities = []
+        for commodity in self.pm_object.get_final_commodities_objects():
+            all_commodities.append(commodity.get_name())
 
         # Sankey Diagram are structured as nodes and links
         # Nodes: Dictionary with pad, thickness, line, label and color
@@ -1473,47 +1513,47 @@ class Result:
 
         average = True
 
-        # Nodes will be implemented as following: Each component will be one node as well as the "bus" for each stream
+        # Nodes will be implemented as following: Each component will be one node as well as the "bus" for each commodity
         labels = []
         label_indices = {}
         i = 0
-        for component_object in self.pm_object.get_specific_components('final'):
+        for component_object in self.pm_object.get_final_components_objects():
             if component_object.get_component_type() == 'conversion':
                 labels.append(component_object.get_nice_name())
                 label_indices[component_object.get_nice_name()] = i
             elif component_object.get_component_type() == 'generator':
-                generated_stream = component_object.get_generated_stream()
-                generated_stream_nn = self.pm_object.get_stream(generated_stream).get_nice_name()
-                labels.append(generated_stream_nn + ' Generation')
-                label_indices[generated_stream_nn + ' Generation'] = i
+                generated_commodity = component_object.get_generated_commodity()
+                generated_commodity_nn = self.pm_object.get_commodity(generated_commodity).get_nice_name()
+                labels.append(generated_commodity_nn + ' Generation')
+                label_indices[generated_commodity_nn + ' Generation'] = i
             else:
                 labels.append(component_object.get_nice_name() + ' Storage')
                 label_indices[component_object.get_nice_name() + ' Storage'] = i
             i += 1
 
-        for stream_object in self.pm_object.get_specific_streams('final'):
-            labels.append(stream_object.get_nice_name() + ' Bus')
-            label_indices[stream_object.get_nice_name() + ' Bus'] = i
+        for commodity_object in self.pm_object.get_final_commodities_objects():
+            labels.append(commodity_object.get_nice_name() + ' Bus')
+            label_indices[commodity_object.get_nice_name() + ' Bus'] = i
             i += 1
 
-            labels.append(stream_object.get_nice_name() + ' Freely Available')
-            label_indices[stream_object.get_nice_name() + ' Freely Available'] = i
+            labels.append(commodity_object.get_nice_name() + ' Freely Available')
+            label_indices[commodity_object.get_nice_name() + ' Freely Available'] = i
             i += 1
 
-            labels.append(stream_object.get_nice_name() + ' Purchased')
-            label_indices[stream_object.get_nice_name() + ' Purchased'] = i
+            labels.append(commodity_object.get_nice_name() + ' Purchased')
+            label_indices[commodity_object.get_nice_name() + ' Purchased'] = i
             i += 1
 
-            labels.append(stream_object.get_nice_name() + ' Generation')
-            label_indices[stream_object.get_nice_name() + ' Generation'] = i
+            labels.append(commodity_object.get_nice_name() + ' Generation')
+            label_indices[commodity_object.get_nice_name() + ' Generation'] = i
             i += 1
 
-            labels.append(stream_object.get_nice_name() + ' Emitted')
-            label_indices[stream_object.get_nice_name() + ' Emitted'] = i
+            labels.append(commodity_object.get_nice_name() + ' Emitted')
+            label_indices[commodity_object.get_nice_name() + ' Emitted'] = i
             i += 1
 
-            labels.append(stream_object.get_nice_name() + ' Sold')
-            label_indices[stream_object.get_nice_name() + ' Sold'] = i
+            labels.append(commodity_object.get_nice_name() + ' Sold')
+            label_indices[commodity_object.get_nice_name() + ' Sold'] = i
             i += 1
 
         # Links
@@ -1521,29 +1561,29 @@ class Result:
         targets = []
         link_value = []
 
-        to_bus_streams = ['mass_energy_purchase_stream', 'mass_energy_available', 'mass_energy_component_out_streams',
-                          'mass_energy_generation', 'mass_energy_storage_out_streams']
-        from_bus_stream = ['mass_energy_component_in_streams', 'mass_energy_storage_in_streams',
-                           'mass_energy_sell_stream', 'mass_energy_emitted']
+        to_bus_commodities = ['mass_energy_purchase_commodity', 'mass_energy_available', 'mass_energy_component_out_commodities',
+                          'mass_energy_generation', 'mass_energy_storage_out_commodities']
+        from_bus_commodity = ['mass_energy_component_in_commodities', 'mass_energy_storage_in_commodities',
+                           'mass_energy_sell_commodity', 'mass_energy_emitted']
 
         for variable_name in [*self.all_variables_dict]:
 
             if variable_name in self.variable_two_index:
 
-                for stream in [*self.all_variables_dict[variable_name]]:
+                for commodity in [*self.all_variables_dict[variable_name]]:
 
-                    if stream not in all_streams:
+                    if commodity not in all_commodities:
                         continue
 
-                    stream_object = self.pm_object.get_stream(stream)
-                    stream_name = stream_object.get_nice_name()
-                    unit = stream_object.get_unit()
+                    commodity_object = self.pm_object.get_commodity(commodity)
+                    commodity_name = commodity_object.get_nice_name()
+                    unit = commodity_object.get_unit()
 
                     if only_energy:
                         if (unit != 'MWh') | (unit != 'kWh'):
                             continue
 
-                    list_values = self.all_variables_dict[variable_name][stream]
+                    list_values = self.all_variables_dict[variable_name][commodity]
 
                     average_list_value = 0
                     if not average:
@@ -1555,32 +1595,32 @@ class Result:
                             continue
 
                     inside = False
-                    if variable_name in to_bus_streams:
+                    if variable_name in to_bus_commodities:
                         if variable_name == 'mass_energy_available':
-                            sources.append(label_indices[stream_name + ' Freely Available'])
-                            targets.append(label_indices[stream_name + ' Bus'])
-                        elif variable_name == 'mass_energy_purchase_stream':
-                            sources.append(label_indices[stream_name + ' Purchased'])
-                            targets.append(label_indices[stream_name + ' Bus'])
+                            sources.append(label_indices[commodity_name + ' Freely Available'])
+                            targets.append(label_indices[commodity_name + ' Bus'])
+                        elif variable_name == 'mass_energy_purchase_commodity':
+                            sources.append(label_indices[commodity_name + ' Purchased'])
+                            targets.append(label_indices[commodity_name + ' Bus'])
                         elif variable_name == 'mass_energy_generation':
-                            sources.append(label_indices[stream_name + ' Generation'])
-                            targets.append(label_indices[stream_name + ' Bus'])
-                        elif variable_name == 'mass_energy_storage_out_streams':
-                            sources.append(label_indices[stream_name + ' Storage'])
-                            targets.append(label_indices[stream_name + ' Bus'])
+                            sources.append(label_indices[commodity_name + ' Generation'])
+                            targets.append(label_indices[commodity_name + ' Bus'])
+                        elif variable_name == 'mass_energy_storage_out_commodities':
+                            sources.append(label_indices[commodity_name + ' Storage'])
+                            targets.append(label_indices[commodity_name + ' Bus'])
 
                         inside = True
 
-                    elif variable_name in from_bus_stream:
-                        if variable_name == 'mass_energy_sell_stream':
-                            sources.append(label_indices[stream_name + ' Bus'])
-                            targets.append(label_indices[stream_name + ' Sold'])
+                    elif variable_name in from_bus_commodity:
+                        if variable_name == 'mass_energy_sell_commodity':
+                            sources.append(label_indices[commodity_name + ' Bus'])
+                            targets.append(label_indices[commodity_name + ' Sold'])
                         elif variable_name == 'mass_energy_emitted':
-                            sources.append(label_indices[stream_name + ' Bus'])
-                            targets.append(label_indices[stream_name + ' Emitted'])
-                        elif variable_name == 'mass_energy_storage_in_streams':
-                            sources.append(label_indices[stream_name + ' Bus'])
-                            targets.append(label_indices[stream_name + ' Storage'])
+                            sources.append(label_indices[commodity_name + ' Bus'])
+                            targets.append(label_indices[commodity_name + ' Emitted'])
+                        elif variable_name == 'mass_energy_storage_in_commodities':
+                            sources.append(label_indices[commodity_name + ' Bus'])
+                            targets.append(label_indices[commodity_name + ' Storage'])
 
                         inside = True
 
@@ -1594,22 +1634,22 @@ class Result:
 
                 for c in [*self.all_variables_dict[variable_name]]:
 
-                    for stream in [*self.all_variables_dict[variable_name][c]]:
+                    for commodity in [*self.all_variables_dict[variable_name][c]]:
 
-                        if stream not in all_streams:
+                        if commodity not in all_commodities:
                             continue
 
                         component_object = self.pm_object.get_component(c)
                         component_name = component_object.get_nice_name()
-                        stream_object = self.pm_object.get_stream(stream)
-                        stream_name = stream_object.get_nice_name()
-                        unit = stream_object.get_unit()
+                        commodity_object = self.pm_object.get_commodity(commodity)
+                        commodity_name = commodity_object.get_nice_name()
+                        unit = commodity_object.get_unit()
 
                         if only_energy:
                             if (unit != 'MWh') | (unit != 'kWh'):
                                 continue
 
-                        list_values = self.all_variables_dict[variable_name][c][stream]
+                        list_values = self.all_variables_dict[variable_name][c][commodity]
 
                         average_list_value = 0
                         if not average:
@@ -1621,18 +1661,18 @@ class Result:
                                 continue
 
                         inside = False
-                        if variable_name in to_bus_streams:
+                        if variable_name in to_bus_commodities:
 
-                            if variable_name == 'mass_energy_component_out_streams':
+                            if variable_name == 'mass_energy_component_out_commodities':
                                 sources.append(label_indices[component_name])
-                                targets.append(label_indices[stream_name + ' Bus'])
+                                targets.append(label_indices[commodity_name + ' Bus'])
 
                             inside = True
 
-                        elif variable_name in from_bus_stream:
+                        elif variable_name in from_bus_commodity:
 
-                            if variable_name == 'mass_energy_component_in_streams':
-                                sources.append(label_indices[stream_name + ' Bus'])
+                            if variable_name == 'mass_energy_component_in_commodities':
+                                sources.append(label_indices[commodity_name + ' Bus'])
                                 targets.append(label_indices[component_name])
 
                             inside = True
@@ -1674,187 +1714,6 @@ class Result:
             font_size=10)
         fig.show()
 
-    def save_current_parameters_and_options(self):
-
-        case_data = pd.DataFrame()
-
-        k = 0
-
-        case_data.loc[k, 'version'] = '0.0.5'
-
-        k += 1
-
-        for parameter in self.pm_object.get_general_parameters():
-            value = self.pm_object.get_general_parameter_value(parameter)
-
-            case_data.loc[k, 'type'] = 'general_parameter'
-            case_data.loc[k, 'parameter'] = parameter
-            case_data.loc[k, 'value'] = value
-
-            k += 1
-
-        case_data.loc[k, 'type'] = 'representative_weeks'
-        case_data.loc[k, 'representative_weeks'] = self.pm_object.get_uses_representative_weeks()
-        case_data.loc[k, 'path_weighting'] = self.pm_object.get_path_weighting()
-        case_data.loc[k, 'covered_period'] = self.pm_object.get_covered_period()
-
-        k += 1
-
-        case_data.loc[k, 'type'] = 'generation_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object.get_generation_data_status()
-        case_data.loc[k, 'generation_data'] = self.pm_object.get_generation_data()
-
-        k += 1
-
-        case_data.loc[k, 'type'] = 'market_data'
-        case_data.loc[k, 'single_profile'] = self.pm_object.get_market_data_status()
-        case_data.loc[k, 'market_data'] = self.pm_object.get_market_data()
-
-        k += 1
-
-        for component in self.pm_object.get_all_components():
-
-            case_data.loc[k, 'type'] = 'component'
-            case_data.loc[k, 'component_type'] = component.get_component_type()
-            case_data.loc[k, 'final'] = component.is_final()
-            case_data.loc[k, 'name'] = component.get_name()
-            case_data.loc[k, 'nice_name'] = component.get_nice_name()
-            case_data.loc[k, 'capex'] = component.get_capex()
-            case_data.loc[k, 'lifetime'] = component.get_lifetime()
-            case_data.loc[k, 'maintenance'] = component.get_maintenance()
-
-            if component.get_component_type() == 'conversion':
-
-                case_data.loc[k, 'capex_basis'] = component.get_capex_basis()
-                case_data.loc[k, 'scalable'] = component.is_scalable()
-                case_data.loc[k, 'base_investment'] = component.get_base_investment()
-                case_data.loc[k, 'base_capacity'] = component.get_base_capacity()
-                case_data.loc[k, 'economies_of_scale'] = component.get_economies_of_scale()
-                case_data.loc[k, 'max_capacity_economies_of_scale'] = component.get_max_capacity_economies_of_scale()
-
-                case_data.loc[k, 'min_p'] = component.get_min_p()
-                case_data.loc[k, 'max_p'] = component.get_max_p()
-
-                case_data.loc[k, 'ramp_up'] = component.get_ramp_up()
-                case_data.loc[k, 'ramp_down'] = component.get_ramp_down()
-
-                case_data.loc[k, 'shut_down_ability'] = component.get_shut_down_ability()
-                if component.get_shut_down_ability():
-                    case_data.loc[k, 'start_up_time'] = component.get_start_up_time()
-                else:
-                    case_data.loc[k, 'start_up_time'] = 0
-
-                case_data.loc[k, 'hot_standby_ability'] = component.get_hot_standby_ability()
-                if component.get_hot_standby_ability():
-                    case_data.loc[k, 'hot_standby_stream'] = [*component.get_hot_standby_demand().keys()][0]
-                    case_data.loc[k, 'hot_standby_demand'] = component.get_hot_standby_demand()[
-                        [*component.get_hot_standby_demand().keys()][0]]
-                    case_data.loc[k, 'hot_standby_startup_time'] = component.get_hot_standby_startup_time()
-                else:
-                    case_data.loc[k, 'hot_standby_stream'] = ''
-                    case_data.loc[k, 'hot_standby_demand'] = 0
-                    case_data.loc[k, 'hot_standby_startup_time'] = 0
-
-                case_data.loc[k, 'number_parallel_units'] = component.get_number_parallel_units()
-
-            elif component.get_component_type() == 'generator':
-
-                case_data.loc[k, 'generated_stream'] = component.get_generated_stream()
-                case_data.loc[k, 'curtailment_possible'] = component.get_curtailment_possible()
-
-            elif component.get_component_type() == 'storage':
-
-                case_data.loc[k, 'min_soc'] = component.get_min_soc()
-                case_data.loc[k, 'max_soc'] = component.get_max_soc()
-                case_data.loc[k, 'initial_soc'] = component.get_initial_soc()
-                case_data.loc[k, 'charging_efficiency'] = component.get_charging_efficiency()
-                case_data.loc[k, 'discharging_efficiency'] = component.get_discharging_efficiency()
-                case_data.loc[k, 'leakage'] = component.get_leakage()
-                case_data.loc[k, 'ratio_capacity_p'] = component.get_ratio_capacity_p()
-                case_data.loc[k, 'limited_storage'] = component.is_limited()
-                case_data.loc[k, 'storage_limiting_component'] = component.get_storage_limiting_component()
-                case_data.loc[k, 'storage_limiting_component_ratio'] = component.get_storage_limiting_component_ratio()
-
-            case_data.loc[k, 'taxes_and_insurance'] = self.pm_object\
-                .get_applied_parameter_for_component('taxes_and_insurance', component.get_name())
-            case_data.loc[k, 'personnel_costs'] = self.pm_object\
-                .get_applied_parameter_for_component('personnel_costs', component.get_name())
-            case_data.loc[k, 'overhead'] = self.pm_object\
-                .get_applied_parameter_for_component('overhead', component.get_name())
-            case_data.loc[k, 'working_capital'] = self.pm_object\
-                .get_applied_parameter_for_component('working_capital', component.get_name())
-
-            k += 1
-
-        for component in self.pm_object.get_specific_components('final', 'conversion'):
-
-            inputs = component.get_inputs()
-            for i in [*inputs.keys()]:
-                case_data.loc[k, 'type'] = 'input'
-                case_data.loc[k, 'component'] = component.get_name()
-                case_data.loc[k, 'input_stream'] = i
-                case_data.loc[k, 'coefficient'] = inputs[i]
-
-                if i == component.get_main_input():
-                    case_data.loc[k, 'main_input'] = True
-                else:
-                    case_data.loc[k, 'main_input'] = False
-
-                k += 1
-
-            outputs = component.get_outputs()
-            for o in [*outputs.keys()]:
-                case_data.loc[k, 'type'] = 'output'
-                case_data.loc[k, 'component'] = component.get_name()
-                case_data.loc[k, 'output_stream'] = o
-                case_data.loc[k, 'coefficient'] = outputs[o]
-
-                if o == component.get_main_output():
-                    case_data.loc[k, 'main_output'] = True
-                else:
-                    case_data.loc[k, 'main_output'] = False
-
-                k += 1
-
-        for stream in self.pm_object.get_specific_streams('final'):
-
-            case_data.loc[k, 'type'] = 'stream'
-            case_data.loc[k, 'name'] = stream.get_name()
-            case_data.loc[k, 'nice_name'] = stream.get_nice_name()
-            case_data.loc[k, 'unit'] = stream.get_unit()
-
-            case_data.loc[k, 'available'] = stream.is_available()
-            case_data.loc[k, 'emitted'] = stream.is_emittable()
-            case_data.loc[k, 'purchasable'] = stream.is_purchasable()
-            case_data.loc[k, 'saleable'] = stream.is_saleable()
-            case_data.loc[k, 'demanded'] = stream.is_demanded()
-            case_data.loc[k, 'total_demand'] = stream.is_total_demand()
-            case_data.loc[k, 'final'] = stream.is_final()
-
-            # Purchasable streams
-            case_data.loc[k, 'purchase_price_type'] = stream.get_purchase_price_type()
-            case_data.loc[k, 'purchase_price'] = stream.get_purchase_price()
-
-            # Saleable streams
-            case_data.loc[k, 'selling_price_type'] = stream.get_sale_price_type()
-            case_data.loc[k, 'selling_price'] = stream.get_sale_price()
-
-            # Demand
-            case_data.loc[k, 'demand'] = stream.get_demand()
-
-            case_data.loc[k, 'energy_content'] = stream.get_energy_content()
-
-            k += 1
-
-        for abbreviation in self.pm_object.get_all_abbreviations():
-            case_data.loc[k, 'type'] = 'names'
-            case_data.loc[k, 'name'] = abbreviation
-            case_data.loc[k, 'nice_name'] = self.pm_object.get_nice_name(abbreviation)
-
-            k += 1
-
-        case_data.to_excel(self.new_result_folder + '/7_settings.xlsx', index=True)
-
     def copy_input_data(self):
         import shutil
         if self.model.GENERATORS:
@@ -1872,6 +1731,7 @@ class Result:
         self.instance = optimization_problem.instance
         self.pm_object = optimization_problem.pm_object
         self.file_name = self.pm_object.get_project_name()
+        self.monetary_unit = self.pm_object.get_monetary_unit()
 
         now = datetime.now()
         dt_string = now.strftime("%Y%m%d_%H%M%S")
@@ -1888,18 +1748,18 @@ class Result:
         self.one_index_dict = {}
         self.two_index_dict = {}
         self.three_index_dict = {}
-        self.available_stream = {}
-        self.emitted_stream = {}
-        self.conversed_stream = {}
-        self.conversed_stream_per_component = {}
-        self.purchased_stream = {}
+        self.available_commodity = {}
+        self.emitted_commodity = {}
+        self.conversed_commodity = {}
+        self.conversed_commodity_per_component = {}
+        self.purchased_commodity = {}
         self.purchase_costs = {}
-        self.sold_stream = {}
+        self.sold_commodity = {}
         self.selling_costs = {}
-        self.stored_stream = {}
+        self.stored_commodity = {}
         self.storage_costs = {}
         self.storage_costs_per_unit = {}
-        self.generated_stream = {}
+        self.generated_commodity = {}
         self.generation_costs = {}
         self.generation_costs_per_unit = {}
         self.conversion_component_costs = {}
@@ -1908,11 +1768,11 @@ class Result:
         self.total_variable_costs = {}
         self.total_costs = {}
         self.total_availability = {}
-        self.production_cost_stream_per_unit = {}
+        self.production_cost_commodity_per_unit = {}
 
         self.total_conversion_costs = {}
         self.total_generation_costs = {}
-        self.total_generated_stream = {}
+        self.total_generated_commodity = {}
 
         self.hot_standby_demand = {}
 
@@ -1923,19 +1783,17 @@ class Result:
         self.all_variables_dict = {}
 
         self.time_depending_variables_df = None
-        self.streams_and_costs = None
+        self.commodities_and_costs = None
 
         self.extracting_data()
         self.process_variables()
         self.create_assumptions_file()
         self.create_and_print_vector()
-        self.analyze_streams()
+        self.analyze_commodities()
         self.analyze_components()
         self.analyze_generation()
         self.analyze_total_costs()
         self.check_integer_variables()
-        self.save_current_parameters_and_options()
         self.copy_input_data()
-
 
         # self.build_sankey_diagram(only_energy=False)

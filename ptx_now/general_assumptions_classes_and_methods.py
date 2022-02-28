@@ -6,7 +6,6 @@ from tkinter import filedialog
 
 class GeneralAssumptionsFrame:
 
-    # Todo: Add personal cost factor
     def adjust_component_value(self):
 
         def get_value_and_kill_window():
@@ -24,14 +23,16 @@ class GeneralAssumptionsFrame:
                 self.pm_object.set_general_parameter_value(gp, float(self.label_dict[gp].get()) / 100)
                 self.label_dict[gp].set(round(float(self.label_dict[gp].get()), 2))
 
-            self.pm_object.set_uses_representative_weeks(representative_weeks.get())
+            self.pm_object.set_uses_representative_periods(representative_periods.get())
 
-            if rb_variable.get() == 'representative_weeks':
-                self.pm_object.set_uses_representative_weeks(True)
-                self.pm_object.set_path_weighting(path_weighting.get())
+            if rb_variable.get() == 'representative_periods':
+                self.pm_object.set_uses_representative_periods(True)
+                self.pm_object.set_representative_periods_length(int(period_length.get()))
             else:
-                self.pm_object.set_uses_representative_weeks(False)
-                self.pm_object.set_covered_period(covered_period.get())
+                self.pm_object.set_uses_representative_periods(False)
+                self.pm_object.set_covered_period(int(covered_period.get()))
+
+            self.pm_object.set_monetary_unit(monetary_unit.get())
 
             self.parent.pm_object_copy = self.pm_object
             self.parent.update_widgets()
@@ -41,28 +42,19 @@ class GeneralAssumptionsFrame:
         def kill_window():
             newWindow.destroy()
 
-        def select_path():
-            path_selected = filedialog.askopenfilename()
-            if path_selected != '':
-                file_name = path_selected.split('/')[-1]
-                path_weighting.set(file_name)
-                path_label.config(text=file_name)
-
         def change_rb():
             if rb_variable.get() == 'covered_period':
                 label_covered_period.config(state=NORMAL)
                 entry_covered_period.config(state=NORMAL)
 
-                label_weighting.config(state=DISABLED)
-                button_select_path.config(state=DISABLED)
-                path_label.config(state=DISABLED)
+                label_period_length.config(state=DISABLED)
+                entry_period_length.config(state=DISABLED)
             else:
                 label_covered_period.config(state=DISABLED)
                 entry_covered_period.config(state=DISABLED)
 
-                label_weighting.config(state=NORMAL)
-                button_select_path.config(state=NORMAL)
-                path_label.config(state=NORMAL)
+                label_period_length.config(state=NORMAL)
+                entry_period_length.config(state=NORMAL)
 
         # Toplevel object which will
         # be treated as a new window
@@ -78,40 +70,35 @@ class GeneralAssumptionsFrame:
             ttk.Entry(newWindow, text=self.label_dict[c]).grid(row=i, column=1, sticky='ew')
             i += 1
 
-        representative_weeks = BooleanVar()
-        representative_weeks.set(self.pm_object.get_uses_representative_weeks())
+        representative_periods = BooleanVar()
+        representative_periods.set(self.pm_object.get_uses_representative_periods())
 
-        path_weighting = StringVar()
-        path_weighting.set(self.pm_object.get_path_weighting())
+        period_length = IntVar()
+        period_length.set(int(self.pm_object.get_representative_periods_length()))
 
         rb_variable = StringVar()
 
-        if representative_weeks.get():
+        if representative_periods.get():
             state_repr_weeks = NORMAL
             state_covered_period = DISABLED
-            rb_variable.set('representative_weeks')
+            rb_variable.set('representative_periods')
         else:
             state_repr_weeks = DISABLED
             state_covered_period = NORMAL
             rb_variable.set('covered_period')
 
-        ttk.Radiobutton(newWindow, text='Use Representative Weeks?', variable=rb_variable,
-                        value='representative_weeks', command=change_rb).grid(column=0, row=i, sticky='w')
+        ttk.Radiobutton(newWindow, text='Use Representative Periods?', variable=rb_variable,
+                        value='representative_periods', command=change_rb).grid(column=0, row=i, sticky='w')
 
-        label_weighting = ttk.Label(newWindow,
-                                    text='Representative Weeks Weightings [filename]', state=state_repr_weeks)
-        label_weighting.grid(column=0, row=i + 2, sticky='w')
-        path_label = ttk.Label(newWindow, text=path_weighting.get(), state=state_repr_weeks)
-        path_label.grid(column=1, row=i + 2, sticky='w')
-
-        button_select_path = ttk.Button(newWindow, text='Select Path to Representative Weeks Weighting',
-                                        state=state_repr_weeks, command=select_path)
-        button_select_path.grid(columnspan=2, row=i + 3, sticky='ew')
+        label_period_length = ttk.Label(newWindow, text='Representative Periods Length [h]', state=state_repr_weeks)
+        label_period_length.grid(column=0, row=i + 2, sticky='w')
+        entry_period_length = ttk.Entry(newWindow, text=period_length, state=state_repr_weeks)
+        entry_period_length.grid(column=1, row=i + 2, sticky='w')
 
         i += 4
 
         covered_period = IntVar()
-        covered_period.set(self.pm_object.get_covered_period())
+        covered_period.set(int(self.pm_object.get_covered_period()))
 
         ttk.Radiobutton(newWindow, text='Use Full Time Series?', variable=rb_variable,
                         value='covered_period', command=change_rb).grid(column=0, row=i, sticky='w')
@@ -122,6 +109,13 @@ class GeneralAssumptionsFrame:
         entry_covered_period.grid(column=1, row=i+1, sticky='w')
 
         i += 2
+
+        monetary_unit = StringVar()
+        monetary_unit.set(self.pm_object.get_monetary_unit())
+        ttk.Label(newWindow, text='Monetary Unit').grid(column=0, row=i, sticky='w')
+        ttk.Entry(newWindow, text=monetary_unit).grid(column=1, row=i, sticky='w')
+
+        i += 1
 
         button = ttk.Button(newWindow, text='Adjust values', command=get_value_and_kill_window)
         button.grid(row=i, column=0, sticky='ew')
@@ -136,7 +130,7 @@ class GeneralAssumptionsFrame:
         newWindow.grab_set()
 
         def get_values_and_kill_window():
-            for comp in self.pm_object.get_specific_components('final'):
+            for comp in self.pm_object.get_final_components_objects():
                 for g in self.pm_object.get_general_parameters():
                     if g in exclude:
                         continue
@@ -151,10 +145,10 @@ class GeneralAssumptionsFrame:
 
         general_parameter_var = {}
 
-        exclude = ['wacc', 'covered_period', 'representative_weeks']
+        exclude = ['wacc', 'covered_period', 'representative_periods']
 
         i = 0
-        for c in self.pm_object.get_specific_components('final'):
+        for c in self.pm_object.get_final_components_objects():
             c_name = c.get_name()
 
             ttk.Label(newWindow, text=c.get_nice_name()).grid(row=i, column=0, sticky='w')
@@ -204,18 +198,26 @@ class GeneralAssumptionsFrame:
 
             i += 1
 
-        if self.pm_object.get_uses_representative_weeks():
+        if self.pm_object.get_uses_representative_periods():
 
-            ttk.Label(self.frame, text='Representative Weeks Weightings [path]').grid(column=0, row=i+1, sticky='w')
-            ttk.Label(self.frame, text=self.pm_object.get_path_weighting()).grid(column=1, row=i+1, sticky='w')
+            ttk.Label(self.frame, text='Representative Periods Weightings used').grid(columnspan=2, row=i, sticky='w')
+            ttk.Label(self.frame, text='Representative Periods Length [h]').grid(column=0, row=i+1, sticky='w')
+            ttk.Label(self.frame, text=int(self.pm_object.get_representative_periods_length())).grid(column=1,
+                                                                                                     row=i+1,
+                                                                                                     sticky='w')
 
-            i += 1
+            i += 2
         else:
+            ttk.Label(self.frame, text='Continuous Time Series used').grid(columnspan=2, row=i, sticky='w')
+            ttk.Label(self.frame, text='Covered Period [h]').grid(column=0, row=i+1, sticky='w')
+            ttk.Label(self.frame, text=int(self.pm_object.get_covered_period())).grid(column=1, row=i+1, sticky='w')
 
-            ttk.Label(self.frame, text='Covered Period [h]').grid(column=0, row=i, sticky='w')
-            ttk.Label(self.frame, text=self.pm_object.get_covered_period()).grid(column=1, row=i, sticky='w')
+            i += 2
 
-            i += 1
+        ttk.Label(self.frame, text='Monetary Unit').grid(column=0, row=i, sticky='w')
+        ttk.Label(self.frame, text=self.pm_object.get_monetary_unit()).grid(column=1, row=i, sticky='w')
+
+        i += 1
 
         button_frame = ttk.Frame(self.frame)
 

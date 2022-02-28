@@ -3,7 +3,7 @@ from tkinter import ttk
 from tkinter import *
 import random
 
-from stream import Stream
+from commodity import Commodity
 from components import ConversionComponent
 
 
@@ -13,7 +13,7 @@ class ComponentFrame:
 
         """
         Component base frame
-        Builds basis for component parameters frame and component streams frame
+        Builds basis for component parameters frame and component commodities frame
 
         Input:
         - parent: to access function of parents (e.g., update whole interface)
@@ -73,7 +73,8 @@ class ComponentParametersFrame:
                 self.component_object.set_shut_down_ability(False)
             else:
                 self.component_object.set_shut_down_ability(True)
-                self.component_object.set_start_up_time(float(self.label_start_up_value_str.get()))
+                self.component_object.set_start_up_time(float(self.label_start_up_time_value_str.get()))
+                self.component_object.set_start_up_costs(float(self.label_start_up_costs_value_str.get()))
 
             if not self.hot_standby_ability_var.get():
                 self.component_object.set_hot_standby_ability(False)
@@ -109,10 +110,12 @@ class ComponentParametersFrame:
 
         def activate_shut_down():
             if self.shut_down_ability_var.get():
-                entry_start_up.config(state=NORMAL)
+                entry_start_up_time.config(state=NORMAL)
+                entry_start_up_costs.config(state=NORMAL)
 
             else:
-                entry_start_up.config(state=DISABLED)
+                entry_start_up_time.config(state=DISABLED)
+                entry_start_up_costs.config(state=DISABLED)
 
         def activate_hot_standby():
             if self.hot_standby_ability_var.get():
@@ -128,25 +131,25 @@ class ComponentParametersFrame:
 
             if capex_basis_var.get() == 'input':
                 nice_name_new = self.pm_object.get_nice_name(self.component_object.get_main_input())
-                unit_new = self.pm_object.get_stream(self.component_object.get_main_input()).get_unit()
+                unit_new = self.pm_object.get_commodity(self.component_object.get_main_input()).get_unit()
             else:
                 nice_name_new = self.pm_object.get_nice_name(self.component_object.get_main_output())
-                unit_new = self.pm_object.get_stream(self.component_object.get_main_output()).get_unit()
+                unit_new = self.pm_object.get_commodity(self.component_object.get_main_output()).get_unit()
 
             if unit_new == 'GWh':
                 unit_new = 'GW'
-                capex_unit_new = '€/' + unit_new + ' ' + nice_name_new
+                capex_unit_new = self.monetary_unit + '/' + unit_new + ' ' + nice_name_new
                 capacity_unit_new = 'GW ' + nice_name_new
             elif unit_new == 'MWh':
                 unit_new = 'MW'
-                capex_unit_new = '€/' + unit_new + ' ' + nice_name_new
+                capex_unit_new = self.monetary_unit + '/' + unit_new + ' ' + nice_name_new
                 capacity_unit_new = 'MW ' + nice_name_new
             elif unit_new == 'kWh':
                 unit_new = 'kW'
-                capex_unit_new = '€/' + unit_new + ' ' + nice_name_new
+                capex_unit_new = self.monetary_unit + '/' + unit_new + ' ' + nice_name_new
                 capacity_unit_new = 'kW ' + nice_name_new
             else:
-                capex_unit_new = '€/' + unit_new + '*h ' + nice_name_new
+                capex_unit_new = self.monetary_unit + '/' + unit_new + '*h ' + nice_name_new
                 capacity_unit_new = unit_new + '/h ' + nice_name_new
 
             capex_unit_var.set('Capex [' + capex_unit_new + ']')
@@ -193,25 +196,25 @@ class ComponentParametersFrame:
 
         if self.capex_basis_var.get() == 'input':
             nice_name = self.pm_object.get_nice_name(self.component_object.get_main_input())
-            unit = self.pm_object.get_stream(self.component_object.get_main_input()).get_unit()
+            unit = self.pm_object.get_commodity(self.component_object.get_main_input()).get_unit()
         else:
             nice_name = self.pm_object.get_nice_name(self.component_object.get_main_output())
-            unit = self.pm_object.get_stream(self.component_object.get_main_output()).get_unit()
+            unit = self.pm_object.get_commodity(self.component_object.get_main_output()).get_unit()
 
         if unit == 'GWh':
             unit = 'GW'
-            capex_unit = '€/' + unit + ' ' + nice_name
+            capex_unit = self.monetary_unit + '/' + unit + ' ' + nice_name
             capacity_unit = 'GW ' + nice_name
         elif unit == 'MWh':
             unit = 'MW'
-            capex_unit = '€/' + unit + ' ' + nice_name
+            capex_unit = self.monetary_unit + '/' + unit + ' ' + nice_name
             capacity_unit = 'MW ' + nice_name
         elif unit == 'kWh':
             unit = 'kW'
-            capex_unit = '€/' + unit + ' ' + nice_name
+            capex_unit = self.monetary_unit + '/' + unit + ' ' + nice_name
             capacity_unit = 'kW ' + nice_name
         else:
-            capex_unit = '€/' + unit + '*h ' + nice_name
+            capex_unit = self.monetary_unit + '/' + unit + '*h ' + nice_name
             capacity_unit = unit + '/h ' + nice_name
 
         capex_unit_var = StringVar()
@@ -227,7 +230,7 @@ class ComponentParametersFrame:
         entry_capex_var = ttk.Entry(newWindow, text=self.label_capex_value_str, state=status_no_scale)
         entry_capex_var.grid(row=2, column=1, sticky='w')
 
-        label_base_investment = ttk.Label(newWindow, text='€')
+        label_base_investment = ttk.Label(newWindow, text='Base Investment [' + self.monetary_unit + ']')
         label_base_investment.grid(column=0, row=3, sticky='w')
         label_base_investment_value = ttk.Entry(newWindow,
                                                 text=self.label_base_investment_value_str,
@@ -287,8 +290,12 @@ class ComponentParametersFrame:
             shut_down_state = DISABLED
 
         ttk.Label(newWindow, text='Cold Start up Time [h]').grid(row=14, column=0, sticky='w')
-        entry_start_up = ttk.Entry(newWindow, text=self.label_start_up_value_str, state=shut_down_state)
-        entry_start_up.grid(row=14, column=1, sticky='w')
+        entry_start_up_time = ttk.Entry(newWindow, text=self.label_start_up_time_value_str, state=shut_down_state)
+        entry_start_up_time.grid(row=14, column=1, sticky='w')
+
+        ttk.Label(newWindow, text='Cold Start up Costs [' + self.monetary_unit + ']').grid(row=15, column=0, sticky='w')
+        entry_start_up_costs = ttk.Entry(newWindow, text=self.label_start_up_costs_value_str, state=shut_down_state)
+        entry_start_up_costs.grid(row=15, column=1, sticky='w')
 
         # Hot standby ability
         if self.hot_standby_ability_var.get():
@@ -299,36 +306,36 @@ class ComponentParametersFrame:
             state_hot_standby_combobox = DISABLED
 
         ttk.Checkbutton(newWindow, text='Hot Standby possible?', variable=self.hot_standby_ability_var,
-                        command=activate_hot_standby).grid(row=15, column=0, columnspan=2, sticky='w')
+                        command=activate_hot_standby).grid(row=16, column=0, columnspan=2, sticky='w')
 
-        streams = []
-        for s in self.pm_object.get_specific_streams('final'):
-            streams.append(s.get_nice_name())
+        commodities = []
+        for s in self.pm_object.get_final_commodities_objects():
+            commodities.append(s.get_nice_name())
 
-        ttk.Label(newWindow, text='Hot Standby Input Stream').grid(row=16, column=0, sticky='w')
-        hot_standby_combobox = ttk.Combobox(newWindow, text='', values=streams, state=state_hot_standby_combobox)
-        hot_standby_combobox.set(self.hot_standby_stream_var.get())
-        hot_standby_combobox.grid(row=16, column=1, sticky='w')
+        ttk.Label(newWindow, text='Hot Standby Input Commodity').grid(row=17, column=0, sticky='w')
+        hot_standby_combobox = ttk.Combobox(newWindow, text='', values=commodities, state=state_hot_standby_combobox)
+        hot_standby_combobox.set(self.hot_standby_commodity_var.get())
+        hot_standby_combobox.grid(row=17, column=1, sticky='w')
 
-        ttk.Label(newWindow, text='Hot Standby Hourly Demand').grid(row=17, column=0, sticky='w')
+        ttk.Label(newWindow, text='Hot Standby Hourly Demand').grid(row=18, column=0, sticky='w')
         hot_standby_entry = ttk.Entry(newWindow, text=self.hot_standby_demand_var, state=state_hot_standby)
-        hot_standby_entry.grid(row=17, column=1, sticky='w')
+        hot_standby_entry.grid(row=18, column=1, sticky='w')
 
-        ttk.Label(newWindow, text='Hot Standby Startup Time [h]').grid(row=18, column=0, sticky='w')
+        ttk.Label(newWindow, text='Hot Standby Startup Time [h]').grid(row=19, column=0, sticky='w')
         hot_standby_startup_time_entry = ttk.Entry(newWindow, text=self.hot_standby_demand_startup_time,
                                                    state=state_hot_standby)
-        hot_standby_startup_time_entry.grid(row=18, column=1, sticky='w')
+        hot_standby_startup_time_entry.grid(row=19, column=1, sticky='w')
 
         # Number of units of same type in system
-        tk.Label(newWindow, text='Number of units in system').grid(row=19, column=0, sticky='w')
+        tk.Label(newWindow, text='Number of units in system').grid(row=20, column=0, sticky='w')
         entry_number_units = ttk.Entry(newWindow, text=self.label_number_parallel_units_str)
-        entry_number_units.grid(row=19, column=1, sticky='w')
+        entry_number_units.grid(row=20, column=1, sticky='w')
 
         button = ttk.Button(newWindow, text='Adjust values', command=get_value_and_kill_window)
-        button.grid(row=20, column=0, sticky='ew')
+        button.grid(row=21, column=0, sticky='ew')
 
         button = ttk.Button(newWindow, text='Cancel', command=newWindow.destroy)
-        button.grid(row=20, column=1, sticky='ew')
+        button.grid(row=21, column=1, sticky='ew')
 
         newWindow.grid_columnconfigure(0, weight=1, uniform='a')
         newWindow.grid_columnconfigure(1, weight=1, uniform='a')
@@ -358,8 +365,10 @@ class ComponentParametersFrame:
         component_copy.set_max_p(float(component_original.get_max_p()))
         component_copy.set_ramp_down(component_original.get_ramp_down())
         component_copy.set_ramp_up(component_original.get_ramp_up())
+
         component_copy.set_shut_down_ability(component_original.get_shut_down_ability())
         component_copy.set_start_up_time(component_original.get_start_up_time())
+        component_copy.set_start_up_costs(component_original.get_start_up_costs())
 
         if component_original.get_hot_standby_ability():
             component_copy.set_hot_standby_ability(component_original.get_hot_standby_ability())
@@ -394,6 +403,7 @@ class ComponentParametersFrame:
         self.pm_object_original = pm_object_original
         self.component = component
         self.component_object = self.pm_object.get_component(component)
+        self.monetary_unit = self.pm_object.get_monetary_unit()
 
         self.frame = tk.Frame(super_frame)
 
@@ -418,32 +428,36 @@ class ComponentParametersFrame:
             shut_down_ability = bool(self.component_object.get_shut_down_ability())
             self.shut_down_ability_var = BooleanVar()
             self.shut_down_ability_var.set(shut_down_ability)
-            self.label_start_up_value_str = StringVar()
+            self.label_start_up_time_value_str = StringVar()
+            self.label_start_up_costs_value_str = StringVar()
             if shut_down_ability:
                 start_up_time = self.component_object.get_start_up_time()
-                self.label_start_up_value_str.set(start_up_time)
+                self.label_start_up_time_value_str.set(start_up_time)
+                start_up_costs = self.component_object.get_start_up_costs()
+                self.label_start_up_costs_value_str.set(start_up_costs)
             else:
-                self.label_start_up_value_str.set(0)
+                self.label_start_up_time_value_str.set(0)
+                self.label_start_up_costs_value_str.set(0)
 
             hot_standby_ability = bool(self.component_object.get_hot_standby_ability())
             self.hot_standby_ability_var = BooleanVar()
             self.hot_standby_ability_var.set(hot_standby_ability)
-            self.hot_standby_stream_var = StringVar()
+            self.hot_standby_commodity_var = StringVar()
             self.hot_standby_demand_var = StringVar()
             self.hot_standby_demand_startup_time = IntVar()
             if hot_standby_ability:
                 hot_standby_demand = self.component_object.get_hot_standby_demand()
-                stream = [*hot_standby_demand.keys()][0]
-                stream_nice_name = self.pm_object.get_nice_name(stream)
-                hot_standby_unit = self.pm_object.get_stream(stream).get_unit()
+                commodity = [*hot_standby_demand.keys()][0]
+                commodity_nice_name = self.pm_object.get_nice_name(commodity)
+                hot_standby_unit = self.pm_object.get_commodity(commodity).get_unit()
                 hot_standby_startup_time = self.component_object.get_hot_standby_startup_time()
 
                 self.hot_standby_ability_var.set(hot_standby_ability)
-                self.hot_standby_stream_var.set(stream_nice_name)
-                self.hot_standby_demand_var.set(hot_standby_demand[stream])
+                self.hot_standby_commodity_var.set(commodity_nice_name)
+                self.hot_standby_demand_var.set(hot_standby_demand[commodity])
                 self.hot_standby_demand_startup_time.set(hot_standby_startup_time)
             else:
-                self.hot_standby_stream_var.set('')
+                self.hot_standby_commodity_var.set('')
                 self.hot_standby_demand_var.set(0)
                 self.hot_standby_demand_startup_time.set(0)
 
@@ -492,25 +506,25 @@ class ComponentParametersFrame:
 
             if self.capex_basis_var.get() == 'input':
                 nice_name = self.pm_object.get_nice_name(self.component_object.get_main_input())
-                unit = self.pm_object.get_stream(self.component_object.get_main_input()).get_unit()
+                unit = self.pm_object.get_commodity(self.component_object.get_main_input()).get_unit()
             else:
                 nice_name = self.pm_object.get_nice_name(self.component_object.get_main_output())
-                unit = self.pm_object.get_stream(self.component_object.get_main_output()).get_unit()
+                unit = self.pm_object.get_commodity(self.component_object.get_main_output()).get_unit()
 
             if unit == 'GWh':
                 unit = 'GW'
-                capex_unit = '€/' + unit + ' ' + nice_name
+                capex_unit = self.monetary_unit + '/' + unit + ' ' + nice_name
                 capacity_unit = 'GW ' + nice_name
             elif unit == 'MWh':
                 unit = 'MW'
-                capex_unit = '€/' + unit + ' ' + nice_name
+                capex_unit = self.monetary_unit + '/' + unit + ' ' + nice_name
                 capacity_unit = 'MW ' + nice_name
             elif unit == 'kWh':
                 unit = 'kW'
-                capex_unit = '€/' + unit + ' ' + nice_name
+                capex_unit = self.monetary_unit + '/' + unit + ' ' + nice_name
                 capacity_unit = 'kW ' + nice_name
             else:
-                capex_unit = '€/' + unit + '*h ' + nice_name
+                capex_unit = self.monetary_unit + '/' + unit + '*h ' + nice_name
                 capacity_unit = unit + '/h ' + nice_name
 
             if not self.component_object.is_scalable():
@@ -541,7 +555,7 @@ class ComponentParametersFrame:
                 self.label_scaling_factor_value_str.set(scaling_factor)
                 self.label_max_capacity_eoc_value_str.set(max_capacity_eoc)
 
-                self.label_base_investment = ttk.Label(self.frame, text='Base investment [€]')
+                self.label_base_investment = ttk.Label(self.frame, text='Base investment [' + self.monetary_unit + ']')
                 self.label_base_investment.grid(column=0, row=i+1, sticky='w')
                 self.label_base_investment_value = ttk.Label(self.frame,
                                                              text=self.label_base_investment_value_str.get())
@@ -588,14 +602,19 @@ class ComponentParametersFrame:
 
             if self.component_object.get_shut_down_ability():
                 ttk.Label(self.frame, text='Cold Start up time [h]').grid(column=0, row=i+1, sticky='w')
-                ttk.Label(self.frame, text=self.label_start_up_value_str.get()).grid(column=1, row=i+1, sticky='w')
+                ttk.Label(self.frame, text=self.label_start_up_time_value_str.get()).grid(column=1, row=i+1, sticky='w')
+                ttk.Label(self.frame, text='Cold Start up costs [' + self.monetary_unit + ']').grid(column=0,
+                                                                                                    row=i + 2,
+                                                                                                    sticky='w')
+                ttk.Label(self.frame, text=self.label_start_up_costs_value_str.get()).grid(column=1, row=i + 2,
+                                                                                          sticky='w')
 
                 i += 2
 
             if hot_standby_ability:
 
-                ttk.Label(self.frame, text='Hot Standby Input Stream').grid(row=i+1, column=0, sticky='w')
-                ttk.Label(self.frame, text=self.hot_standby_stream_var.get()).grid(row=i + 1, column=1, sticky='w')
+                ttk.Label(self.frame, text='Hot Standby Input Commodity').grid(row=i+1, column=0, sticky='w')
+                ttk.Label(self.frame, text=self.hot_standby_commodity_var.get()).grid(row=i + 1, column=1, sticky='w')
 
                 if hot_standby_unit == 'MWh':
                     hot_standby_unit = 'MW'
@@ -645,11 +664,11 @@ class AddNewComponentWindow:
 
         new_component = ConversionComponent(self.name.get(), self.nice_name.get(), final_unit=True, custom_unit=True)
 
-        input_random = random.choice([*self.pm_object.get_all_streams().keys()])
+        input_random = random.choice([*self.pm_object.get_all_commodities().keys()])
         new_component.add_input(input_random, 1)
         new_component.set_main_input(input_random)
 
-        output_random = random.choice([*self.pm_object.get_all_streams().keys()])
+        output_random = random.choice([*self.pm_object.get_all_commodities().keys()])
         new_component.add_output(output_random, 1)
         new_component.set_main_output(output_random)
 
@@ -790,58 +809,58 @@ class ConversionFrame:
                 for comp_input in self.current_inputs:
                     self.component_object.add_input(comp_input, self.current_input_coefficients[comp_input])
 
-                    if comp_input not in self.pm_object.get_all_streams():
-                        s = Stream(comp_input, self.current_nice_names[comp_input], self.current_units[comp_input],
-                                   final_stream=True, custom_stream=True)
-                        self.pm_object.add_stream(comp_input, s)
+                    if comp_input not in self.pm_object.get_all_commodities():
+                        s = Commodity(comp_input, self.current_nice_names[comp_input], self.current_units[comp_input],
+                                   final_commodity=True, custom_commodity=True)
+                        self.pm_object.add_commodity(comp_input, s)
 
                 for comp_output in self.current_outputs:
                     self.component_object.add_output(comp_output, self.current_output_coefficients[comp_output])
 
-                    if comp_output not in self.pm_object.get_all_streams():
-                        s = Stream(comp_output, self.current_nice_names[comp_output], self.current_units[comp_output],
-                                   final_stream=True, custom_stream=True)
-                        self.pm_object.add_stream(comp_output, s)
+                    if comp_output not in self.pm_object.get_all_commodities():
+                        s = Commodity(comp_output, self.current_nice_names[comp_output], self.current_units[comp_output],
+                                   final_commodity=True, custom_commodity=True)
+                        self.pm_object.add_commodity(comp_output, s)
 
                 # set main input and output, and adjust capex unit depending on main input
                 self.component_object.set_main_input(main_input)
                 self.component_object.set_main_output(main_output)
 
-                # Check if streams are not used anymore and delete them from all streams
-                for stream in self.pm_object.get_all_streams():
-                    stream_used = False
-                    for c in self.pm_object.get_specific_components('final', 'conversion'):
+                # Check if commodities are not used anymore and delete them from all commodities
+                for commodity in self.pm_object.get_all_commodities():
+                    commodity_used = False
+                    for c in self.pm_object.get_final_conversion_components_objects():
                         inputs = c.get_inputs()
                         for inp in [*inputs.keys()]:
-                            if inp == stream:
-                                stream_used = True
+                            if inp == commodity:
+                                commodity_used = True
                                 break
 
                         outputs = c.get_outputs()
                         for outp in [*outputs.keys()]:
-                            if outp == stream:
-                                stream_used = True
+                            if outp == commodity:
+                                commodity_used = True
                                 break
 
-                    if not stream_used:
-                        self.pm_object.remove_stream(stream)
+                    if not commodity_used:
+                        self.pm_object.remove_commodity(commodity)
 
-                # Check if stream is used again and add it to all streams
-                used_streams = []
-                for c in self.pm_object.get_specific_components('final', 'conversion'):
+                # Check if commodity is used again and add it to all commodities
+                used_commodities = []
+                for c in self.pm_object.get_final_conversion_components_objects():
                     inputs = c.get_inputs()
                     for inp in [*inputs.keys()]:
-                        if inp not in used_streams:
-                            used_streams.append(inp)
+                        if inp not in used_commodities:
+                            used_commodities.append(inp)
 
                     outputs = c.get_outputs()
                     for outp in [*outputs.keys()]:
-                        if outp not in used_streams:
-                            used_streams.append(outp)
+                        if outp not in used_commodities:
+                            used_commodities.append(outp)
 
-                for stream in used_streams:
-                    if stream not in self.pm_object.get_specific_streams('final'):
-                        self.pm_object.activate_stream(stream)
+                for commodity in used_commodities:
+                    if commodity not in self.pm_object.get_final_commodities():
+                        self.pm_object.activate_commodity(commodity)
 
                 me_balance_window.destroy()
 
@@ -853,61 +872,61 @@ class ConversionFrame:
 
         def adjust_input(number_to_adjust):
 
-            input_stream_to_adjust = input_streams[number_to_adjust]
-            input_stream_nice_name_to_adjust = input_nice_names[number_to_adjust]
+            input_commodity_to_adjust = input_commodities[number_to_adjust]
+            input_commodity_nice_name_to_adjust = input_nice_names[number_to_adjust]
             coefficient_to_adjust = input_coefficients[number_to_adjust]
 
             def change_input_entry():
                 if input_radiobutton_var.get() == 'existing':
-                    combobox_existing_stream_input.config(state=NORMAL)
+                    combobox_existing_commodity_input.config(state=NORMAL)
 
-                    input_stream_name_entry.config(state=DISABLED)
-                    input_stream_abbreviation_entry.config(state=DISABLED)
+                    input_commodity_name_entry.config(state=DISABLED)
+                    input_commodity_abbreviation_entry.config(state=DISABLED)
                     input_unit_entry.config(state=DISABLED)
                 else:
-                    combobox_existing_stream_input.config(state=DISABLED)
-                    input_stream_name_entry.config(state=NORMAL)
-                    input_stream_abbreviation_entry.config(state=NORMAL)
+                    combobox_existing_commodity_input.config(state=DISABLED)
+                    input_commodity_name_entry.config(state=NORMAL)
+                    input_commodity_abbreviation_entry.config(state=NORMAL)
                     input_unit_entry.config(state=NORMAL)
 
             def get_values_and_kill():
 
                 if input_radiobutton_var.get() == 'existing':
 
-                    if combobox_existing_stream_input.get() in [*self.current_nice_names.values()]:
+                    if combobox_existing_commodity_input.get() in [*self.current_nice_names.values()]:
                         for name, nice_name in self.current_nice_names.items():
-                            if nice_name == combobox_existing_stream_input.get():
-                                stream = name
+                            if nice_name == combobox_existing_commodity_input.get():
+                                commodity = name
 
-                        for n, stream_n in enumerate(self.current_inputs):
-                            if stream_n == input_stream_to_adjust:
-                                self.current_inputs[n] = stream
+                        for n, commodity_n in enumerate(self.current_inputs):
+                            if commodity_n == input_commodity_to_adjust:
+                                self.current_inputs[n] = commodity
                     else:
-                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_input.get())
+                        commodity = self.pm_object.get_abbreviation(combobox_existing_commodity_input.get())
 
-                        for n, stream_n in enumerate(self.current_inputs):
-                            if stream_n == input_stream_to_adjust:
-                                self.current_inputs[n] = stream
+                        for n, commodity_n in enumerate(self.current_inputs):
+                            if commodity_n == input_commodity_to_adjust:
+                                self.current_inputs[n] = commodity
 
-                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
-                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
+                        self.current_nice_names[commodity] = self.pm_object.get_nice_name(commodity)
+                        self.current_units[commodity] = self.pm_object.get_commodity(commodity).get_unit()
 
-                    for n, stream_n in enumerate(self.current_inputs):
-                        if stream_n == input_stream_to_adjust:
-                            self.current_inputs[n] = stream
+                    for n, commodity_n in enumerate(self.current_inputs):
+                        if commodity_n == input_commodity_to_adjust:
+                            self.current_inputs[n] = commodity
 
                 else:
-                    stream = input_stream_abbreviation_entry.get()
-                    for n, stream_n in enumerate(self.current_inputs):
-                        if stream_n == input_stream_to_adjust:
-                            self.current_inputs[n] = stream
+                    commodity = input_commodity_abbreviation_entry.get()
+                    for n, commodity_n in enumerate(self.current_inputs):
+                        if commodity_n == input_commodity_to_adjust:
+                            self.current_inputs[n] = commodity
 
-                    self.current_nice_names[stream] = input_stream_name_entry.get()
-                    self.current_units[stream] = input_unit_entry.get()
+                    self.current_nice_names[commodity] = input_commodity_name_entry.get()
+                    self.current_units[commodity] = input_unit_entry.get()
 
-                    self.streams_add_conversion_nice_names.append(input_stream_name_entry.get())
+                    self.commodities_add_conversion_nice_names.append(input_commodity_name_entry.get())
 
-                self.current_input_coefficients[stream] = coefficient_entry_var.get()
+                self.current_input_coefficients[commodity] = coefficient_entry_var.get()
 
                 adjust_input_window.destroy()
                 me_balance_window.grab_set()
@@ -916,8 +935,8 @@ class ConversionFrame:
             def kill_only():
 
                 if input_radiobutton_var.get() == 'new':
-                    if input_stream_name_entry.get() in self.streams_add_conversion_nice_names:
-                        self.streams_add_conversion_nice_names.remove(input_stream_name_entry.get())
+                    if input_commodity_name_entry.get() in self.commodities_add_conversion_nice_names:
+                        self.commodities_add_conversion_nice_names.remove(input_commodity_name_entry.get())
 
                 adjust_input_window.destroy()
                 me_balance_window.grab_set()
@@ -928,31 +947,31 @@ class ConversionFrame:
 
             input_radiobutton_var = StringVar()
             input_radiobutton_var.set('existing')
-            input_radiobutton_existing = ttk.Radiobutton(adjust_input_window, text='Existing stream',
+            input_radiobutton_existing = ttk.Radiobutton(adjust_input_window, text='Existing commodity',
                                                          variable=input_radiobutton_var,
                                                          value='existing', command=change_input_entry)
             input_radiobutton_existing.grid(row=1, column=0, sticky='ew')
 
-            combobox_existing_stream_input = ttk.Combobox(adjust_input_window,
-                                                          values=self.streams_add_conversion_nice_names,
+            combobox_existing_commodity_input = ttk.Combobox(adjust_input_window,
+                                                          values=self.commodities_add_conversion_nice_names,
                                                           state='readonly')
-            combobox_existing_stream_input.grid(row=2, column=0, sticky='ew')
-            combobox_existing_stream_input.set(input_stream_nice_name_to_adjust)
+            combobox_existing_commodity_input.grid(row=2, column=0, sticky='ew')
+            combobox_existing_commodity_input.set(input_commodity_nice_name_to_adjust)
 
-            input_radiobutton_new = ttk.Radiobutton(adjust_input_window, text='New stream',
+            input_radiobutton_new = ttk.Radiobutton(adjust_input_window, text='New commodity',
                                                     variable=input_radiobutton_var, value='new',
                                                     command=change_input_entry)
             input_radiobutton_new.grid(row=3, column=0, sticky='ew')
 
-            input_stream_name_entry = ttk.Entry(adjust_input_window)
-            input_stream_name_entry.insert(END, 'Nice Name')
-            input_stream_name_entry.config(state=DISABLED)
-            input_stream_name_entry.grid(row=4, column=0, sticky='ew')
+            input_commodity_name_entry = ttk.Entry(adjust_input_window)
+            input_commodity_name_entry.insert(END, 'Nice Name')
+            input_commodity_name_entry.config(state=DISABLED)
+            input_commodity_name_entry.grid(row=4, column=0, sticky='ew')
 
-            input_stream_abbreviation_entry = ttk.Entry(adjust_input_window)
-            input_stream_abbreviation_entry.insert(END, 'Abbreviation')
-            input_stream_abbreviation_entry.config(state=DISABLED)
-            input_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+            input_commodity_abbreviation_entry = ttk.Entry(adjust_input_window)
+            input_commodity_abbreviation_entry.insert(END, 'Abbreviation')
+            input_commodity_abbreviation_entry.config(state=DISABLED)
+            input_commodity_abbreviation_entry.grid(row=5, column=0, sticky='ew')
 
             input_unit_entry = ttk.Entry(adjust_input_window)
             input_unit_entry.insert(END, 'Unit')
@@ -977,56 +996,56 @@ class ConversionFrame:
 
         def adjust_output(number_to_adjust):
 
-            output_stream_to_adjust = output_streams[number_to_adjust]
-            output_stream_nice_name_to_adjust = output_nice_names[number_to_adjust]
+            output_commodity_to_adjust = output_commodities[number_to_adjust]
+            output_commodity_nice_name_to_adjust = output_nice_names[number_to_adjust]
             coefficient_to_adjust = output_coefficients[number_to_adjust]
 
             def change_output_entry():
                 if output_radiobutton_var.get() == 'existing':
-                    combobox_existing_stream_output.config(state=NORMAL)
+                    combobox_existing_commodity_output.config(state=NORMAL)
 
-                    output_stream_name_entry.config(state=DISABLED)
-                    output_stream_abbreviation_entry.config(state=DISABLED)
+                    output_commodity_name_entry.config(state=DISABLED)
+                    output_commodity_abbreviation_entry.config(state=DISABLED)
                     output_unit_entry.config(state=DISABLED)
                 else:
-                    combobox_existing_stream_output.config(state=DISABLED)
-                    output_stream_name_entry.config(state=NORMAL)
-                    output_stream_abbreviation_entry.config(state=NORMAL)
+                    combobox_existing_commodity_output.config(state=DISABLED)
+                    output_commodity_name_entry.config(state=NORMAL)
+                    output_commodity_abbreviation_entry.config(state=NORMAL)
                     output_unit_entry.config(state=NORMAL)
 
             def get_values_and_kill():
 
                 if output_radiobutton_var.get() == 'existing':
-                    if combobox_existing_stream_output.get() in [*self.current_nice_names.values()]:
+                    if combobox_existing_commodity_output.get() in [*self.current_nice_names.values()]:
                         for name, nice_name in self.current_nice_names.items():
-                            if nice_name == combobox_existing_stream_output.get():
-                                stream = name
+                            if nice_name == combobox_existing_commodity_output.get():
+                                commodity = name
 
-                        for n, stream_n in enumerate(self.current_outputs):
-                            if stream_n == output_stream_to_adjust:
-                                self.current_outputs[n] = stream
+                        for n, commodity_n in enumerate(self.current_outputs):
+                            if commodity_n == output_commodity_to_adjust:
+                                self.current_outputs[n] = commodity
                     else:
-                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_output.get())
+                        commodity = self.pm_object.get_abbreviation(combobox_existing_commodity_output.get())
 
-                        for n, stream_n in enumerate(self.current_outputs):
-                            if stream_n == output_stream_to_adjust:
-                                self.current_outputs[n] = stream
+                        for n, commodity_n in enumerate(self.current_outputs):
+                            if commodity_n == output_commodity_to_adjust:
+                                self.current_outputs[n] = commodity
 
-                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
-                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
+                        self.current_nice_names[commodity] = self.pm_object.get_nice_name(commodity)
+                        self.current_units[commodity] = self.pm_object.get_commodity(commodity).get_unit()
 
                 else:
-                    stream = output_stream_abbreviation_entry.get()
-                    for n, stream_n in enumerate(self.current_outputs):
-                        if stream_n == output_stream_to_adjust:
-                            self.current_outputs[n] = stream
+                    commodity = output_commodity_abbreviation_entry.get()
+                    for n, commodity_n in enumerate(self.current_outputs):
+                        if commodity_n == output_commodity_to_adjust:
+                            self.current_outputs[n] = commodity
 
-                    self.current_nice_names[stream] = output_stream_name_entry.get()
-                    self.current_units[stream] = output_unit_entry.get()
+                    self.current_nice_names[commodity] = output_commodity_name_entry.get()
+                    self.current_units[commodity] = output_unit_entry.get()
 
-                    self.streams_add_conversion_nice_names.append(output_stream_name_entry.get())
+                    self.commodities_add_conversion_nice_names.append(output_commodity_name_entry.get())
 
-                self.current_output_coefficients[stream] = coefficient_entry_var.get()
+                self.current_output_coefficients[commodity] = coefficient_entry_var.get()
 
                 adjust_output_window.destroy()
                 me_balance_window.grab_set()
@@ -1035,8 +1054,8 @@ class ConversionFrame:
             def kill_only():
 
                 if output_radiobutton_var.get() == 'new':
-                    if output_stream_name_entry.get() in self.streams_add_conversion_nice_names:
-                        self.streams_add_conversion_nice_names.remove(output_stream_name_entry.get())
+                    if output_commodity_name_entry.get() in self.commodities_add_conversion_nice_names:
+                        self.commodities_add_conversion_nice_names.remove(output_commodity_name_entry.get())
 
                 adjust_output_window.destroy()
                 me_balance_window.grab_set()
@@ -1047,31 +1066,31 @@ class ConversionFrame:
 
             output_radiobutton_var = StringVar()
             output_radiobutton_var.set('existing')
-            output_radiobutton_existing = ttk.Radiobutton(adjust_output_window, text='Existing stream',
+            output_radiobutton_existing = ttk.Radiobutton(adjust_output_window, text='Existing commodity',
                                                          variable=output_radiobutton_var,
                                                          value='existing', command=change_output_entry)
             output_radiobutton_existing.grid(row=1, column=0, sticky='ew')
 
-            combobox_existing_stream_output = ttk.Combobox(adjust_output_window,
-                                                          values=self.streams_add_conversion_nice_names,
+            combobox_existing_commodity_output = ttk.Combobox(adjust_output_window,
+                                                          values=self.commodities_add_conversion_nice_names,
                                                            state='readonly')
-            combobox_existing_stream_output.grid(row=2, column=0, sticky='ew')
-            combobox_existing_stream_output.set(output_stream_nice_name_to_adjust)
+            combobox_existing_commodity_output.grid(row=2, column=0, sticky='ew')
+            combobox_existing_commodity_output.set(output_commodity_nice_name_to_adjust)
 
-            output_radiobutton_new = ttk.Radiobutton(adjust_output_window, text='New stream',
+            output_radiobutton_new = ttk.Radiobutton(adjust_output_window, text='New commodity',
                                                     variable=output_radiobutton_var, value='new',
                                                     command=change_output_entry)
             output_radiobutton_new.grid(row=3, column=0, sticky='ew')
 
-            output_stream_name_entry = ttk.Entry(adjust_output_window)
-            output_stream_name_entry.insert(END, 'Nice Name')
-            output_stream_name_entry.config(state=DISABLED)
-            output_stream_name_entry.grid(row=4, column=0, sticky='ew')
+            output_commodity_name_entry = ttk.Entry(adjust_output_window)
+            output_commodity_name_entry.insert(END, 'Nice Name')
+            output_commodity_name_entry.config(state=DISABLED)
+            output_commodity_name_entry.grid(row=4, column=0, sticky='ew')
 
-            output_stream_abbreviation_entry = ttk.Entry(adjust_output_window)
-            output_stream_abbreviation_entry.insert(END, 'Abbreviation')
-            output_stream_abbreviation_entry.config(state=DISABLED)
-            output_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+            output_commodity_abbreviation_entry = ttk.Entry(adjust_output_window)
+            output_commodity_abbreviation_entry.insert(END, 'Abbreviation')
+            output_commodity_abbreviation_entry.config(state=DISABLED)
+            output_commodity_abbreviation_entry.grid(row=5, column=0, sticky='ew')
 
             output_unit_entry = ttk.Entry(adjust_output_window)
             output_unit_entry.insert(END, 'Unit')
@@ -1100,7 +1119,7 @@ class ConversionFrame:
 
                 for ind_choice in [*choice.keys()]:
                     if choice[ind_choice].get():
-                        self.current_inputs.remove(input_streams[ind_choice])
+                        self.current_inputs.remove(input_commodities[ind_choice])
 
                 delete_input_window.destroy()
                 me_balance_window.grab_set()
@@ -1133,7 +1152,7 @@ class ConversionFrame:
 
                 for ind_choice in [*choice.keys()]:
                     if choice[ind_choice].get():
-                        self.current_outputs.remove(output_streams[ind_choice])
+                        self.current_outputs.remove(output_commodities[ind_choice])
 
                 delete_output_window.destroy()
                 me_balance_window.grab_set()
@@ -1164,41 +1183,41 @@ class ConversionFrame:
 
             def change_input_entry():
                 if input_radiobutton_var.get() == 'existing':
-                    combobox_existing_stream_input.config(state=NORMAL)
+                    combobox_existing_commodity_input.config(state=NORMAL)
 
-                    input_stream_name_entry.config(state=DISABLED)
-                    input_stream_abbreviation_entry.config(state=DISABLED)
+                    input_commodity_name_entry.config(state=DISABLED)
+                    input_commodity_abbreviation_entry.config(state=DISABLED)
                     input_unit_entry.config(state=DISABLED)
                 else:
-                    combobox_existing_stream_input.config(state=DISABLED)
-                    input_stream_name_entry.config(state=NORMAL)
-                    input_stream_abbreviation_entry.config(state=NORMAL)
+                    combobox_existing_commodity_input.config(state=DISABLED)
+                    input_commodity_name_entry.config(state=NORMAL)
+                    input_commodity_abbreviation_entry.config(state=NORMAL)
                     input_unit_entry.config(state=NORMAL)
 
             def get_values_and_kill():
 
                 if input_radiobutton_var.get() == 'existing':
 
-                    if combobox_existing_stream_input.get() in [*self.current_nice_names.values()]:
+                    if combobox_existing_commodity_input.get() in [*self.current_nice_names.values()]:
                         for name, nice_name in self.current_nice_names.items():
-                            if nice_name == combobox_existing_stream_input.get():
-                                stream = name
+                            if nice_name == combobox_existing_commodity_input.get():
+                                commodity = name
                     else:
-                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_input.get())
+                        commodity = self.pm_object.get_abbreviation(combobox_existing_commodity_input.get())
 
-                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
-                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
+                        self.current_units[commodity] = self.pm_object.get_commodity(commodity).get_unit()
+                        self.current_nice_names[commodity] = self.pm_object.get_nice_name(commodity)
 
-                    self.current_inputs.append(stream)
+                    self.current_inputs.append(commodity)
 
                 else:
-                    stream = input_stream_abbreviation_entry.get()
-                    self.current_inputs.append(stream)
-                    self.current_units[stream] = input_unit_entry.get()
-                    self.current_nice_names[stream] = input_stream_name_entry.get()
-                    self.streams_add_conversion_nice_names.append(input_stream_name_entry.get())
+                    commodity = input_commodity_abbreviation_entry.get()
+                    self.current_inputs.append(commodity)
+                    self.current_units[commodity] = input_unit_entry.get()
+                    self.current_nice_names[commodity] = input_commodity_name_entry.get()
+                    self.commodities_add_conversion_nice_names.append(input_commodity_name_entry.get())
 
-                self.current_input_coefficients[stream] = coefficient_entry_var.get()
+                self.current_input_coefficients[commodity] = coefficient_entry_var.get()
 
                 add_input_window.destroy()
                 me_balance_window.grab_set()
@@ -1207,8 +1226,8 @@ class ConversionFrame:
             def kill_only():
 
                 if input_radiobutton_var.get() == 'new':
-                    if input_stream_name_entry.get() in self.streams_add_conversion_nice_names:
-                        self.streams_add_conversion_nice_names.remove(input_stream_name_entry.get())
+                    if input_commodity_name_entry.get() in self.commodities_add_conversion_nice_names:
+                        self.commodities_add_conversion_nice_names.remove(input_commodity_name_entry.get())
 
                 add_input_window.destroy()
                 me_balance_window.grab_set()
@@ -1219,31 +1238,31 @@ class ConversionFrame:
 
             input_radiobutton_var = StringVar()
             input_radiobutton_var.set('existing')
-            input_radiobutton_existing = ttk.Radiobutton(add_input_window, text='Existing stream',
+            input_radiobutton_existing = ttk.Radiobutton(add_input_window, text='Existing commodity',
                                                          variable=input_radiobutton_var,
                                                          value='existing', command=change_input_entry)
             input_radiobutton_existing.grid(row=1, column=0, sticky='ew')
 
-            combobox_existing_stream_input = ttk.Combobox(add_input_window,
-                                                          values=self.streams_add_conversion_nice_names,
+            combobox_existing_commodity_input = ttk.Combobox(add_input_window,
+                                                          values=self.commodities_add_conversion_nice_names,
                                                           state='readonly')
-            combobox_existing_stream_input.grid(row=2, column=0, sticky='ew')
-            combobox_existing_stream_input.set('')
+            combobox_existing_commodity_input.grid(row=2, column=0, sticky='ew')
+            combobox_existing_commodity_input.set('')
 
-            input_radiobutton_new = ttk.Radiobutton(add_input_window, text='New stream',
+            input_radiobutton_new = ttk.Radiobutton(add_input_window, text='New commodity',
                                                     variable=input_radiobutton_var, value='new',
                                                     command=change_input_entry)
             input_radiobutton_new.grid(row=3, column=0, sticky='ew')
 
-            input_stream_name_entry = ttk.Entry(add_input_window)
-            input_stream_name_entry.insert(END, 'Nice Name')
-            input_stream_name_entry.config(state=DISABLED)
-            input_stream_name_entry.grid(row=4, column=0, sticky='ew')
+            input_commodity_name_entry = ttk.Entry(add_input_window)
+            input_commodity_name_entry.insert(END, 'Nice Name')
+            input_commodity_name_entry.config(state=DISABLED)
+            input_commodity_name_entry.grid(row=4, column=0, sticky='ew')
 
-            input_stream_abbreviation_entry = ttk.Entry(add_input_window)
-            input_stream_abbreviation_entry.insert(END, 'Abbreviation')
-            input_stream_abbreviation_entry.config(state=DISABLED)
-            input_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+            input_commodity_abbreviation_entry = ttk.Entry(add_input_window)
+            input_commodity_abbreviation_entry.insert(END, 'Abbreviation')
+            input_commodity_abbreviation_entry.config(state=DISABLED)
+            input_commodity_abbreviation_entry.grid(row=5, column=0, sticky='ew')
 
             input_unit_entry = ttk.Entry(add_input_window)
             input_unit_entry.insert(END, 'Unit')
@@ -1270,40 +1289,40 @@ class ConversionFrame:
             
             def change_output_entry():
                 if output_radiobutton_var.get() == 'existing':
-                    combobox_existing_stream_output.config(state=NORMAL)
+                    combobox_existing_commodity_output.config(state=NORMAL)
 
-                    output_stream_name_entry.config(state=DISABLED)
-                    output_stream_abbreviation_entry.config(state=DISABLED)
+                    output_commodity_name_entry.config(state=DISABLED)
+                    output_commodity_abbreviation_entry.config(state=DISABLED)
                     output_unit_entry.config(state=DISABLED)
                 else:
-                    combobox_existing_stream_output.config(state=DISABLED)
-                    output_stream_name_entry.config(state=NORMAL)
-                    output_stream_abbreviation_entry.config(state=NORMAL)
+                    combobox_existing_commodity_output.config(state=DISABLED)
+                    output_commodity_name_entry.config(state=NORMAL)
+                    output_commodity_abbreviation_entry.config(state=NORMAL)
                     output_unit_entry.config(state=NORMAL)
 
             def get_values_and_kill():
 
                 if output_radiobutton_var.get() == 'existing':
-                    if combobox_existing_stream_output.get() in [*self.current_nice_names.values()]:
+                    if combobox_existing_commodity_output.get() in [*self.current_nice_names.values()]:
                         for name, nice_name in self.current_nice_names.items():
-                            if nice_name == combobox_existing_stream_output.get():
-                                stream = name
+                            if nice_name == combobox_existing_commodity_output.get():
+                                commodity = name
                     else:
-                        stream = self.pm_object.get_abbreviation(combobox_existing_stream_output.get())
+                        commodity = self.pm_object.get_abbreviation(combobox_existing_commodity_output.get())
 
-                        self.current_units[stream] = self.pm_object.get_stream(stream).get_unit()
-                        self.current_nice_names[stream] = self.pm_object.get_nice_name(stream)
+                        self.current_units[commodity] = self.pm_object.get_commodity(commodity).get_unit()
+                        self.current_nice_names[commodity] = self.pm_object.get_nice_name(commodity)
 
-                    self.current_outputs.append(stream)
+                    self.current_outputs.append(commodity)
 
                 else:
-                    stream = output_stream_abbreviation_entry.get()
-                    self.current_outputs.append(stream)
-                    self.current_units[stream] = output_unit_entry.get()
-                    self.current_nice_names[stream] = output_stream_name_entry.get()
-                    self.streams_add_conversion_nice_names.append(output_stream_name_entry.get())
+                    commodity = output_commodity_abbreviation_entry.get()
+                    self.current_outputs.append(commodity)
+                    self.current_units[commodity] = output_unit_entry.get()
+                    self.current_nice_names[commodity] = output_commodity_name_entry.get()
+                    self.commodities_add_conversion_nice_names.append(output_commodity_name_entry.get())
 
-                self.current_output_coefficients[stream] = coefficient_entry_var.get()
+                self.current_output_coefficients[commodity] = coefficient_entry_var.get()
 
                 add_output_window.destroy()
                 me_balance_window.grab_set()
@@ -1312,8 +1331,8 @@ class ConversionFrame:
             def kill_only():
 
                 if output_radiobutton_var.get() == 'new':
-                    if output_stream_name_entry.get() in self.streams_add_conversion_nice_names:
-                        self.streams_add_conversion_nice_names.remove(output_stream_name_entry.get())
+                    if output_commodity_name_entry.get() in self.commodities_add_conversion_nice_names:
+                        self.commodities_add_conversion_nice_names.remove(output_commodity_name_entry.get())
 
                 add_output_window.destroy()
                 me_balance_window.grab_set()
@@ -1324,31 +1343,31 @@ class ConversionFrame:
 
             output_radiobutton_var = StringVar()
             output_radiobutton_var.set('existing')
-            output_radiobutton_existing = ttk.Radiobutton(add_output_window, text='Existing stream',
+            output_radiobutton_existing = ttk.Radiobutton(add_output_window, text='Existing commodity',
                                                          variable=output_radiobutton_var,
                                                          value='existing', command=change_output_entry)
             output_radiobutton_existing.grid(row=1, column=0, sticky='ew')
 
-            combobox_existing_stream_output = ttk.Combobox(add_output_window,
-                                                          values=self.streams_add_conversion_nice_names,
+            combobox_existing_commodity_output = ttk.Combobox(add_output_window,
+                                                          values=self.commodities_add_conversion_nice_names,
                                                            state='readonly')
-            combobox_existing_stream_output.grid(row=2, column=0, sticky='ew')
-            combobox_existing_stream_output.set('')
+            combobox_existing_commodity_output.grid(row=2, column=0, sticky='ew')
+            combobox_existing_commodity_output.set('')
 
-            output_radiobutton_new = ttk.Radiobutton(add_output_window, text='New stream',
+            output_radiobutton_new = ttk.Radiobutton(add_output_window, text='New commodity',
                                                     variable=output_radiobutton_var, value='new',
                                                     command=change_output_entry)
             output_radiobutton_new.grid(row=3, column=0, sticky='ew')
 
-            output_stream_name_entry = ttk.Entry(add_output_window)
-            output_stream_name_entry.insert(END, 'Nice Name')
-            output_stream_name_entry.config(state=DISABLED)
-            output_stream_name_entry.grid(row=4, column=0, sticky='ew')
+            output_commodity_name_entry = ttk.Entry(add_output_window)
+            output_commodity_name_entry.insert(END, 'Nice Name')
+            output_commodity_name_entry.config(state=DISABLED)
+            output_commodity_name_entry.grid(row=4, column=0, sticky='ew')
 
-            output_stream_abbreviation_entry = ttk.Entry(add_output_window)
-            output_stream_abbreviation_entry.insert(END, 'Abbreviation')
-            output_stream_abbreviation_entry.config(state=DISABLED)
-            output_stream_abbreviation_entry.grid(row=5, column=0, sticky='ew')
+            output_commodity_abbreviation_entry = ttk.Entry(add_output_window)
+            output_commodity_abbreviation_entry.insert(END, 'Abbreviation')
+            output_commodity_abbreviation_entry.config(state=DISABLED)
+            output_commodity_abbreviation_entry.grid(row=5, column=0, sticky='ew')
 
             output_unit_entry = ttk.Entry(add_output_window)
             output_unit_entry.insert(END, 'Unit')
@@ -1385,27 +1404,27 @@ class ConversionFrame:
             ttk.Label(input_frame, text='Main').grid(row=1, column=1, sticky='ew')
             ttk.Label(input_frame, text='Coefficient').grid(row=1, column=2, sticky='ew')
             ttk.Label(input_frame, text='Unit').grid(row=1, column=3, sticky='ew')
-            ttk.Label(input_frame, text='Stream').grid(row=1, column=4, sticky='ew')
+            ttk.Label(input_frame, text='Commodity').grid(row=1, column=4, sticky='ew')
 
             i = 2
-            for input_stream in self.current_inputs:
-                input_streams[i] = input_stream
+            for input_commodity in self.current_inputs:
+                input_commodities[i] = input_commodity
 
                 ttk.Button(input_frame, text='Adjust',
                            command=lambda i=i: adjust_input(i)).grid(row=i, column=0, sticky='ew')
 
-                coefficient = self.current_input_coefficients[input_stream]
+                coefficient = self.current_input_coefficients[input_commodity]
                 input_coefficients[i] = coefficient
 
-                unit = self.current_units[input_stream]
+                unit = self.current_units[input_commodity]
 
-                stream_nice_name = self.current_nice_names[input_stream]
-                input_nice_names[i] = stream_nice_name
+                commodity_nice_name = self.current_nice_names[input_commodity]
+                input_nice_names[i] = commodity_nice_name
 
-                ttk.Radiobutton(input_frame, variable=current_main_input_var, value=input_stream).grid(row=i, column=1, sticky='ew')
+                ttk.Radiobutton(input_frame, variable=current_main_input_var, value=input_commodity).grid(row=i, column=1, sticky='ew')
                 ttk.Label(input_frame, text=coefficient).grid(row=i, column=2, sticky='ew')
                 ttk.Label(input_frame, text=unit).grid(row=i, column=3, sticky='ew')
-                ttk.Label(input_frame, text=stream_nice_name).grid(row=i, column=4, sticky='ew')
+                ttk.Label(input_frame, text=commodity_nice_name).grid(row=i, column=4, sticky='ew')
 
                 i += 1
 
@@ -1419,28 +1438,28 @@ class ConversionFrame:
             ttk.Label(output_frame, text='Main').grid(row=1, column=1, sticky='ew')
             ttk.Label(output_frame, text='Coefficient').grid(row=1, column=2, sticky='ew')
             ttk.Label(output_frame, text='Unit').grid(row=1, column=3, sticky='ew')
-            ttk.Label(output_frame, text='Stream').grid(row=1, column=4, sticky='ew')
+            ttk.Label(output_frame, text='Commodity').grid(row=1, column=4, sticky='ew')
 
             j = 2
-            for output_stream in self.current_outputs:
-                output_streams[j] = output_stream
+            for output_commodity in self.current_outputs:
+                output_commodities[j] = output_commodity
 
                 ttk.Button(output_frame, text='Adjust',
                            command=lambda j=j: adjust_output(j)).grid(row=j, column=0, sticky='ew')
 
-                coefficient = self.current_output_coefficients[output_stream]
+                coefficient = self.current_output_coefficients[output_commodity]
                 output_coefficients[j] = coefficient
 
-                unit = self.current_units[output_stream]
+                unit = self.current_units[output_commodity]
 
-                stream_nice_name = self.current_nice_names[output_stream]
-                output_nice_names[j] = stream_nice_name
+                commodity_nice_name = self.current_nice_names[output_commodity]
+                output_nice_names[j] = commodity_nice_name
 
-                rb = ttk.Radiobutton(output_frame, variable=current_main_output_var, value=output_stream)
+                rb = ttk.Radiobutton(output_frame, variable=current_main_output_var, value=output_commodity)
                 rb.grid(row=j, column=1, sticky='ew')
                 ttk.Label(output_frame, text=coefficient).grid(row=j, column=2, sticky='ew')
                 ttk.Label(output_frame, text=unit).grid(row=j, column=3, sticky='ew')
-                ttk.Label(output_frame, text=stream_nice_name).grid(row=j, column=4, sticky='ew')
+                ttk.Label(output_frame, text=commodity_nice_name).grid(row=j, column=4, sticky='ew')
 
                 j += 1
 
@@ -1491,9 +1510,9 @@ class ConversionFrame:
         ttk.Label(input_frame, text='Main').grid(row=1, column=1)
         ttk.Label(input_frame, text='Coefficient').grid(row=1, column=2)
         ttk.Label(input_frame, text='Unit').grid(row=1, column=3)
-        ttk.Label(input_frame, text='Stream').grid(row=1, column=4)
+        ttk.Label(input_frame, text='Commodity').grid(row=1, column=4)
 
-        input_streams = {}
+        input_commodities = {}
         input_nice_names = {}
         input_coefficients = {}
 
@@ -1501,24 +1520,24 @@ class ConversionFrame:
         current_main_input_var.set(self.current_input_main)
 
         i = 2
-        for input_stream in self.current_inputs:
-            input_streams[i] = input_stream
+        for input_commodity in self.current_inputs:
+            input_commodities[i] = input_commodity
 
             ttk.Button(input_frame, text='Adjust',
                        command=lambda i=i: adjust_input(i)).grid(row=i, column=0)
 
-            coefficient = self.current_input_coefficients[input_stream]
+            coefficient = self.current_input_coefficients[input_commodity]
             input_coefficients[i] = coefficient
 
-            unit = self.current_units[input_stream]
+            unit = self.current_units[input_commodity]
 
-            stream_nice_name = self.current_nice_names[input_stream]
-            input_nice_names[i] = stream_nice_name
+            commodity_nice_name = self.current_nice_names[input_commodity]
+            input_nice_names[i] = commodity_nice_name
 
-            ttk.Radiobutton(input_frame, variable=current_main_input_var, value=input_stream).grid(row=i, column=1)
+            ttk.Radiobutton(input_frame, variable=current_main_input_var, value=input_commodity).grid(row=i, column=1)
             ttk.Label(input_frame, text=coefficient).grid(row=i, column=2)
             ttk.Label(input_frame, text=unit).grid(row=i, column=3)
-            ttk.Label(input_frame, text=stream_nice_name).grid(row=i, column=4)
+            ttk.Label(input_frame, text=commodity_nice_name).grid(row=i, column=4)
 
             i += 1
 
@@ -1532,9 +1551,9 @@ class ConversionFrame:
         ttk.Label(output_frame, text='Main').grid(row=1, column=1)
         ttk.Label(output_frame, text='Coefficient').grid(row=1, column=2)
         ttk.Label(output_frame, text='Unit').grid(row=1, column=3)
-        ttk.Label(output_frame, text='Stream').grid(row=1, column=4)
+        ttk.Label(output_frame, text='Commodity').grid(row=1, column=4)
 
-        output_streams = {}
+        output_commodities = {}
         output_nice_names = {}
         output_coefficients = {}
 
@@ -1542,25 +1561,25 @@ class ConversionFrame:
         current_main_output_var.set(self.current_output_main)
 
         j = 2
-        for output_stream in self.current_outputs:
-            output_streams[j] = output_stream
+        for output_commodity in self.current_outputs:
+            output_commodities[j] = output_commodity
 
             ttk.Button(output_frame, text='Adjust',
                        command=lambda j=j: adjust_output(j)).grid(row=j, column=0)
 
-            coefficient = self.current_output_coefficients[output_stream]
+            coefficient = self.current_output_coefficients[output_commodity]
             output_coefficients[j] = coefficient
 
-            unit = self.current_units[output_stream]
+            unit = self.current_units[output_commodity]
 
-            stream_nice_name = self.current_nice_names[output_stream]
-            output_nice_names[j] = stream_nice_name
+            commodity_nice_name = self.current_nice_names[output_commodity]
+            output_nice_names[j] = commodity_nice_name
 
-            rb = ttk.Radiobutton(output_frame, variable=current_main_output_var, value=output_stream)
+            rb = ttk.Radiobutton(output_frame, variable=current_main_output_var, value=output_commodity)
             rb.grid(row=j, column=1)
             ttk.Label(output_frame, text=coefficient).grid(row=j, column=2)
             ttk.Label(output_frame, text=unit).grid(row=j, column=3)
-            ttk.Label(output_frame, text=stream_nice_name).grid(row=j, column=4)
+            ttk.Label(output_frame, text=commodity_nice_name).grid(row=j, column=4)
 
             j += 1
 
@@ -1612,9 +1631,9 @@ class ConversionFrame:
 
         self.component_object = self.pm_object.get_component(self.component)
 
-        self.streams_add_conversion_nice_names = []
-        for s in self.pm_object.get_all_streams():
-            self.streams_add_conversion_nice_names.append(self.pm_object.get_nice_name(s))
+        self.commodities_add_conversion_nice_names = []
+        for s in self.pm_object.get_all_commodities():
+            self.commodities_add_conversion_nice_names.append(self.pm_object.get_nice_name(s))
 
         self.input_frame = ttk.Frame(self.frame)
 
@@ -1624,7 +1643,7 @@ class ConversionFrame:
         ttk.Label(self.input_frame, text='Main').grid(row=1, column=0, sticky='ew')
         ttk.Label(self.input_frame, text='Coefficient').grid(row=1, column=1, sticky='ew')
         ttk.Label(self.input_frame, text='Unit').grid(row=1, column=2, sticky='ew')
-        ttk.Label(self.input_frame, text='Stream').grid(row=1, column=3, sticky='ew')
+        ttk.Label(self.input_frame, text='Commodity').grid(row=1, column=3, sticky='ew')
 
         self.main_input_var = StringVar()
         self.current_inputs = []
@@ -1633,32 +1652,32 @@ class ConversionFrame:
         self.current_input_coefficients = {}
         self.current_units = {}
 
-        for s in [*self.pm_object.get_all_streams().values()]:
+        for s in [*self.pm_object.get_all_commodities().values()]:
             self.current_nice_names.update({s.get_name(): s.get_nice_name()})
             self.current_units.update({s.get_name(): s.get_unit()})
 
         i = 2
         inputs = self.component_object.get_inputs()
-        for input_stream in [*inputs.keys()]:
+        for input_commodity in [*inputs.keys()]:
 
-            coefficient = inputs[input_stream]
-            unit = self.pm_object.get_stream(input_stream).get_unit()
-            stream_nice_name = self.pm_object.get_nice_name(input_stream)
+            coefficient = inputs[input_commodity]
+            unit = self.pm_object.get_commodity(input_commodity).get_unit()
+            commodity_nice_name = self.pm_object.get_nice_name(input_commodity)
 
-            if input_stream == self.component_object.get_main_input():
-                self.main_input_var.set(input_stream)
-                self.current_input_main = input_stream
+            if input_commodity == self.component_object.get_main_input():
+                self.main_input_var.set(input_commodity)
+                self.current_input_main = input_commodity
 
-            self.current_inputs.append(input_stream)
-            self.current_input_coefficients.update({input_stream: coefficient})
+            self.current_inputs.append(input_commodity)
+            self.current_input_coefficients.update({input_commodity: coefficient})
 
-            main_input_radiobutton = ttk.Radiobutton(self.input_frame, variable=self.main_input_var, value=input_stream,
+            main_input_radiobutton = ttk.Radiobutton(self.input_frame, variable=self.main_input_var, value=input_commodity,
                                                      state=DISABLED)
             main_input_radiobutton.grid(row=i, column=0, sticky='ew')
 
             ttk.Label(self.input_frame, text=coefficient).grid(row=i, column=1, sticky='ew')
             ttk.Label(self.input_frame, text=unit).grid(row=i, column=2, sticky='ew')
-            ttk.Label(self.input_frame, text=stream_nice_name).grid(row=i, column=3, sticky='ew')
+            ttk.Label(self.input_frame, text=commodity_nice_name).grid(row=i, column=3, sticky='ew')
 
             i += 1
 
@@ -1671,7 +1690,7 @@ class ConversionFrame:
         ttk.Label(self.output_frame, text='Main').grid(row=1, column=0, sticky='ew')
         ttk.Label(self.output_frame, text='Coefficient').grid(row=1, column=1, sticky='ew')
         ttk.Label(self.output_frame, text='Unit').grid(row=1, column=2, sticky='ew')
-        ttk.Label(self.output_frame, text='Stream').grid(row=1, column=3, sticky='ew')
+        ttk.Label(self.output_frame, text='Commodity').grid(row=1, column=3, sticky='ew')
 
         self.main_output_var = StringVar()
         self.current_outputs = []
@@ -1680,26 +1699,26 @@ class ConversionFrame:
 
         j = 2
         outputs = self.component_object.get_outputs()
-        for output_stream in [*outputs.keys()]:
+        for output_commodity in [*outputs.keys()]:
 
-            coefficient = outputs[output_stream]
-            unit = self.pm_object.get_stream(output_stream).get_unit()
-            stream_nice_name = self.pm_object.get_nice_name(output_stream)
+            coefficient = outputs[output_commodity]
+            unit = self.pm_object.get_commodity(output_commodity).get_unit()
+            commodity_nice_name = self.pm_object.get_nice_name(output_commodity)
 
-            if output_stream == self.component_object.get_main_output():
-                self.main_output_var.set(output_stream)
-                self.current_output_main = output_stream
+            if output_commodity == self.component_object.get_main_output():
+                self.main_output_var.set(output_commodity)
+                self.current_output_main = output_commodity
 
-            self.current_outputs.append(output_stream)
-            self.current_output_coefficients.update({output_stream: coefficient})
+            self.current_outputs.append(output_commodity)
+            self.current_output_coefficients.update({output_commodity: coefficient})
 
             main_output_radiobutton = ttk.Radiobutton(self.output_frame, variable=self.main_output_var,
-                                                      value=output_stream, state=DISABLED)
+                                                      value=output_commodity, state=DISABLED)
             main_output_radiobutton.grid(row=j, column=0, sticky='ew')
 
             ttk.Label(self.output_frame, text=coefficient).grid(row=j, column=1, sticky='ew')
             ttk.Label(self.output_frame, text=unit).grid(row=j, column=2, sticky='ew')
-            ttk.Label(self.output_frame, text=stream_nice_name).grid(row=j, column=3, sticky='ew')
+            ttk.Label(self.output_frame, text=commodity_nice_name).grid(row=j, column=3, sticky='ew')
 
             j += 1
 

@@ -49,7 +49,13 @@ def create_visualization(path):
             commodities_file = pd.read_excel(path + '4_streams.xlsx', index_col=0)
             time_series_file = pd.read_excel(path + '5_time_series_streams.xlsx', index_col=(0, 1, 2))
 
-        generation_file = pd.read_excel(path + '6_generation.xlsx', index_col=0)
+        time_series_file = time_series_file.iloc[1:, :]
+
+        try:
+            generation_file = pd.read_excel(path + '6_generation.xlsx', index_col=0)
+        except:
+            generation_file = None
+
         settings_file = pd.read_excel(path + '7_settings.xlsx', index_col=0).fillna('')
 
         return assumptions_file, overview_file, components_file, cost_distribution_file, \
@@ -89,13 +95,23 @@ def create_visualization(path):
                 time_series_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '5_time_series_streams.xlsx',
                                                          index_col=[0, 1, 2]).fillna('')
 
-            generation_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '6_generation.xlsx',
-                                                    index_col=0).fillna('')
+            time_series_dict[folder] = time_series_dict[folder].iloc[1:, :]
+
+            try:
+                generation_dict[folder] = pd.read_excel(path + folder + '/' + '6_generation.xlsx',
+                                                        index_col=0).fillna('')
+            except:
+                generation_dict[folder] = None
+
             settings_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '7_settings.xlsx',
                                                   index_col=0).fillna('')
-            generation_profiles_dict[folder] = pd.read_excel(
-                path + '\\' + folder + '\\' + '8_generation_profile.xlsx',
-                index_col=0).fillna('')
+
+            try:
+                generation_profiles_dict[folder] = pd.read_excel(
+                    path + '\\' + folder + '\\' + '8_generation_profile.xlsx',
+                    index_col=0).fillna('')
+            except:
+                generation_profiles_dict[folder] = None
 
         return folders_list, assumptions_dict, results_overview_dict, components_dict, \
             cost_distribution_dict, commodities_dict, time_series_dict, generation_dict, settings_dict, \
@@ -156,13 +172,22 @@ def create_visualization(path):
                         path + '\\' + f1 + '\\' + f2 + '\\' + '5_time_series_streams.xlsx',
                         index_col=[0, 1, 2]).fillna('')
 
-                generation_dict[f1][f2] = pd.read_excel(path + '\\' + f1 + '\\' + f2 + '\\' + '6_generation.xlsx',
-                                                        index_col=0).fillna('')
+                time_series_dict[f1][f2] = time_series_dict[f1][f2].iloc[1:, :]
+
+                try:
+                    generation_dict[f1][f2] = pd.read_excel(path + '\\' + f1 + '\\' + f2 + '\\' + '6_generation.xlsx',
+                                                            index_col=0).fillna('')
+                except:
+                    generation_dict[f1][f2] = None
                 settings_dict[f1][f2] = pd.read_excel(path + '\\' + f1 + '\\' + f2 + '\\' + '7_settings.xlsx',
                                                       index_col=0).fillna('')
-                generation_profiles_dict[f1][f2] = pd.read_excel(
-                    path + '\\' + f1 + '\\' + f2 + '\\' + '8_generation_profile.xlsx',
-                    index_col=0).fillna('')
+
+                try:
+                    generation_profiles_dict[f1][f2] = pd.read_excel(
+                        path + '\\' + f1 + '\\' + f2 + '\\' + '8_generation_profile.xlsx',
+                        index_col=0).fillna('')
+                except:
+                    generation_profiles_dict[f1][f2] = None
 
         return folders_list, assumptions_dict, results_overview_dict, components_dict, \
             cost_distribution_dict, commodities_dict, time_series_dict, generation_dict, settings_dict, \
@@ -189,7 +214,7 @@ def create_visualization(path):
                      str(total_fix_costs) + " " + monetary_unit,
                      str(total_variable_costs) + " " + monetary_unit,
                      str(annual_costs) + " " + monetary_unit,
-                     str(cost_per_unit) + " " + monetary_unit + " /" + monetary_unit,
+                     str(cost_per_unit) + " " + monetary_unit + "/" + annual_production_unit,
                      str(efficiency) + ' %')})
 
             return tab_overview
@@ -280,12 +305,12 @@ def create_visualization(path):
                     bar_share_list.append(go.Bar(p_share_dict))
 
             cost_structure_df_with_unit = pd.DataFrame()
-            cost_structure_df_with_unit['Matter of Expense'] = matter_of_expense
+            cost_structure_df_with_unit[''] = matter_of_expense
             cost_structure_df_with_unit['Absolute'] = value_absolute_unit
             cost_structure_df_with_unit['Relative'] = value_relative_list_unit
 
             cost_structure_df = pd.DataFrame()
-            cost_structure_df['Matter of Expense'] = matter_of_expense
+            cost_structure_df[''] = matter_of_expense
             cost_structure_df['Absolute'] = value_absolute
             cost_structure_df['Relative'] = value_relative
 
@@ -294,8 +319,8 @@ def create_visualization(path):
 
             cost_fig = go.Figure(data=bar_list, layout=layout)
 
-            cost_share_fig = px.pie(cost_structure_df[cost_structure_df['Matter of Expense'] != 'Total'],
-                                    values='Relative', names='Matter of Expense')
+            cost_share_fig = px.pie(cost_structure_df[cost_structure_df[''] != 'Total'],
+                                    values='Relative', names='')
 
             return cost_fig, cost_share_fig, cost_structure_df_with_unit
 
@@ -319,8 +344,8 @@ def create_visualization(path):
         def create_generation_table():
             generation_tab = pd.DataFrame(index=generation_df.index)
             for i in generation_df.index:
-                generation_tab.loc[i, 'Generator'] = i
-                generation_tab.loc[i, 'Generated Stream'] = generation_df.loc[i, 'Generated Stream']
+                generation_tab.loc[i, ''] = i
+                generation_tab.loc[i, 'Generated Commodity'] = generation_df.loc[i, 'Generated Commodity']
                 generation_tab.loc[i, 'Capacity'] = "%.2f" % generation_df.loc[i, 'Capacity']
                 generation_tab.loc[i, 'Investment'] = "%.2f" % generation_df.loc[i, 'Investment']
                 generation_tab.loc[i, 'Annuity'] = "%.2f" % generation_df.loc[i, 'Annuity']
@@ -354,8 +379,10 @@ def create_visualization(path):
             working_capital = []
             for component in components_df.index:
 
-                if component in generation_df.index:
-                    continue
+                if generation_df is not None:
+
+                    if component in generation_df.index:
+                        continue
 
                 # only consider conversion components
                 if not (components_df.loc[component, 'Capacity Basis'] == 'input'
@@ -392,26 +419,24 @@ def create_visualization(path):
 
             for i in commodity_tab.index:
 
-                commodity_tab.loc[i, 'Commodity'] = i
+                commodity_tab.loc[i, ''] = i
                 commodity_tab.loc[i, 'Unit'] = commodities_df.loc[i, 'unit']
-                commodity_tab.loc[i, 'Freely Available'] = "%.0f" % commodities_df.loc[i, 'Available Stream']
-                commodity_tab.loc[i, 'Purchased'] = "%.0f" % commodities_df.loc[i, 'Purchased Stream']
-                commodity_tab.loc[i, 'Sold'] = "%.0f" % commodities_df.loc[i, 'Sold Stream']
-                commodity_tab.loc[i, 'Generated'] = "%.0f" % commodities_df.loc[i, 'Generated Stream']
-                commodity_tab.loc[i, 'Stored'] = "%.0f" % commodities_df.loc[i, 'Stored Stream']
-                commodity_tab.loc[i, 'From Conversion'] = "%.0f" % commodities_df.loc[i, 'Conversed Stream']
+                commodity_tab.loc[i, 'Freely Available'] = "%.0f" % commodities_df.loc[i, 'Available Commodity']
+                commodity_tab.loc[i, 'Purchased'] = "%.0f" % commodities_df.loc[i, 'Purchased Commodity']
+                commodity_tab.loc[i, 'Sold'] = "%.0f" % commodities_df.loc[i, 'Sold Commodity']
+                commodity_tab.loc[i, 'Generated'] = "%.0f" % commodities_df.loc[i, 'Generated Commodity']
+                commodity_tab.loc[i, 'Stored'] = "%.0f" % commodities_df.loc[i, 'Stored Commodity']
+                commodity_tab.loc[i, 'From Conversion'] = "%.0f" % commodities_df.loc[i, 'Conversed Commodity']
                 commodity_tab.loc[i, 'Total Fixed Costs'] = "%.2f" % commodities_df.loc[i, 'Total Fix Costs'] \
                                                             + monetary_unit
                 commodity_tab.loc[i, 'Total Variable Costs'] = "%.2f" % commodities_df.loc[i, 'Total Variable Costs'] \
                                                                + monetary_unit
                 commodity_tab.loc[i, 'Intrinsic Costs per Unit'] = "%.2f" % commodities_df.loc[
-                    i, 'Total Costs per Unit'] \
-                                                                   + monetary_unit + '/' + commodities_df.loc[
-                                                                       i, 'unit']
-                commodity_tab.loc[i, 'Costs from other Streams per Unit'] = "%.2f" % (
-                            commodities_df.loc[i, 'Production Costs per Unit']
-                            - commodities_df.loc[i, 'Total Costs per Unit']) + ' ' + monetary_unit + '/' + \
-                                                                            commodities_df.loc[i, 'unit']
+                    i, 'Total Costs per Unit'] + monetary_unit + '/' + commodities_df.loc[i, 'unit']
+                commodity_tab.loc[i, 'Costs from other Commodities per Unit'] =\
+                    "%.2f" % (commodities_df.loc[i, 'Production Costs per Unit']
+                              - commodities_df.loc[i, 'Total Costs per Unit']) + ' ' + monetary_unit + '/' + \
+                    commodities_df.loc[i, 'unit']
                 commodity_tab.loc[i, 'Total Costs per Unit'] = "%.2f" % commodities_df.loc[
                     i, 'Production Costs per Unit'] + ' ' \
                                                                + monetary_unit + '/' + commodities_df.loc[i, 'unit']
@@ -438,7 +463,10 @@ def create_visualization(path):
 
         cost_fig, cost_share_fig, cost_structure_df = create_cost_structure_graph()
 
-        generation_tab = create_generation_table()
+        if generation_df is not None:
+            generation_tab = create_generation_table()
+        else:
+            generation_tab = pd.DataFrame()
 
         commodity_tab = create_commodity_table()
 
@@ -655,11 +683,11 @@ def create_visualization(path):
                     ]
                 ),
                 dcc.Tab(
-                    label='Streams',
+                    label='Commodities',
                     children=[
                         html.Div([
                             html.H2(
-                                ["Streams"],
+                                ["Commodities"],
                                 className="subtitle padded",
                                 style={'font-family': 'Calibri'}),
                             dash_table.DataTable(
@@ -846,7 +874,7 @@ def create_visualization(path):
                             )
                         data_graph.append(globals()['right_trace%s' % i])
                 layout = go.Layout(
-                    title="PtX-Model: Stream Visualization",
+                    title="PtX-Model: Commodity Visualization",
                     xaxis=dict(
                         title='h',
                         range=[0, time_series_data.shape[1] + 10]
@@ -897,7 +925,7 @@ def create_visualization(path):
                             line=dict(color=next(color_right)))
                         data_graph.append(globals()['right_trace%s' % i])
                 layout = go.Layout(
-                    title="PtX-Model: Stream Visualization",
+                    title="PtX-Model: Commodity Visualization",
                     xaxis=dict(
                         title='h',
                         domain=[0, 0.95]
@@ -976,69 +1004,134 @@ def create_visualization(path):
     def extract_results_multiple_results_single_scenario():
 
         results_df = pd.DataFrame()
+        units_dict = {}
         for f in folders_single:
             folder_df = pd.DataFrame(index=[f])
-            for s in generation_single[f]['Generated Stream'].unique():
 
-                generators_with_s = generation_single[f][generation_single[f]['Generated Stream'] == s].index
+            if generation_single[f] is not None:
 
-                potential_generation_s = 0
-                total_capacity_s = 0
-                actual_generation_s = 0
-                curtailment_s = 0
+                for s in generation_single[f]['Generated Commodity'].unique():
 
-                for g in generators_with_s:
-                    folder_df.loc[f, g + ' Capacity'] = generation_single[f].loc[g, 'Capacity']
-                    folder_df.loc[f, g + ' Potential Full-load Hours'] = generation_single[f].loc[
-                        g, 'Potential Full-load Hours']
-                    folder_df.loc[f, g + ' Potential LCOE'] = generation_single[f].loc[g, 'LCOE before Curtailment']
-                    folder_df.loc[f, g + ' Curtailment'] = generation_single[f].loc[g, 'Curtailment'] / generation_single[f].loc[g, 'Potential Full-load Hours'] * 100
-                    folder_df.loc[f, g + ' Actual Full-load Hours'] = generation_single[f].loc[g, 'Actual Full-load Hours']
-                    folder_df.loc[f, g + ' Actual LCOE'] = generation_single[f].loc[g, 'LCOE after Curtailment']
+                    generators_with_s = generation_single[f][generation_single[f]['Generated Commodity'] == s].index
 
-                    potential_generation_s += generation_single[f].loc[g, 'Potential Generation']
-                    total_capacity_s += generation_single[f].loc[g, 'Capacity']
-                    actual_generation_s += generation_single[f].loc[g, 'Actual Generation']
-                    curtailment_s += generation_single[f].loc[g, 'Curtailment'] / generation_single[f].loc[g, 'Potential Full-load Hours'] * 100
+                    if len(generators_with_s.columns) > 0:
 
-                if len(generators_with_s) > 1:
-                    generators_with_s_df = generation_profiles_single[f][generators_with_s]
-                    maximal_flh = calculate_maximal_full_load_hours(generators_with_s_df)
+                        potential_generation_s = 0
+                        total_capacity_s = 0
+                        actual_generation_s = 0
+                        curtailment_s = 0
 
-                    folder_df.loc[f, s + ' Capacity'] = total_capacity_s
-                    folder_df.loc[f, s + ' Maximal Full-load Hours'] = maximal_flh
-                    folder_df.loc[f, s + ' Potential Full-load Hours'] = potential_generation_s / (
-                            total_capacity_s * 8760) * 8760
-                    folder_df.loc[f, s + ' Potential LCOE'] = commodities_single[f].loc[s, 'Total Generation Fix Costs'] / (
-                            total_capacity_s * 8760) * 8760
-                    folder_df.loc[f, s + ' Curtailment'] = curtailment_s
-                    folder_df.loc[f, s + ' Actual Full-load Hours'] = actual_generation_s / (
-                            total_capacity_s * 8760) * 8760
-                    folder_df.loc[f, s + ' Actual LCOE'] = commodities_single[f].loc[
-                                                               s, 'Production Costs per Unit'] / actual_generation_s
-                    folder_df.loc[f, s + ' Generation Costs'] = commodities_single[f].loc[s, 'Costs per used unit']
+                        unit = commodities_single[f].loc[s, 'unit']
+                        if unit in ['kWh', 'MWh', 'GWh']:
+                            unit_capacity = unit.split('h')[0] + ' ' + s
+                        else:
+                            unit_capacity = unit + ' ' + s + '/h'
 
-            for c in components_single[f].index:
-                if components_single[f].loc[c, 'Capacity Basis'] == 'input':
-                    folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
-                    folder_df.loc[f, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
-                elif components_single[f].loc[c, 'Capacity Basis'] == 'output':
-                    folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
-                    folder_df.loc[f, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
-                elif components_single[f].loc[c, 'Capacity [output]'] == '':
-                    folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
-                else:
-                    folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
+                        for g in generators_with_s:
+                            folder_df.loc[f2, g + ' Capacity'] = generation_single[f].loc[g, 'Capacity']
+                            units_dict[g + ' Capacity'] = unit_capacity
 
-            folder_df.loc[f, 'Production Costs'] = results_overview_single[f].loc['Production Costs per Unit', 0]
+                            folder_df.loc[f2, g + ' Potential Full-load Hours'] = generation_single[f].loc[
+                                g, 'Potential Full-load Hours']
+                            units_dict[g + ' Potential Full-load Hours'] = 'h'
+
+                            folder_df.loc[f2, g + ' Potential LCOE'] = generation_single[f].loc[
+                                g, 'LCOE before Curtailment']
+                            units_dict[g + ' Potential LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                            folder_df.loc[f2, g + ' Curtailment'] = generation_single[f].loc[g, 'Curtailment']
+                            units_dict[g + ' Curtailment'] = unit + ' ' + s
+
+                            folder_df.loc[f2, g + ' Actual Full-load Hours'] = generation_single[f].loc[
+                                g, 'Actual Full-load Hours']
+                            units_dict[g + ' Actual Full-load Hours'] = 'h'
+
+                            folder_df.loc[f2, g + ' Actual LCOE'] = generation_single[f].loc[
+                                g, 'LCOE after Curtailment']
+                            units_dict[g + ' Actual LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                            potential_generation_s += generation_single[f].loc[g, 'Potential Generation']
+                            units_dict[g + ' Potential Generation'] = unit + ' ' + s
+
+                            total_capacity_s += generation_single[f].loc[g, 'Capacity']
+                            actual_generation_s += generation_single[f].loc[g, 'Actual Generation']
+                            curtailment_s += generation_single[f].loc[g, 'Curtailment']
+
+                        generators_with_s_df = generation_profiles_single[f][generators_with_s]
+
+                        if len(generators_with_s_df.columns) == 1:
+                            maximal_flh = generation_profiles_single[f].loc[
+                                generators_with_s_df[0], 'Potential Full-load Hours']
+                        else:
+                            maximal_flh = calculate_maximal_full_load_hours(generators_with_s_df)
+
+                        folder_df.loc[f2, s + ' Capacity'] = total_capacity_s
+                        units_dict[s + ' Capacity'] = unit_capacity
+
+                        folder_df.loc[f2, s + ' Maximal Full-load Hours'] = maximal_flh
+                        units_dict[s + ' Maximal Full-load Hours'] = 'h'
+
+                        folder_df.loc[f2, s + ' Potential Full-load Hours'] = potential_generation_s / (
+                                total_capacity_s * 8760) * 8760
+                        units_dict[s + ' Potential Full-load Hours'] = 'h'
+
+                        folder_df.loc[f2, s + ' Potential LCOE'] = commodities_single[f].loc[
+                                                                       s, 'Total Generation Fix Costs'] / (
+                                                                           total_capacity_s * 8760) * 8760
+                        units_dict[s + ' Potential LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                        folder_df.loc[f2, s + ' Curtailment'] = curtailment_s
+                        units_dict[s + ' Curtailment'] = unit + ' ' + s
+
+                        folder_df.loc[f2, s + ' Actual Full-load Hours'] = actual_generation_s / (
+                                total_capacity_s * 8760) * 8760
+                        units_dict[s + ' Actual Full-load Hours'] = 'h'
+
+                        folder_df.loc[f2, s + ' Actual LCOE'] = commodities_single[f].loc[
+                                                                    s, 'Production Costs per Unit'] / actual_generation_s
+                        units_dict[s + ' Actual LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                        folder_df.loc[f2, s + ' Generation Costs'] = commodities_single[f].loc[
+                            s, 'Costs per used unit']
+                        units_dict[s + ' Generation Costs'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                for c in components_single[f].index:
+
+                    if components_single[f].loc[c, 'Capacity Basis'] == 'input':
+                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
+                        capacity_unit = components_single[f].loc[c, 'Capacity Unit [input]']
+                        units_dict[c + ' Capacity'] = capacity_unit
+
+                        folder_df.loc[f2, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
+                        units_dict[c + ' Full-load Hours'] = 'h'
+                    elif components_single[f].loc[c, 'Capacity Basis'] == 'output':
+                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
+                        capacity_unit = components_single[f].loc[c, 'Capacity Unit [output]']
+                        units_dict[c + ' Capacity'] = capacity_unit
+
+                        folder_df.loc[f2, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
+                        units_dict[c + ' Full-load Hours'] = 'h'
+                    elif components_single[f].loc[c, 'Capacity [output]'] == '':
+                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
+                        capacity_unit = components_single[f].loc[c, 'Capacity Unit [input]']
+                        units_dict[c + ' Capacity'] = capacity_unit
+                    else:
+                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
+                        capacity_unit = components_single[f].loc[c, 'Capacity Unit [output]']
+                        units_dict[c + ' Capacity'] = capacity_unit
+
+                folder_df.loc[f2, 'Production Costs'] = results_overview_single[f].loc[
+                    'Production Costs per Unit', 0]
+                units_dict['Production Costs'] = monetary_unit_str + '/' + annual_production_unit_str
 
             results_df = pd.concat([results_df, folder_df], axis=0)
 
-        return results_df
+        return results_df, units_dict
 
     def extract_results_multiple_results_different_scenarios():
 
         results_df = pd.DataFrame()
+        units_dict = {}
 
         for f in folders_multiple:
 
@@ -1048,65 +1141,121 @@ def create_visualization(path):
             folder_df = pd.DataFrame(index=[f2])
             folder_df.loc[f2, 'Super Folder'] = f1
 
-            for s in generation_multiple[f1][f2]['Generated Stream'].unique():
+            if generation_multiple[f1][f2] is not None:
 
-                generators_with_s = generation_multiple[f1][f2][generation_multiple[f1][f2]['Generated Stream'] == s].index
+                for s in generation_multiple[f1][f2]['Generated Commodity'].unique():
 
-                potential_generation_s = 0
-                total_capacity_s = 0
-                actual_generation_s = 0
-                curtailment_s = 0
+                    generators_with_s = generation_multiple[f1][f2][generation_multiple[f1][f2]['Generated Commodity'] == s].index
 
-                for g in generators_with_s:
-                    folder_df.loc[f2, g + ' Capacity'] = generation_multiple[f1][f2].loc[g, 'Capacity']
-                    folder_df.loc[f2, g + ' Potential Full-load Hours'] = generation_multiple[f1][f2].loc[
-                        g, 'Potential Full-load Hours']
-                    folder_df.loc[f2, g + ' Potential LCOE'] = generation_multiple[f1][f2].loc[g, 'LCOE before Curtailment']
-                    folder_df.loc[f2, g + ' Curtailment'] = generation_multiple[f1][f2].loc[g, 'Curtailment']
-                    folder_df.loc[f2, g + ' Actual Full-load Hours'] = generation_multiple[f1][f2].loc[
-                        g, 'Actual Full-load Hours']
-                    folder_df.loc[f2, g + ' Actual LCOE'] = generation_multiple[f1][f2].loc[g, 'LCOE after Curtailment']
+                    if len(generators_with_s) > 0:
 
-                    potential_generation_s += generation_multiple[f1][f2].loc[g, 'Potential Generation']
-                    total_capacity_s += generation_multiple[f1][f2].loc[g, 'Capacity']
-                    actual_generation_s += generation_multiple[f1][f2].loc[g, 'Actual Generation']
-                    curtailment_s += generation_multiple[f1][f2].loc[g, 'Curtailment']
+                        potential_generation_s = 0
+                        total_capacity_s = 0
+                        actual_generation_s = 0
+                        curtailment_s = 0
 
-                if len(generators_with_s) > 1:
-                    generators_with_s_df = generation_profiles_multiple[f1][f2][generators_with_s]
-                    maximal_flh = calculate_maximal_full_load_hours(generators_with_s_df)
+                        unit = commodities_multiple[f1][f2].loc[s, 'unit']
+                        if unit in ['kWh', 'MWh', 'GWh']:
+                            unit_capacity = unit.split('h')[0] + ' ' + s
+                        else:
+                            unit_capacity = unit + ' ' + s + '/h'
 
-                    folder_df.loc[f2, s + ' Capacity'] = total_capacity_s
-                    folder_df.loc[f2, s + ' Maximal Full-load Hours'] = maximal_flh
-                    folder_df.loc[f2, s + ' Potential Full-load Hours'] = potential_generation_s / (
-                            total_capacity_s * 8760) * 8760
-                    folder_df.loc[f2, s + ' Potential LCOE'] = commodities_multiple[f1][f2].loc[
-                                                                   s, 'Total Generation Fix Costs'] / (
-                                                                       total_capacity_s * 8760) * 8760
-                    folder_df.loc[f2, s + ' Curtailment'] = curtailment_s
-                    folder_df.loc[f2, s + ' Actual Full-load Hours'] = actual_generation_s / (
-                            total_capacity_s * 8760) * 8760
-                    folder_df.loc[f2, s + ' Actual LCOE'] = commodities_multiple[f1][f2].loc[
-                                                                s, 'Production Costs per Unit'] / actual_generation_s
-                    folder_df.loc[f2, s + ' Generation Costs'] = commodities_multiple[f1][f2].loc[s, 'Costs per used unit']
+                        for g in generators_with_s:
+
+                            folder_df.loc[f2, g + ' Capacity'] = generation_multiple[f1][f2].loc[g, 'Capacity']
+                            units_dict[g + ' Capacity'] = unit_capacity
+
+                            folder_df.loc[f2, g + ' Potential Full-load Hours'] = generation_multiple[f1][f2].loc[
+                                g, 'Potential Full-load Hours']
+                            units_dict[g + ' Potential Full-load Hours'] = 'h'
+
+                            folder_df.loc[f2, g + ' Potential LCOE'] = generation_multiple[f1][f2].loc[g, 'LCOE before Curtailment']
+                            units_dict[g + ' Potential LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                            folder_df.loc[f2, g + ' Curtailment'] = generation_multiple[f1][f2].loc[g, 'Curtailment']
+                            units_dict[g + ' Curtailment'] = unit + ' ' + s
+
+                            folder_df.loc[f2, g + ' Actual Full-load Hours'] = generation_multiple[f1][f2].loc[
+                                g, 'Actual Full-load Hours']
+                            units_dict[g + ' Actual Full-load Hours'] = 'h'
+
+                            folder_df.loc[f2, g + ' Actual LCOE'] = generation_multiple[f1][f2].loc[g, 'LCOE after Curtailment']
+                            units_dict[g + ' Actual LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                            potential_generation_s += generation_multiple[f1][f2].loc[g, 'Potential Generation']
+                            units_dict[g + ' Potential Generation'] = unit + ' ' + s
+
+                            total_capacity_s += generation_multiple[f1][f2].loc[g, 'Capacity']
+                            actual_generation_s += generation_multiple[f1][f2].loc[g, 'Actual Generation']
+                            curtailment_s += generation_multiple[f1][f2].loc[g, 'Curtailment']
+
+                        generators_with_s_df = generation_profiles_multiple[f1][f2][generators_with_s]
+
+                        if len(generators_with_s_df.columns) == 1:
+                            maximal_flh = generation_multiple[f1][f2].loc[generators_with_s_df.columns[0], 'Potential Full-load Hours']
+                        else:
+                            maximal_flh = calculate_maximal_full_load_hours(generators_with_s_df)
+
+                        folder_df.loc[f2, s + ' Capacity'] = total_capacity_s
+                        units_dict[s + ' Capacity'] = unit_capacity
+
+                        folder_df.loc[f2, s + ' Maximal Full-load Hours'] = maximal_flh
+                        units_dict[s + ' Maximal Full-load Hours'] = 'h'
+
+                        folder_df.loc[f2, s + ' Potential Full-load Hours'] = potential_generation_s / (
+                                total_capacity_s * 8760) * 8760
+                        units_dict[s + ' Potential Full-load Hours'] = 'h'
+
+                        folder_df.loc[f2, s + ' Potential LCOE'] = commodities_multiple[f1][f2].loc[
+                                                                       s, 'Total Generation Fix Costs'] / (
+                                                                           total_capacity_s * 8760) * 8760
+                        units_dict[s + ' Potential LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                        folder_df.loc[f2, s + ' Curtailment'] = curtailment_s
+                        units_dict[s + ' Curtailment'] = unit + ' ' + s
+
+                        folder_df.loc[f2, s + ' Actual Full-load Hours'] = actual_generation_s / (
+                                total_capacity_s * 8760) * 8760
+                        units_dict[s + ' Actual Full-load Hours'] = 'h'
+
+                        folder_df.loc[f2, s + ' Actual LCOE'] = commodities_multiple[f1][f2].loc[
+                                                                    s, 'Production Costs per Unit'] / actual_generation_s
+                        units_dict[s + ' Actual LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                        folder_df.loc[f2, s + ' Generation Costs'] = commodities_multiple[f1][f2].loc[s, 'Costs per used unit']
+                        units_dict[s + ' Generation Costs'] = monetary_unit_str + '/' + unit + ' ' + s
 
             for c in components_multiple[f1][f2].index:
+
                 if components_multiple[f1][f2].loc[c, 'Capacity Basis'] == 'input':
                     folder_df.loc[f2, c + ' Capacity'] = components_multiple[f1][f2].loc[c, 'Capacity [input]']
+                    capacity_unit = components_multiple[f1][f2].loc[c, 'Capacity Unit [input]']
+                    units_dict[c + ' Capacity'] = capacity_unit
+
                     folder_df.loc[f2, c + ' Full-load Hours'] = components_multiple[f1][f2].loc[c, 'Full-load Hours']
+                    units_dict[c + ' Full-load Hours'] = 'h'
                 elif components_multiple[f1][f2].loc[c, 'Capacity Basis'] == 'output':
                     folder_df.loc[f2, c + ' Capacity'] = components_multiple[f1][f2].loc[c, 'Capacity [output]']
+                    capacity_unit = components_multiple[f1][f2].loc[c, 'Capacity Unit [output]']
+                    units_dict[c + ' Capacity'] = capacity_unit
+
                     folder_df.loc[f2, c + ' Full-load Hours'] = components_multiple[f1][f2].loc[c, 'Full-load Hours']
+                    units_dict[c + ' Full-load Hours'] = 'h'
                 elif components_multiple[f1][f2].loc[c, 'Capacity [output]'] == '':
                     folder_df.loc[f2, c + ' Capacity'] = components_multiple[f1][f2].loc[c, 'Capacity [input]']
+                    capacity_unit = components_multiple[f1][f2].loc[c, 'Capacity Unit [input]']
+                    units_dict[c + ' Capacity'] = capacity_unit
                 else:
                     folder_df.loc[f2, c + ' Capacity'] = components_multiple[f1][f2].loc[c, 'Capacity [output]']
+                    capacity_unit = components_multiple[f1][f2].loc[c, 'Capacity Unit [output]']
+                    units_dict[c + ' Capacity'] = capacity_unit
 
             folder_df.loc[f2, 'Production Costs'] = results_overview_multiple[f1][f2].loc['Production Costs per Unit', 0]
+            units_dict['Production Costs'] = monetary_unit_str + '/' + annual_production_unit_str
 
             results_df = pd.concat([results_df, folder_df], axis=0)
 
-        return results_df
+        return results_df, units_dict
 
     def calculate_maximal_full_load_hours(generator_profiles):
 
@@ -1183,7 +1332,7 @@ def create_visualization(path):
         generators_with_s_profiles = {}
         generators = []
         for g in generator_profiles.columns:
-            generators_with_s_profiles[g] = np.array([i[0] for i in generator_profiles.loc[:, g].values])
+            generators_with_s_profiles[g] = np.array(generator_profiles.loc[:, g].values)
             generators.append(g)
 
         all_combinations = create_combinations()
@@ -1205,356 +1354,12 @@ def create_visualization(path):
 
     def create_web_page_multiple_results():
 
-        time_series = results_per_case[[*results_per_case.keys()][0]]['time_series_df']
-
-        time_series_unit = time_series.iloc[:, 0]
-        time_series_data = time_series.iloc[:, 1:]
-
-        # Dictionary to get index-triple from str(i)
-        index_dictionary = dict([(str(i), i) for i in time_series.index])
-
-        # Readable names for checklist
-        def merge_tuples(*t):
-            return tuple(j for i in t for j in (i if isinstance(i, tuple) else (i,)))
-
-        first_column_index = ['Charging', 'Discharging', 'Demand', 'Emitting', 'Freely Available', 'Generation',
-                              'Purchase', 'Selling', 'Input', 'Output', 'State of Charge', 'Total Generation',
-                              'Hot Standby Demand']
-
-        time_series['Name'] = time_series.index.tolist()
-        for c in first_column_index:
-            if c in time_series.index.get_level_values(0):
-                for i in time_series.loc[c].index:
-                    if str(i[0]) == 'nan':
-                        name = str(i[1]) + ' ' + c
-                    else:
-                        name = str(i[1]) + ' ' + c + ' ' + str(i[0])
-
-                    time_series.at[merge_tuples(c, i), 'Name'] = name
-
         entries = results_dataframe.columns.tolist()
         if 'Super Folder' in entries:
             entries.remove('Super Folder')
 
         # Implement web application
         app = dash.Dash(__name__)
-
-        if False:
-            dcc.Tab(label='Assumptions',
-                    children=[
-                        html.Div([
-                            html.H2(
-                                ["Assumptions"],
-                                className="subtitle padded",
-                                style={'font-family': 'Calibri'}),
-                            dash_table.DataTable(
-                                id='assumptions',
-                                columns=[{"name": i, "id": i} for i in assumptions_table.columns],
-                                data=assumptions_table.to_dict('records'),
-                                style_as_list_view=True,
-                                style_cell_conditional=[
-                                    {'if': {'column_id': assumptions_table_columns},
-                                     'textAlign': 'left',
-                                     'font-family': 'Calibri',
-                                     'width': '10%'},
-                                    {'if': {'column_id': ''},
-                                     'textAlign': 'left',
-                                     'font-family': 'Calibri',
-                                     'width': '10%',
-                                     'background-color': '#f5f2f2'}],
-                                style_data_conditional=[
-                                    {'if': {'column_id': ''},
-                                     'fontWeight': 'bold'}],
-                                style_header={
-                                    'fontWeight': 'bold',
-                                    'background-color': '#edebeb'})],
-                            style={'width': '50%'}
-                        )
-                    ]
-                    ),
-            dcc.Tab(label='Overview Results',
-                    children=[
-                        html.Div([
-                            html.H2(
-                                ["Results"],
-                                className="subtitle padded",
-                                style={'font-family': 'Calibri'}),
-                            dash_table.DataTable(
-                                id='overview_table',
-                                columns=[{"name": i, "id": i} for i in overview_table.columns],
-                                data=overview_table.to_dict('records'),
-                                style_as_list_view=True,
-                                style_cell_conditional=[
-                                    {'if': {'column_id': 'Value'},
-                                     'textAlign': 'left',
-                                     'font-family': 'Calibri',
-                                     'width': '10%'},
-                                    {'if': {'column_id': ''},
-                                     'textAlign': 'left',
-                                     'font-family': 'Calibri',
-                                     'width': '10%',
-                                     'background-color': '#f5f2f2'}],
-                                style_data_conditional=[
-                                    {'if': {'column_id': ''},
-                                     'fontWeight': 'bold', }],
-                                style_header={
-                                    'fontWeight': 'bold',
-                                    'background-color': '#edebeb'}
-                            )
-                        ],
-                            style={'width': '50%'}
-                        )
-                    ]
-                    ),
-            dcc.Tab(
-                label='Conversion Components',
-                children=[
-                    html.Div([
-                        html.H2(
-                            ["Conversion Components"],
-                            className="subtitle padded",
-                            style={'font-family': 'Calibri'}),
-                        dash_table.DataTable(
-                            id='conversion_components_table',
-                            columns=[{"name": i, "id": i} for i in conversion_components_table.columns],
-                            data=conversion_components_table.to_dict('records'),
-                            style_as_list_view=True,
-                            style_cell_conditional=[
-                                {'if': {'column_id': conversion_components_table_columns},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%'},
-                                {'if': {'column_id': ''},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%',
-                                 'background-color': '#f5f2f2'}],
-                            style_data_conditional=[
-                                {'if': {'column_id': ''},
-                                 'fontWeight': 'bold'}],
-                            style_header={
-                                'fontWeight': 'bold',
-                                'background-color': '#edebeb'})
-                    ])
-                ]
-            ),
-            dcc.Tab(
-                label='Storage Components',
-                children=[
-                    html.Div([
-                        html.H2(
-                            ["Storage Components"],
-                            className="subtitle padded",
-                            style={'font-family': 'Calibri'}),
-                        dash_table.DataTable(
-                            id='storage_components_table',
-                            columns=[{"name": i, "id": i} for i in storage_components_table.columns],
-                            data=storage_components_table.to_dict('records'),
-                            style_as_list_view=True,
-                            style_cell_conditional=[
-                                {'if': {'column_id': storage_components_table_columns},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%'},
-                                {'if': {'column_id': ''},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%',
-                                 'background-color': '#f5f2f2'}],
-                            style_data_conditional=[
-                                {'if': {'column_id': ''},
-                                 'fontWeight': 'bold'}],
-                            style_header={
-                                'fontWeight': 'bold',
-                                'background-color': '#edebeb'})
-                    ])
-                ]
-            ),
-            dcc.Tab(
-                label='Generation Components',
-                children=[
-                    html.Div([
-                        html.H2(
-                            ["Generation Components"],
-                            className="subtitle padded",
-                            style={'font-family': 'Calibri'}),
-                        dash_table.DataTable(
-                            id='generation_table',
-                            columns=[{"name": i, "id": i} for i in generation_table.columns],
-                            data=generation_table.to_dict('records'),
-                            style_as_list_view=True,
-                            style_cell_conditional=[
-                                {'if': {'column_id': ''},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%'},
-                                {'if': {'column_id': ''},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%',
-                                 'background-color': '#f5f2f2'}],
-                            style_data_conditional=[
-                                {'if': {'column_id': ''},
-                                 'fontWeight': 'bold'}],
-                            style_header={
-                                'fontWeight': 'bold',
-                                'background-color': '#edebeb'})
-                    ],
-                        style={'width': '100%'}
-                    )
-                ]
-            ),
-            dcc.Tab(
-                label='Streams',
-                children=[
-                    html.Div([
-                        html.H2(
-                            ["Streams"],
-                            className="subtitle padded",
-                            style={'font-family': 'Calibri'}),
-                        dash_table.DataTable(
-                            id='commodity_table',
-                            columns=[{"name": i, "id": i} for i in commodity_table.columns],
-                            data=commodity_table.to_dict('records'),
-                            style_as_list_view=True,
-                            style_cell_conditional=[
-                                {'if': {'column_id': ''},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%'},
-                                {'if': {'column_id': ''},
-                                 'textAlign': 'left',
-                                 'font-family': 'Calibri',
-                                 'width': '10%',
-                                 'background-color': '#f5f2f2'}],
-                            style_data_conditional=[
-                                {'if': {'column_id': ''},
-                                 'fontWeight': 'bold'}],
-                            style_header={
-                                'fontWeight': 'bold',
-                                'background-color': '#edebeb'})
-                    ],
-                        style={'width': '100%'}
-                    )
-                ]
-            ),
-            dcc.Tab(
-                label='Cost Distribution',
-                children=[
-                    html.Div([
-                        html.Div([
-                            html.Div(
-                                children=dcc.Graph(id='cost_share_figure'),
-                                style={
-                                    'height': '100px',
-                                    'margin-left': '10px',
-                                    'width': '45%',
-                                    'text-align': 'center',
-                                    'display': 'inline-block'}),
-                            html.Div(
-                                children=[
-                                    dash_table.DataTable(
-                                        id='cost_structure_table',
-                                        columns=[{"name": i, "id": i} for i in cost_structure_dataframe.columns],
-                                        data=cost_structure_dataframe.to_dict('records'),
-                                        style_as_list_view=True,
-                                        style_cell_conditional=[
-                                            {'if': {'column_id': ''},
-                                             'textAlign': 'left',
-                                             'font-family': 'Calibri',
-                                             'width': '10%'},
-                                            {'if': {'column_id': ''},
-                                             'textAlign': 'left',
-                                             'font-family': 'Calibri',
-                                             'width': '10%',
-                                             'background-color': '#f5f2f2'}],
-                                        style_data_conditional=[
-                                            {'if': {'column_id': ''},
-                                             'fontWeight': 'bold'}],
-                                        style_header={
-                                            'fontWeight': 'bold',
-                                            'background-color': '#edebeb'})
-                                ],
-                                style={'width': '50%', 'float': 'right'}
-                            )
-                        ])
-                    ])
-                ]
-            ),
-            dcc.Tab(label='Graph',
-                    children=[
-                        html.Div([
-                            html.Div(dcc.Graph(id='indicator_graphic')),
-                            html.Div([
-                                html.Div([
-                                    "left Y-axis",
-                                    dcc.Dropdown(
-                                        className='Y-axis left',
-                                        id='yaxis_main',
-                                        options=[{'label': str(i), 'value': str(i)} for i in
-                                                 time_series_unit.unique()]),
-                                    dcc.Checklist(
-                                        id='checklist_left',
-                                        labelStyle={'display': 'block'})],
-                                    style={'width': '48%', 'display': 'inline-block'}),
-                                html.Div([
-                                    "right Y-axis",
-                                    dcc.Dropdown(
-                                        className='Y-axis right',
-                                        id='yaxis_right',
-                                        options=[{'label': str(i), 'value': str(i)} for i in
-                                                 time_series_unit.unique()]),
-                                    dcc.Checklist(
-                                        id='checklist_right',
-                                        labelStyle={'display': 'block'})],
-                                    style={'width': '48%', 'float': 'right', 'display': 'inline-block'}
-                                )
-                            ])
-                        ])
-                    ]
-                    ),
-            dcc.Tab(
-                label='Load profile',
-                children=[
-                    html.Div([
-                        html.Div([
-                            html.Div([
-                                html.H4(children="Generator Selection",
-                                        className="subtitle padded", style={'font-family': 'Arial'}),
-                                dcc.Checklist(
-                                    id='load_profile_checklist',
-                                    options=[{
-                                        'label': c[0] + ' ' + c[1],
-                                        'value': str(('Generation',) + c)} for c in
-                                        time_series_df.loc['Generation'].index],
-                                    labelStyle={'display': 'block'})],
-                                style={'width': '85%', 'display': 'inline-block'})],
-                            style={'width': '16%', 'display': 'inline-block',
-                                   'vertical-align': 'top', 'marginTop': '40px', 'marginLeft': '20px'}),
-                        dcc.Graph(
-                            id='load_profile',
-                            figure=go.Figure(
-                                data=[],
-                                layout=go.Layout(
-                                    title="Load profile",
-                                    xaxis=dict(
-                                        title='h',
-                                        categoryorder='category descending'),
-                                    yaxis=dict(
-                                        title='kW',
-                                        rangemode='tozero'),
-                                    barmode='stack',
-                                    legend=dict(
-                                        orientation='h',
-                                        bgcolor='rgba(255, 255, 255, 0)',
-                                        bordercolor='rgba(255, 255, 255, 0)'),
-                                    paper_bgcolor='rgba(255, 255, 255, 255)',
-                                    plot_bgcolor='#f7f7f7')),
-                            style={'width': '80%', 'display': 'inline-block'})
-                    ])
-                ]
-            ),
-
         app.title = 'Result comparison'
         app.layout = html.Div([
             html.Div([
@@ -1565,46 +1370,86 @@ def create_visualization(path):
                         dcc.Dropdown(
                             className='Cases',
                             id='case',
-                            options=[{'label': str(i), 'value': str(i)} for i in [*results_per_case.keys()]])
+                            options=[{'label': str(i), 'value': str(i)} for i in [*results_per_case.keys()]],
+                            value=[*results_per_case.keys()][0])
                         ])
                     ])
                 ]),
             dcc.Tabs([
-                dcc.Tab(label='Overview Results',
-                        children=[
-                            html.Div([
-                                html.H2(
-                                    ["Results"],
-                                    className="subtitle padded",
-                                    style={'font-family': 'Calibri'}),
-                                dash_table.DataTable(
-                                    id='overview_table',
-                                    columns=[{"name": i, "id": i} for i in overview_table.columns],
-                                    data=overview_table.to_dict('records'),
-                                    style_as_list_view=True,
-                                    style_cell_conditional=[
-                                        {'if': {'column_id': 'Value'},
-                                         'textAlign': 'left',
-                                         'font-family': 'Calibri',
-                                         'width': '10%'},
-                                        {'if': {'column_id': ''},
-                                         'textAlign': 'left',
-                                         'font-family': 'Calibri',
-                                         'width': '10%',
-                                         'background-color': '#f5f2f2'}],
-                                    style_data_conditional=[
-                                        {'if': {'column_id': ''},
-                                         'fontWeight': 'bold', }],
-                                    style_header={
-                                        'fontWeight': 'bold',
-                                        'background-color': '#edebeb'}
-                                )
-                            ],
-                                style={'width': '50%'}
-                            )
-                        ]
-                        ),
-
+                dcc.Tab(
+                    label='Assumptions',
+                    children=[
+                        html.Div([
+                            html.Div(id='assumptions_table')
+                        ])
+                    ]
+                ),
+                dcc.Tab(
+                    label='Overview Results',
+                    children=[
+                        html.Div([
+                            html.Div(id='overview_table')
+                        ])
+                    ]
+                ),
+                dcc.Tab(
+                    label='Conversion Components',
+                    children=[
+                        html.Div([
+                            html.Div(id='conversion_components_table')
+                        ])
+                    ]
+                ),
+                dcc.Tab(
+                    label='Storage',
+                    children=[
+                        html.Div([
+                            html.Div(id='storage_table')
+                        ])
+                    ]
+                ),
+                dcc.Tab(
+                    label='Generators',
+                    children=[
+                        html.Div([
+                            html.Div(id='generation_table')
+                        ])
+                    ]
+                ),
+                dcc.Tab(
+                    label='Commodities',
+                    children=[
+                        html.Div([
+                            html.Div(id='commodity_table')
+                        ])
+                    ]
+                ),
+                dcc.Tab(
+                    label='Cost Overview',
+                    children=[
+                        html.Div(children=[
+                            html.Div(id='cost_structure_figure', style={'width': '48%', 'display': 'inline-block',
+                                                                        "verticalAlign": "top"}),
+                            html.Div(id='cost_structure_table', style={'width': '48%', 'display': 'inline-block',
+                                                                       "verticalAlign": "top"}),
+                        ], style={'width': '100%', 'display': 'inline-block'})
+                    ]
+                ),
+                dcc.Tab(
+                    label='Time Series',
+                    children=[
+                        html.Div([
+                            html.Div(id='time_series_figure'),
+                            html.Div(
+                                children=[
+                                    html.Div(id='dropdown_menu_left', style={'width': '48%', 'display': 'inline-block',
+                                                                             "verticalAlign": "top"}),
+                                    html.Div(id='dropdown_menu_right', style={'width': '48%', 'display': 'inline-block',
+                                                                              "verticalAlign": "top"})
+                                ], style={'width': '100%', 'display': 'inline-block'})
+                        ])
+                    ]
+                ),
                 dcc.Tab(
                     label='Features',
                     children=[
@@ -1684,66 +1529,150 @@ def create_visualization(path):
         ])
 
         if True:
+            @app.callback([Output('assumptions_table', 'children'),
+                           Output('overview_table', 'children'),
+                           Output('conversion_components_table', 'children'),
+                           Output('storage_table', 'children'),
+                           Output('generation_table', 'children'),
+                           Output('commodity_table', 'children'),
+                           Output('cost_structure_figure', 'children'),
+                           Output('cost_structure_table', 'children'),
+                           Output('time_series_figure', 'children'),
+                           Output('dropdown_menu_left', 'children'),
+                           Output('dropdown_menu_right', 'children')],
+                          Input('case', 'value'))
+            def display_result_selection(selected_case):
+                assumptions_tab = results_per_case[selected_case]['assumptions_table']
+                overview_tab = results_per_case[selected_case]['overview_table']
+                conversion_tab = results_per_case[selected_case]['conversion_components_table']
+                storage_tab = results_per_case[selected_case]['storage_components_table']
+                generator_tab = results_per_case[selected_case]['generation_table']
+                commodity_tab = results_per_case[selected_case]['commodity_table']
+                cost_structure_tab = results_per_case[selected_case]['cost_structure_dataframe']
+                cost_structure_fig = results_per_case[selected_case]['cost_share_figure']
+                time_series_units = results_per_case[selected_case]['time_series_df'].iloc[:, 0]
+
+                assumption_dt = dash_table.DataTable(
+                    columns=[{"name": i, "id": i} for i in assumptions_tab.columns],
+                    data=assumptions_tab.to_dict('records'),
+                    style_as_list_view=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={
+                        'fontWeight': 'bold',
+                        'background-color': '#edebeb'}
+                )
+
+                overview_dt = dash_table.DataTable(
+                    columns=[{"name": i, "id": i} for i in overview_tab.columns],
+                    data=overview_tab.to_dict('records'),
+                    style_as_list_view=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={
+                        'fontWeight': 'bold',
+                        'background-color': '#edebeb'}
+                )
+
+                conversion_dt = dash_table.DataTable(
+                    columns=[{"name": i, "id": i} for i in conversion_tab.columns],
+                    data=conversion_tab.to_dict('records'),
+                    style_as_list_view=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={
+                        'fontWeight': 'bold',
+                        'background-color': '#edebeb'}
+                )
+
+                storage_dt = dash_table.DataTable(
+                    columns=[{"name": i, "id": i} for i in storage_tab.columns],
+                    data=storage_tab.to_dict('records'),
+                    style_as_list_view=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={
+                        'fontWeight': 'bold',
+                        'background-color': '#edebeb'}
+                )
+
+                generator_dt = dash_table.DataTable(
+                    columns=[{"name": i, "id": i} for i in generator_tab.columns],
+                    data=generator_tab.to_dict('records'),
+                    style_as_list_view=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={
+                        'fontWeight': 'bold',
+                        'background-color': '#edebeb'}
+                )
+
+                commodity_dt = dash_table.DataTable(
+                    columns=[{"name": i, "id": i} for i in commodity_tab.columns],
+                    data=commodity_tab.to_dict('records'),
+                    style_as_list_view=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={
+                        'fontWeight': 'bold',
+                        'background-color': '#edebeb'}
+                )
+
+                cost_structure_dt = dash_table.DataTable(
+                    columns=[{"name": i, "id": i} for i in cost_structure_tab.columns],
+                    data=cost_structure_tab.to_dict('records'),
+                    style_as_list_view=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={
+                        'fontWeight': 'bold',
+                        'background-color': '#edebeb'}
+                )
+
+                cost_structure_graph = dcc.Graph(id='cost_share_figure', figure=cost_structure_fig)
+
+                time_series_graph = dcc.Graph(id='time_series_graphic')
+                dropdown_left = html.Div([
+                    "left Y-axis",
+                    dcc.Dropdown(
+                        className='Y-axis left',
+                        id='yaxis_main',
+                        options=[{'label': str(i), 'value': str(i)} for i in
+                                 time_series_units.unique()]),
+                    dcc.Checklist(
+                        id='checklist_left',
+                        labelStyle={'display': 'block'})]),
+                dropdown_right = html.Div([
+                    "right Y-axis",
+                    dcc.Dropdown(
+                        className='Y-axis right',
+                        id='yaxis_right',
+                        options=[{'label': str(i), 'value': str(i)} for i in
+                                 time_series_units.unique()]),
+                    dcc.Checklist(
+                        id='checklist_right',
+                        labelStyle={'display': 'block'})])
+
+                return [assumption_dt, overview_dt, conversion_dt, storage_dt, generator_dt, commodity_dt,
+                        cost_structure_graph, cost_structure_dt, time_series_graph, dropdown_left, dropdown_right]
 
             @app.callback(
-                [Output("overview_table", "data"), Output('overview_table', 'columns')],
-                Input("case", "value")
+                Output('checklist_left', 'options'),
+                [Input('yaxis_main', 'value'), Input('case', 'value')]
             )
-            def stuff(selected_case):
-
-                table = results_per_case[selected_case]['assumptions_table']
-
-                columns = [{"name": i, "id": i} for i in table.columns],
-                data = table.to_dict('records')
-
-                return data, columns
-
-        if False:
-
-
+            def update_dropdown_left(y_axis, selected_case):
+                time_series_dataframe = results_per_case[selected_case]['time_series_df']
+                time_series_units = time_series_dataframe.iloc[:, 0]
+                t = time_series_units == str(y_axis)
+                return [{'label': str(time_series_dataframe.at[i, 'Name']), 'value': str(i)}
+                        for i in t.index[t.tolist()]]
 
             @app.callback(
-                Output("assumptions", "table"),
-                Output("overview_table", "table"),
-                Output("conversion_components_table", "table"),
-                Output("storage_components_table", "table"),
-                Output("generation_table", "table"),
-                Output("cost_share_figure", "figure"),
-                Output("cost_structure_table", "table"),
-                Output("commodity_table", "table"),
-                Output("indicator_graphic", "figure"),
-                Output("load_profile", "figure"),
-                Output('yaxis_right', 'options'),
-                Output('yaxis_left', 'options'),
-
-                Input("case", "value"))
-            def change_case(case):
-
-                time_series_dataframe = results_per_case[case]['time_series_df']
-
-                units = time_series_dataframe.iloc[:, 0]
-
-                time_series_dataframe['Name'] = time_series_dataframe.index.tolist()
-                for c in first_column_index:
-                    if c in time_series_dataframe.index.get_level_values(0):
-                        for i in time_series_dataframe.loc[c].index:
-                            if str(i[0]) == 'nan':
-                                name = str(i[1]) + ' ' + c
-                            else:
-                                name = str(i[1]) + ' ' + c + ' ' + str(i[0])
-
-                            time_series_dataframe.at[merge_tuples(c, i), 'Name'] = name
-
-                options = [{'label': str(i), 'value': str(i)} for i in units.unique()]
-
-                return results_per_case[case]['assumptions_table'], results_per_case[case]['overview_table'],\
-                    results_per_case[case]['conversion_components_table'], results_per_case[case]['storage_components_table'],\
-                    results_per_case[case]['generation_table'], results_per_case[case]['cost_share_figure'],\
-                    results_per_case[case]['cost_structure_dataframe'], results_per_case[case]['commodity_table'],\
-                    time_series_df, {'options': options}, {'options': options}
+                Output('checklist_right', 'options'),
+                [Input('yaxis_right', 'value'), Input('case', 'value')]
+            )
+            def update_dropdown_right(y_axis_right, selected_case):
+                time_series_dataframe = results_per_case[selected_case]['time_series_df']
+                time_series_units = time_series_dataframe.iloc[:, 0]
+                t = time_series_units == str(y_axis_right)
+                return [{'label': str(time_series_dataframe.at[i, 'Name']), 'value': str(i)}
+                        for i in t.index[t.tolist()]]
 
             @app.callback(
-                Output('indicator_graphic', 'figure'),
+                Output('time_series_graphic', 'figure'),
                 Input('checklist_left', 'value'),
                 Input('checklist_right', 'value'),
                 Input('yaxis_main', 'value'),
@@ -1752,13 +1681,31 @@ def create_visualization(path):
             )
             def update_graph(left_checklist, right_checklist, unit_left, unit_right, case):
 
-                time_series_dataframe = results_per_case[case]['time_series_df']
+                time_series = results_per_case[case]['time_series_df']
 
-                units = time_series_dataframe.iloc[:, 0]
-                data = time_series_dataframe.iloc[:, 1:]
+                units = time_series.iloc[:, 0]
+                data = time_series.iloc[:, 1:]
 
                 # Dictionary to get index-triple from str(i)
-                index = dict([(str(i), i) for i in time_series_dataframe.index])
+                index = dict([(str(i), i) for i in time_series.index])
+
+                def merge_tuples(*t):
+                    return tuple(j for i in t for j in (i if isinstance(i, tuple) else (i,)))
+
+                first_column_index = ['Charging', 'Discharging', 'Demand', 'Emitting', 'Freely Available', 'Generation',
+                                      'Purchase', 'Selling', 'Input', 'Output', 'State of Charge', 'Total Generation',
+                                      'Hot Standby Demand']
+
+                time_series['Name'] = time_series.index.tolist()
+                for c in first_column_index:
+                    if c in time_series.index.get_level_values(0):
+                        for i in time_series.loc[c].index:
+                            if str(i[0]) == 'nan':
+                                name = str(i[1]) + ' ' + c
+                            else:
+                                name = str(i[1]) + ' ' + c + ' ' + str(i[0])
+
+                            time_series.at[merge_tuples(c, i), 'Name'] = name
 
                 color_left = cycle(px.colors.qualitative.Plotly)
                 color_right = cycle(px.colors.qualitative.Plotly[::-1])
@@ -1770,13 +1717,13 @@ def create_visualization(path):
                                 go.Scatter(
                                     x=data.columns,
                                     y=data.loc[index[left_checklist[i]]],
-                                    name=time_series_dataframe.at[index[left_checklist[i]], 'Name'] + ', '
+                                    name=time_series.at[index[left_checklist[i]], 'Name'] + ', '
                                         + units.loc[index[left_checklist[i]]],
                                     line=dict(color=next(color_left))
                                 )
                             data_graph.append(globals()['right_trace%s' % i])
                     layout = go.Layout(
-                        title="PtX-Model: Stream Visualization",
+                        title="PtX-Model: Commodity Visualization",
                         xaxis=dict(
                             title='h',
                             range=[0, data.shape[1] + 10]
@@ -1787,9 +1734,6 @@ def create_visualization(path):
                             showgrid=True
                         ),
                         legend=dict(
-                            # orientation='h',
-                            # x=0,
-                            # y=-1,
                             bgcolor='rgba(255, 255, 255, 0)',
                             bordercolor='rgba(255, 255, 255, 0)'
                         ),
@@ -1805,7 +1749,7 @@ def create_visualization(path):
                         globals()['left_trace%s' % i] = go.Scatter(
                             x=data.columns,
                             y=data.loc[index[left_checklist[i]]],
-                            name=time_series_dataframe.at[index[left_checklist[i]], 'Name'],
+                            name=time_series.at[index[left_checklist[i]], 'Name'],
                             legendgroup='left',
                             legendgrouptitle=dict(
                                 text=str(units.loc[index[left_checklist[i]]]) + ':'
@@ -1818,7 +1762,7 @@ def create_visualization(path):
                             globals()['right_trace%s' % i] = go.Scatter(
                                 x=data.columns,
                                 y=data.loc[index[right_checklist[i]]],
-                                name=time_series_dataframe.at[index[right_checklist[i]], 'Name'],
+                                name=time_series.at[index[right_checklist[i]], 'Name'],
                                 yaxis='y2',
                                 legendgroup='right',
                                 legendgrouptitle=dict(
@@ -1827,7 +1771,7 @@ def create_visualization(path):
                                 line=dict(color=next(color_right)))
                             data_graph.append(globals()['right_trace%s' % i])
                     layout = go.Layout(
-                        title="PtX-Model: Stream Visualization",
+                        title="PtX-Model: Commodity Visualization",
                         xaxis=dict(
                             title='h',
                             domain=[0, 0.95]
@@ -1862,8 +1806,6 @@ def create_visualization(path):
             def update_load_profile(check, case):
 
                 time_series_dataframe = results_per_case[case]['time_series_df']
-
-                units = time_series_dataframe.iloc[:, 0]
                 data = time_series_dataframe.iloc[:, 1:]
 
                 # Dictionary to get index-triple from str(i)
@@ -1911,22 +1853,34 @@ def create_visualization(path):
             Input("feature", "value"))
         def update_bar_chart(feature):
 
-            sub_df = results_dataframe.copy()
-            sub_df.sort_values(by=[feature], inplace=True)
+            if True:
 
-            if 'Super Folder' not in results_dataframe.columns:
+                sub_df = results_dataframe.copy()
+                sub_df.sort_values(by=[feature], inplace=True)
 
-                sub_df['Case Name'] = sub_df.index
+                if 'Super Folder' not in results_dataframe.columns:
 
-            else:
+                    sub_df['Case Name'] = sub_df.index
 
-                index = []
-                for c in results_dataframe.index:
-                    index.append(results_dataframe.loc[c, 'Super Folder'] + ' ' + c)
+                    fig = px.bar(sub_df, x='Case Name', y=feature)
+                    fig.update_layout(
+                        yaxis_title=feature + ' [' + units_dictionary[feature] + ']',
+                        xaxis_showticklabels=False)
 
-                sub_df['Case Name'] = index
+                else:
 
-            fig = px.bar(sub_df, x='Case Name', y=feature)
+                    index = []
+                    for c in sub_df.index:
+                        index.append(sub_df.loc[c, 'Super Folder'] + ' ' + c)
+
+                    sub_df['Case Name'] = index
+
+                    fig = px.bar(sub_df, x='Case Name', y=feature, color='Super Folder')
+                    fig.update_layout(
+                        yaxis_title=feature + ' [' + units_dictionary[feature] + ']',
+                        xaxis_showticklabels=False,
+                        xaxis_categoryorder='total ascending',
+                        legend_title="Scenario")
 
             return fig
 
@@ -1943,7 +1897,12 @@ def create_visualization(path):
                 elif ri_value == 'Linear':
                     fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, trendline="ols")
                 else:
-                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, trendline="ols", trendline_options=dict(log_x=True))
+                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, trendline="ols",
+                                     trendline_options=dict(log_x=True))
+
+                fig.update_layout(
+                    xaxis_title=x_axis + ' [' + units_dictionary[x_axis] + ']',
+                    yaxis_title=y_axis + ' [' + units_dictionary[y_axis] + ']')
 
             else:
                 if ri_value == 'None':
@@ -1953,6 +1912,11 @@ def create_visualization(path):
                 else:
                     fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, color='Super Folder', trendline="ols",
                                      trendline_options=dict(log_x=True))
+
+                fig.update_layout(
+                    xaxis_title=x_axis + ' [' + units_dictionary[x_axis] + ']',
+                    yaxis_title=y_axis + ' [' + units_dictionary[y_axis] + ']',
+                    legend_title="Scenario")
 
             return fig
 
@@ -1971,15 +1935,34 @@ def create_visualization(path):
                     hist_data.append(results_dataframe.loc[ind, parameter].values)
                     group_labels.append(f)  # name of the dataset
 
-                fig1 = px.histogram(results_dataframe, x=parameter, color='Super Folder', marginal="box", barmode='group')
-                fig2 = ff.create_distplot(hist_data, group_labels, show_hist=False)
+                fig1 = px.histogram(results_dataframe, x=parameter, color='Super Folder', marginal="box",
+                                    barmode='group')
+                fig1.update_layout(
+                    xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
+                    yaxis_title="Amount",
+                    legend_title="Scenario")
+
+                fig2 = ff.create_distplot(hist_data, group_labels, show_hist=False,)
+                fig2.update_layout(
+                    xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
+                    yaxis_title="Probability",
+                    legend_title="Scenario")
 
             else:
                 hist_data = [results_dataframe[parameter].values]
                 group_labels = [parameter]  # name of the dataset
 
                 fig1 = px.histogram(results_dataframe[parameter], marginal="box")
+                fig1.update_layout(
+                    xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
+                    yaxis_title="Amount",
+                    legend_title="Legend Title",)
+
                 fig2 = ff.create_distplot(hist_data, group_labels, show_hist=False)
+                fig2.update_layout(
+                    xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
+                    yaxis_title="Probability",
+                    legend_title="Legend Title",)
 
             return fig1, fig2
 
@@ -2024,8 +2007,6 @@ def create_visualization(path):
                 commodities_single, time_series_single, generation_single, settings_single, generation_profiles_single \
                 = load_data_multiple_results_with_single_scenario()
 
-            results_dataframe = extract_results_multiple_results_single_scenario()
-
             results_per_case = {}
             for f in folders_single:
 
@@ -2062,6 +2043,7 @@ def create_visualization(path):
                                        'commodity_table': commodity_table,
                                        'time_series_df': time_series_df}
 
+            results_dataframe, units_dictionary = extract_results_multiple_results_single_scenario()
             create_web_page_multiple_results()
 
         else:
@@ -2078,8 +2060,6 @@ def create_visualization(path):
             folders_multiple, assumptions_multiple, results_overview_multiple, components_multiple,\
                 cost_distribution_multiple, commodities_multiple, time_series_multiple, generation_multiple,\
                 settings_multiple, generation_profiles_multiple = load_data_multiple_results_with_different_scenarios()
-
-            results_dataframe = extract_results_multiple_results_different_scenarios()
 
             results_per_case = {}
             for f in folders_multiple:
@@ -2119,6 +2099,7 @@ def create_visualization(path):
                                                    'commodity_table': commodity_table,
                                                    'time_series_df': time_series_df}
 
+            results_dataframe, units_dictionary = extract_results_multiple_results_different_scenarios()
             create_web_page_multiple_results()
 
 

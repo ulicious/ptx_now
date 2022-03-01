@@ -439,6 +439,7 @@ class ParameterObject:
             if self.get_commodity(s).is_purchasable():
                 if self.get_commodity(s).get_purchase_price_type() == 'variable':
                     market_data_needed = True
+                    break
             elif self.get_commodity(s).is_saleable():
                 if self.get_commodity(s).get_sale_price_type() == 'variable':
                     market_data_needed = True
@@ -521,10 +522,7 @@ class ParameterObject:
                 lower_bound, upper_bound, coefficient, intercept = \
                     self.calculate_economies_of_scale_steps(component_object)
 
-                for key in [*coefficient.keys()]:
-                    capex_var_pre_dict[key] = coefficient[key]
-                    if type(key) == tuple:
-                        self.capex_var_dict[key[0]] = 0
+                capex_var_pre_dict.update(coefficient)
 
         return capex_var_pre_dict
 
@@ -536,10 +534,7 @@ class ParameterObject:
                 lower_bound, upper_bound, coefficient, intercept = \
                     self.calculate_economies_of_scale_steps(component_object)
 
-                for key in [*intercept.keys()]:
-                    capex_fix_pre_dict[key] = intercept[key]
-                    if type(key) == tuple:
-                        self.capex_fix_dict[key[0]] = 0
+                capex_fix_pre_dict.update(intercept)
 
         return capex_fix_pre_dict
 
@@ -552,10 +547,22 @@ class ParameterObject:
                 lower_bound, upper_bound, coefficient, intercept = \
                     self.calculate_economies_of_scale_steps(component_object)
 
-                for key in [*upper_bound.keys()]:
-                    upper_bound_dict[key] = upper_bound[key]
+                upper_bound_dict.update(upper_bound)
 
         return upper_bound_dict
+
+    def get_scaling_component_capex_lower_bound_parameters(self):
+        lower_bound_dict = {}
+
+        for component_object in self.get_final_conversion_components_objects():
+
+            if component_object.is_scalable():
+                lower_bound, upper_bound, coefficient, intercept = \
+                    self.calculate_economies_of_scale_steps(component_object)
+
+                lower_bound_dict.update(lower_bound)
+
+        return lower_bound_dict
 
     def get_component_minimal_power_parameters(self):
         min_p_dict = {}
@@ -829,6 +836,7 @@ class ParameterObject:
         scaling_capex_var_dict = self.get_scaling_component_variable_capex_parameters()
         scaling_capex_fix_dict = self.get_scaling_component_fixed_capex_parameters()
         scaling_capex_upper_bound_dict = self.get_scaling_component_capex_upper_bound_parameters()
+        scaling_capex_lower_bound_dict = self.get_scaling_component_capex_lower_bound_parameters()
 
         shut_down_down_time_dict = self.get_shut_down_component_down_time_parameters()
         shut_down_start_up_costs = self.get_shut_down_component_start_up_costs_parameters()
@@ -845,7 +853,8 @@ class ParameterObject:
 
         return lifetime_dict, maintenance_dict, capex_var_dict, capex_fix_dict, minimal_power_dict, maximal_power_dict,\
             ramp_up_dict, ramp_down_dict, scaling_capex_var_dict, scaling_capex_fix_dict,\
-            scaling_capex_upper_bound_dict, shut_down_down_time_dict, shut_down_start_up_costs, standby_down_time_dict,\
+            scaling_capex_upper_bound_dict, scaling_capex_lower_bound_dict,\
+            shut_down_down_time_dict, shut_down_start_up_costs, standby_down_time_dict,\
             charging_efficiency_dict, discharging_efficiency_dict, minimal_soc_dict, maximal_soc_dict, \
             ratio_capacity_power_dict
 
@@ -968,13 +977,15 @@ class ParameterObject:
 
     def get_generation_time_series(self):
         generation_profiles_dict = {}
-        generation_profile = pd.read_excel(self.get_generation_data(), index_col=0)
-        for generator in self.get_final_generator_components_objects():
-            generator_name = generator.get_name()
-            for t in range(self.get_time_steps()):
-                ind = generation_profile.index[t]
-                generation_profiles_dict.update({(generator_name, t):
-                                                 float(generation_profile.loc[ind, generator.get_nice_name()])})
+
+        if self.get_generation_data() is not None:
+            generation_profile = pd.read_excel(self.get_generation_data(), index_col=0)
+            for generator in self.get_final_generator_components_objects():
+                generator_name = generator.get_name()
+                for t in range(self.get_time_steps()):
+                    ind = generation_profile.index[t]
+                    generation_profiles_dict.update({(generator_name, t):
+                                                     float(generation_profile.loc[ind, generator.get_nice_name()])})
 
         return generation_profiles_dict
 

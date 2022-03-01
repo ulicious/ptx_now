@@ -1,131 +1,129 @@
-from pyomo.core import *
-
 import pandas as pd
+
+from optimization_classes_and_methods import OptimizationProblem
+from ResultAnalysis import ResultAnalysis
+from _helpers_gui import save_current_parameters_and_options
+
+from os import walk
 
 idx = pd.IndexSlice
 
 
-def create_conversion_factor_matrix(conversion_factor, year):
-    """ Creates the matrix, which contents the ratio from one material to another """
-    """ Important: All units are converted to tons """
+def optimize(pm_object, path_data, path_results, solver):
 
-    # Create dictionary with conversion factors
-    main_conversion_df = conversion_factor[conversion_factor['main']]
-    side_conversion_df = conversion_factor[~conversion_factor['main']]
+    """ Optimization either with one single case or several cases
+    depend on number of generation, purchase and sale data"""
 
-    main_conversion_factor_dict = {}
-    side_conversion_factor_dict = {}
+    generation_data_before = pm_object.get_generation_data()
+    market_data_before = pm_object.get_market_data()
 
-    main_conversion_tuples = []
-    side_conversion_tuples = []
+    optimization_problem = None
+    if len(pm_object.get_final_generator_components_names()) > 0:
+        # Case generators are used
 
-    main_inputs = []
-    unit_dict = {}
+        if pm_object.get_market_data_needed():  # Case market data available
 
-    components = conversion_factor['component'].unique()
-    inputs = conversion_factor['input'].unique()
-    outputs = conversion_factor['output'].unique()
+            if pm_object.get_generation_data_status():  # Case single file generation
 
-    for i in inputs:
-        input_df = conversion_factor[conversion_factor['input'] == i]
-        for ind in input_df.index:
-            unit_dict.update({i: input_df.loc[ind, 'unit_input']})
-            break
+                path_to_generation_files = path_data + pm_object.get_generation_data()
+                pm_object.set_generation_data(path_to_generation_files)
 
-    for o in outputs:
-        output_df = conversion_factor[conversion_factor['output'] == o]
-        for ind in output_df.index:
-            unit_dict.update({o: output_df.loc[ind, 'unit_output']})
-            break
+                path_to_sell_purchase_files = path_data + pm_object.get_market_data()
 
-    for c in components:
-        component_main_conversion_df = main_conversion_df[main_conversion_df['component'] == c]
-        component_side_conversion_df = side_conversion_df[side_conversion_df['component'] == c]
+                if pm_object.get_market_data_status():  # Case single market data file
 
-        for i in inputs:
-            component_main_conversion_input_df = component_main_conversion_df[component_main_conversion_df['input'] == i]
-            component_side_conversion_input_df = component_side_conversion_df[component_side_conversion_df['input'] == i]
-            for o in outputs:
-                tuples = (c, i, o)
-                if i == o:
-                    main_conversion_factor_dict.update({tuples: 0})
-                    main_conversion_factor_dict.update({tuples: 0})
+                    pm_object.set_market_data(path_to_sell_purchase_files)
+
+                    optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+                    analyze_results(pm_object, optimization_problem, path_results)
+
+                else:  # Case with several market data files
+
+                    _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                    for fsp in filenames_sell_purchase:
+                        pm_object.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+
+                        optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+                        analyze_results(pm_object, optimization_problem, path_results)
+
+            else:  # Case several generation files
+                path_to_generation_files = path_data + pm_object.get_generation_data()
+                path_to_sell_purchase_files = path_data + pm_object.get_market_data()
+
+                if pm_object.get_market_data_status():
+                    # Case with several generation profiles but only one market profile
+
+                    pm_object.set_market_data(path_to_sell_purchase_files)
+
+                    _, _, filenames_generation = next(walk(path_to_generation_files))
+                    for fg in filenames_generation:
+                        pm_object.set_generation_data(path_to_generation_files + '/' + fg)
+
+                        optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+                        analyze_results(pm_object, optimization_problem, path_results)
                 else:
-                    # Conversion
-                    conversion_df_output = component_main_conversion_input_df[component_main_conversion_input_df['output'] == o]
-                    if not conversion_df_output.empty:
-                        main_conversion_factor_dict.update({tuples: conversion_df_output[year].values[0]})
-                        main_conversion_tuples.append(tuples)
-                    else:
-                        main_conversion_factor_dict.update({tuples: 0})
+                    # Case with several generation and purchase/sale profiles
 
-                    # Joint products
-                    joint_product_df_output = component_side_conversion_input_df[component_side_conversion_input_df['output'] == o]
-                    if not joint_product_df_output.empty:
-                        side_conversion_factor_dict.update({tuples: joint_product_df_output[year].values[0]})
-                        side_conversion_tuples.append(tuples)
-                    else:
-                        side_conversion_factor_dict.update({tuples: 0})
+                    _, _, filenames_generation = next(walk(path_to_generation_files))
+                    _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                    for fg in filenames_generation:
+                        for fsp in filenames_sell_purchase:
+                            pm_object.set_generation_data(path_to_generation_files + '/' + fg)
 
-    return main_conversion_tuples, main_conversion_factor_dict, side_conversion_tuples, side_conversion_factor_dict,\
-       main_inputs, unit_dict
+                            pm_object.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+
+                            optimization_problem = OptimizationProblem(pm_object, path_data,
+                                                                       solver)
+                            analyze_results(pm_object, optimization_problem, path_results)
+
+        else:  # Case no market data
+            if pm_object.get_generation_data_status():  # Case only generation with single file
+
+                path_to_generation_files = path_data + pm_object.get_generation_data()
+                pm_object.set_generation_data(path_to_generation_files)
+
+                optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+                analyze_results(pm_object, optimization_problem, path_results)
+
+            else:  # Case only generation with several files
+                path_to_generation_files = path_data + pm_object.get_generation_data()
+
+                _, _, filenames_generation = next(walk(path_to_generation_files))
+                for fg in filenames_generation:
+                    pm_object.set_generation_data(path_to_generation_files + '/' + fg)
+
+                    optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+                    analyze_results(pm_object, optimization_problem, path_results)
+
+    else:  # Case generators are not used
+
+        if pm_object.get_market_data_needed():
+            if pm_object.get_market_data_status():
+                #  one case
+                path_to_market_file = path_data + pm_object.get_market_data()
+                pm_object.set_market_data(path_to_market_file)
+                optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+                analyze_results(pm_object, optimization_problem, path_results)
+            else:
+                # Case with several purchase and selling price data
+                path_to_sell_purchase_files = path_data + pm_object.get_market_data()
+
+                _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
+                for fsp in filenames_sell_purchase:
+                    pm_object.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+
+                    optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+                    analyze_results(pm_object, optimization_problem, path_results)
+
+        else:
+            optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+            analyze_results(pm_object, optimization_problem, path_results)
+
+    pm_object.set_generation_data(generation_data_before)
+    pm_object.set_market_data(market_data_before)
 
 
-def create_demand_matrix(model, conversion_factor):
-    """ Creates the matrix, which contents the demand of different components """
-    """ Important: All units are converted to tons """
+def analyze_results(pm_object, optimization_problem, path_result):
 
-    # Create dictionary with conversion factors
-
-    demand_dict = {}
-    demand_df = conversion_factor.loc[conversion_factor.index.get_level_values('type').str.contains('demand')]
-    for c in model.COMPONENTS:
-        component_conversion_df = demand_df.loc[demand_df.index.get_level_values('component').str.contains(c)]
-        for i in model.INPUT:
-            df_input = component_conversion_df.loc[
-                component_conversion_df.index.get_level_values('input').str.contains(i)]
-            for o in model.OUTPUT:
-                tuples = (c, i, o)
-                if i == o:
-                    demand_dict.update({tuples: 1})
-                else:
-                    df_output = df_input.loc[df_input.index.get_level_values('output').str.contains(o)]
-
-                    if not df_output.empty:
-                        demand_dict.update({tuples: df_output.values[0]})
-                    else:
-                        demand_dict.update({tuples: 0})
-
-    model.DEMAND = Param(model.COMPONENTS, model.INPUT, model.OUTPUT, initialize=demand_dict)
-
-    return model
-
-
-def create_joint_products_matrix(model, conversion_factor):
-    """ Creates the matrix, which contents the demand of different components """
-    """ Important: All units are converted to tons """
-
-    # Create dictionary with conversion factors
-
-    joint_product_dict = {}
-    joint_product_df = conversion_factor.loc[conversion_factor.index.get_level_values('type').str.contains('joint_product')]
-    for c in model.COMPONENTS:
-        component_conversion_df = joint_product_df.loc[joint_product_df.index.get_level_values('component').str.contains(c)]
-        for i in model.INPUT:
-            df_input = component_conversion_df.loc[
-                component_conversion_df.index.get_level_values('input').str.contains(i)]
-            for o in model.OUTPUT:
-                tuples = (c, i, o)
-                if i == o:
-                    joint_product_dict.update({tuples: 1})
-                else:
-                    df_output = df_input.loc[df_input.index.get_level_values('output').str.contains(o)]
-
-                    if not df_output.empty:
-                        joint_product_dict.update({tuples: df_output.values[0]})
-                    else:
-                        joint_product_dict.update({tuples: 0})
-
-    model.JOINT_PRODUCTS = Param(model.COMPONENTS, model.INPUT, model.OUTPUT, initialize=joint_product_dict)
-
-    return model
+    result = ResultAnalysis(optimization_problem, path_result)
+    save_current_parameters_and_options(pm_object, result.new_result_folder + '/7_settings.xlsx')

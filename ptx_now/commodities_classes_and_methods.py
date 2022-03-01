@@ -3,10 +3,6 @@ from tkinter import ttk
 from tkinter import *
 from tkinter import filedialog
 
-import os
-from datetime import datetime
-import pandas as pd
-
 
 class CommodityFrame:
 
@@ -232,11 +228,11 @@ class CommodityFrame:
                 if (commodity_object.is_purchasable()) or (commodity_object.is_saleable()):
                     if (commodity_object.get_sale_price_type() == 'variable') | (commodity_object.get_purchase_price_type() == 'variable'):
                         self.profile_needed.set(True)
-                        if self.pm_object.get_sell_purchase_profile_status():
+                        if self.pm_object.get_market_data_status():
                             self.profile_var.set('single')
                         else:
                             self.profile_var.set('multiple')
-                        self.textvar_profile.set(self.pm_object.get_sell_purchase_data())
+                        self.textvar_profile.set(self.pm_object.get_market_data())
 
     def __init__(self, parent, frame, commodity, pm_object, pm_object_original):
 
@@ -418,6 +414,7 @@ class AdjustCommodityWindow:
             self.purchasable_var.set(True)
             if self.commodity_object.get_purchase_price_type() == 'fixed':
                 self.purchase_price_type_var.set('fixed')
+                self.purchase_price_fixed_text_var.set(self.commodity_object.get_purchase_price())
             else:
                 self.purchase_price_type_var.set('variable')
         else:
@@ -433,6 +430,7 @@ class AdjustCommodityWindow:
             self.saleable_var.set(True)
             if self.commodity_object.get_sale_price_type() == 'fixed':
                 self.sale_price_type_var.set('fixed')
+                self.sale_price_fixed_text_var.set(self.commodity_object.get_sale_price())
             else:
                 self.sale_price_type_var.set('variable')
         else:

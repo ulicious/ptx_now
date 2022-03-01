@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 
-class Result:
+class ResultAnalysis:
 
     def extracting_data(self):
 
@@ -564,8 +564,9 @@ class Result:
             self.time_depending_variables_df.loc[('Weighting', '', ''), t] = self.model.weightings[t]
 
         # Sort index for better readability
-        ordered_list = ['Weighting', 'Freely Available', 'Purchase', 'Emitted', 'Selling', 'Demand', 'Charging',
-                        'Discharging', 'State of Charge', 'Total Generation', 'Generation', 'Input', 'Output']
+        ordered_list = ['Weighting', 'Freely Available', 'Purchase', 'Emitting', 'Selling', 'Demand', 'Charging',
+                        'Discharging', 'State of Charge', 'Total Generation', 'Generation', 'Input', 'Output', 'Hot Standby Demand']
+
         index_order = []
         for o in ordered_list:
             index = self.time_depending_variables_df[self.time_depending_variables_df.index.get_level_values(0) == o].index.tolist()
@@ -676,10 +677,10 @@ class Result:
         intrinsic_costs = {}
         intrinsic_costs_per_available_unit = {}
         for commodity in self.model.ME_STREAMS:
-            intrinsic_costs[commodity] = (self.total_generation_costs[commodity]
+            intrinsic_costs[commodity] = round((self.total_generation_costs[commodity]
                                        + self.purchase_costs[commodity]
                                        + self.storage_costs[commodity]
-                                       + self.selling_costs[commodity])
+                                       + self.selling_costs[commodity]), 4)
 
             # If intrinsic costs exist, distribute them on the total commodity available
             # Available commodity = Generated, Purchased, Conversed minus Sold, Emitted
@@ -1721,7 +1722,7 @@ class Result:
                         self.new_result_folder + '/8_generation_profile.xlsx')
 
         if self.pm_object.get_market_data_needed():
-            pd.read_excel(self.pm_object.get_sell_purchase_data(),
+            pd.read_excel(self.pm_object.get_market_data(),
                           index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
 
     def __init__(self, optimization_problem, path_result):

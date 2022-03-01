@@ -1,10 +1,7 @@
-import pyomo.environ
 import pyomo.environ as pyo
 from pyomo.core import *
-import pandas as pd
 from pyomo.core import Binary
 from copy import deepcopy
-from pyomo.opt import SolverStatus, TerminationCondition
 
 
 class OptimizationProblem:
@@ -105,6 +102,7 @@ class OptimizationProblem:
     def attach_scalable_component_parameters_to_optimization_problem(self):
         # Investment linearized: Investment = capex var * capacity + capex fix
         # Variable part of investment -> capex var * capacity
+
         self.model.capex_pre_var = Param(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
                                          initialize=self.scaling_capex_var_dict)
         # fix part of investment
@@ -155,13 +153,13 @@ class OptimizationProblem:
         self.model.revenue = Var(self.model.SALEABLE_STREAMS, bounds=(None, None))
         self.model.total_revenue = Var(bounds=(None, None))
 
-    def set_scalable_component_capacity_bound_rule(self, s, i):
-        return 0, self.scaling_capex_upper_bound_dict[(s, i)]
-
     def attach_scalable_component_variables_to_optimization_problem(self):
 
+        def set_scalable_component_capacity_bound_rule(model, s, i):
+            return 0, self.scaling_capex_upper_bound_dict[(s, i)]
+
         self.model.nominal_cap_pre = Var(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
-                                         bounds=self.set_scalable_component_capacity_bound_rule)
+                                         bounds=set_scalable_component_capacity_bound_rule)
         self.model.capacity_binary = Var(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS, within=Binary)
 
     def attach_commodity_variables_to_optimization_problem(self):
@@ -170,9 +168,9 @@ class OptimizationProblem:
         # Commodity variables
         # Input and output commodity of component
         self.model.mass_energy_component_in_commodities = Var(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
-                                                     self.model.TIME, bounds=(0, None))
+                                                              self.model.TIME, bounds=(0, None))
         self.model.mass_energy_component_out_commodities = Var(self.model.CONVERSION_COMPONENTS, self.model.ME_STREAMS,
-                                                      self.model.TIME, bounds=(0, None))
+                                                               self.model.TIME, bounds=(0, None))
 
         # Freely available commodities
         self.model.mass_energy_available = Var(self.model.ME_STREAMS, self.model.TIME, bounds=(0, None))
@@ -328,7 +326,8 @@ class OptimizationProblem:
             # capacity binary sets lower bound. Lower bound is not predefined as each capacity step can be 0
             # if capacity binary = 0 -> nominal_cap_pre has no lower bound
             # if capacity binary = 1 -> nominal_cap_pre needs to be at least lower bound
-            return m.nominal_cap_pre[c, i] >= self.lower_bound_dict[c, i] * m.capacity_binary[c, i]
+
+            return m.nominal_cap_pre[c, i] >= self.scaling_capex_lower_bound_dict[c, i] * m.capacity_binary[c, i]
         model.set_lower_bound_con = Constraint(model.SCALABLE_COMPONENTS, model.INTEGER_STEPS,
                                                rule=set_lower_bound_rule)
 
@@ -717,6 +716,8 @@ class OptimizationProblem:
         def calculate_investment_not_scalable_components_rule(m, c):
             if c not in m.SCALABLE_COMPONENTS:
                 return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+            else:
+                return Constraint.Skip
         model.calculate_investment_not_scalable_components_con = Constraint(model.COMPONENTS,
                                                                             rule=calculate_investment_not_scalable_components_rule)
 
@@ -869,8 +870,6 @@ class OptimizationProblem:
 
     def __init__(self, pm_object, path_data, solver, path_to_generation_folder=None):
 
-        self.lower_bound_dict = {}
-
         # ----------------------------------
         # Set up problem
         self.path_data = path_data
@@ -885,9 +884,10 @@ class OptimizationProblem:
 
         self.lifetime_dict, self.maintenance_dict, self.capex_var_dict, self.capex_fix_dict, self.minimal_power_dict,\
             self.maximal_power_dict,  self.ramp_up_dict, self.ramp_down_dict, self.scaling_capex_var_dict, \
-            self.scaling_capex_fix_dict, self.scaling_capex_upper_bound_dict, self.shut_down_down_time_dict,\
-            self.shut_down_start_up_costs, self.standby_down_time_dict, self.charging_efficiency_dict,\
-            self.discharging_efficiency_dict, self.minimal_soc_dict, self.maximal_soc_dict, \
+            self.scaling_capex_fix_dict, self.scaling_capex_upper_bound_dict, self.scaling_capex_lower_bound_dict,\
+            self.shut_down_down_time_dict, self.shut_down_start_up_costs, self.standby_down_time_dict,\
+            self.charging_efficiency_dict, self.discharging_efficiency_dict,\
+            self.minimal_soc_dict, self.maximal_soc_dict, \
             self.ratio_capacity_power_dict = self.pm_object.get_all_component_parameters()
 
         self.scalable_components, self.not_scalable_components, self.shut_down_components,\

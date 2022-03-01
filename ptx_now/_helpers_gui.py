@@ -1,4 +1,3 @@
-import math
 import tkinter as tk
 from tkinter import *
 from tkinter import ttk
@@ -1273,3 +1272,190 @@ class SettingWindow:
         button_frame.grid(row=4, columnspan=2, sticky='ew')
 
         self.window.mainloop()
+
+
+def save_current_parameters_and_options(pm_object, path_name):
+
+    case_data = pd.DataFrame()
+
+    k = 0
+
+    case_data.loc[k, 'version'] = '0.0.7'
+
+    k += 1
+
+    for parameter in pm_object.get_general_parameters():
+        value = pm_object.get_general_parameter_value(parameter)
+
+        case_data.loc[k, 'type'] = 'general_parameter'
+        case_data.loc[k, 'parameter'] = parameter
+        case_data.loc[k, 'value'] = value
+
+        k += 1
+
+    case_data.loc[k, 'type'] = 'representative_periods'
+    case_data.loc[k, 'representative_periods'] = pm_object.get_uses_representative_periods()
+    case_data.loc[k, 'representative_periods_length'] = pm_object.get_representative_periods_length()
+    case_data.loc[k, 'path_weighting'] = pm_object.get_path_weighting()
+    case_data.loc[k, 'covered_period'] = pm_object.get_covered_period()
+
+    k += 1
+
+    case_data.loc[k, 'type'] = 'monetary_unit'
+    case_data.loc[k, 'monetary_unit'] = pm_object.get_monetary_unit()
+
+    k += 1
+
+    case_data.loc[k, 'type'] = 'generation_data'
+    case_data.loc[k, 'single_profile'] = pm_object.get_generation_data_status()
+    case_data.loc[k, 'generation_data'] = pm_object.get_generation_data()
+
+    k += 1
+
+    case_data.loc[k, 'type'] = 'market_data'
+    case_data.loc[k, 'single_profile'] = pm_object.get_market_data_status()
+    case_data.loc[k, 'market_data'] = pm_object.get_market_data()
+
+    k += 1
+
+    for component in pm_object.get_all_components():
+
+        case_data.loc[k, 'type'] = 'component'
+        case_data.loc[k, 'component_type'] = component.get_component_type()
+        case_data.loc[k, 'final'] = component.is_final()
+        case_data.loc[k, 'name'] = component.get_name()
+        case_data.loc[k, 'nice_name'] = component.get_nice_name()
+        case_data.loc[k, 'capex'] = component.get_capex()
+        case_data.loc[k, 'lifetime'] = component.get_lifetime()
+        case_data.loc[k, 'maintenance'] = component.get_maintenance()
+
+        if component.get_component_type() == 'conversion':
+
+            case_data.loc[k, 'capex_basis'] = component.get_capex_basis()
+            case_data.loc[k, 'scalable'] = component.is_scalable()
+            case_data.loc[k, 'base_investment'] = component.get_base_investment()
+            case_data.loc[k, 'base_capacity'] = component.get_base_capacity()
+            case_data.loc[k, 'economies_of_scale'] = component.get_economies_of_scale()
+            case_data.loc[k, 'max_capacity_economies_of_scale'] = component.get_max_capacity_economies_of_scale()
+
+            case_data.loc[k, 'min_p'] = component.get_min_p()
+            case_data.loc[k, 'max_p'] = component.get_max_p()
+
+            case_data.loc[k, 'ramp_up'] = component.get_ramp_up()
+            case_data.loc[k, 'ramp_down'] = component.get_ramp_down()
+
+            case_data.loc[k, 'shut_down_ability'] = component.get_shut_down_ability()
+            if component.get_shut_down_ability():
+                case_data.loc[k, 'start_up_time'] = component.get_start_up_time()
+                case_data.loc[k, 'start_up_costs'] = component.get_start_up_costs()
+            else:
+                case_data.loc[k, 'start_up_time'] = 0
+                case_data.loc[k, 'start_up_costs'] = 0
+
+            case_data.loc[k, 'hot_standby_ability'] = component.get_hot_standby_ability()
+            if component.get_hot_standby_ability():
+                case_data.loc[k, 'hot_standby_commodity'] = [*component.get_hot_standby_demand().keys()][0]
+                case_data.loc[k, 'hot_standby_demand'] = component.get_hot_standby_demand()[
+                    [*component.get_hot_standby_demand().keys()][0]]
+                case_data.loc[k, 'hot_standby_startup_time'] = component.get_hot_standby_startup_time()
+            else:
+                case_data.loc[k, 'hot_standby_commodity'] = ''
+                case_data.loc[k, 'hot_standby_demand'] = 0
+                case_data.loc[k, 'hot_standby_startup_time'] = 0
+
+            case_data.loc[k, 'number_parallel_units'] = component.get_number_parallel_units()
+
+        elif component.get_component_type() == 'generator':
+
+            case_data.loc[k, 'generated_commodity'] = component.get_generated_commodity()
+            case_data.loc[k, 'curtailment_possible'] = component.get_curtailment_possible()
+
+        elif component.get_component_type() == 'storage':
+
+            case_data.loc[k, 'min_soc'] = component.get_min_soc()
+            case_data.loc[k, 'max_soc'] = component.get_max_soc()
+            case_data.loc[k, 'initial_soc'] = component.get_initial_soc()
+            case_data.loc[k, 'charging_efficiency'] = component.get_charging_efficiency()
+            case_data.loc[k, 'discharging_efficiency'] = component.get_discharging_efficiency()
+            case_data.loc[k, 'leakage'] = component.get_leakage()
+            case_data.loc[k, 'ratio_capacity_p'] = component.get_ratio_capacity_p()
+
+        case_data.loc[k, 'taxes_and_insurance'] = pm_object\
+            .get_applied_parameter_for_component('taxes_and_insurance', component.get_name())
+        case_data.loc[k, 'personnel_costs'] = pm_object\
+            .get_applied_parameter_for_component('personnel_costs', component.get_name())
+        case_data.loc[k, 'overhead'] = pm_object\
+            .get_applied_parameter_for_component('overhead', component.get_name())
+        case_data.loc[k, 'working_capital'] = pm_object\
+            .get_applied_parameter_for_component('working_capital', component.get_name())
+
+        k += 1
+
+    for component in pm_object.get_final_conversion_components_objects():
+
+        inputs = component.get_inputs()
+        for i in [*inputs.keys()]:
+            case_data.loc[k, 'type'] = 'input'
+            case_data.loc[k, 'component'] = component.get_name()
+            case_data.loc[k, 'input_commodity'] = i
+            case_data.loc[k, 'coefficient'] = inputs[i]
+
+            if i == component.get_main_input():
+                case_data.loc[k, 'main_input'] = True
+            else:
+                case_data.loc[k, 'main_input'] = False
+
+            k += 1
+
+        outputs = component.get_outputs()
+        for o in [*outputs.keys()]:
+            case_data.loc[k, 'type'] = 'output'
+            case_data.loc[k, 'component'] = component.get_name()
+            case_data.loc[k, 'output_commodity'] = o
+            case_data.loc[k, 'coefficient'] = outputs[o]
+
+            if o == component.get_main_output():
+                case_data.loc[k, 'main_output'] = True
+            else:
+                case_data.loc[k, 'main_output'] = False
+
+            k += 1
+
+    for commodity in pm_object.get_final_commodities_objects():
+
+        case_data.loc[k, 'type'] = 'commodity'
+        case_data.loc[k, 'name'] = commodity.get_name()
+        case_data.loc[k, 'nice_name'] = commodity.get_nice_name()
+        case_data.loc[k, 'unit'] = commodity.get_unit()
+
+        case_data.loc[k, 'available'] = commodity.is_available()
+        case_data.loc[k, 'emitted'] = commodity.is_emittable()
+        case_data.loc[k, 'purchasable'] = commodity.is_purchasable()
+        case_data.loc[k, 'saleable'] = commodity.is_saleable()
+        case_data.loc[k, 'demanded'] = commodity.is_demanded()
+        case_data.loc[k, 'total_demand'] = commodity.is_total_demand()
+        case_data.loc[k, 'final'] = commodity.is_final()
+
+        # Purchasable commodities
+        case_data.loc[k, 'purchase_price_type'] = commodity.get_purchase_price_type()
+        case_data.loc[k, 'purchase_price'] = commodity.get_purchase_price()
+
+        # Saleable commodities
+        case_data.loc[k, 'selling_price_type'] = commodity.get_sale_price_type()
+        case_data.loc[k, 'selling_price'] = commodity.get_sale_price()
+
+        # Demand
+        case_data.loc[k, 'demand'] = commodity.get_demand()
+
+        case_data.loc[k, 'energy_content'] = commodity.get_energy_content()
+
+        k += 1
+
+    for abbreviation in pm_object.get_all_abbreviations():
+        case_data.loc[k, 'type'] = 'names'
+        case_data.loc[k, 'name'] = abbreviation
+        case_data.loc[k, 'nice_name'] = pm_object.get_nice_name(abbreviation)
+
+        k += 1
+
+    case_data.to_excel(path_name, index=True)

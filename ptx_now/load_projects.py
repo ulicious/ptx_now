@@ -2,7 +2,7 @@ from components import ConversionComponent, StorageComponent, GenerationComponen
 from commodity import Commodity
 
 
-def load_setting(pm_object, case_data):
+def load_project(pm_object, case_data):
     if 'version' in case_data.columns:
         version = str(case_data.loc[0, 'version'])
 
@@ -23,6 +23,8 @@ def load_setting(pm_object, case_data):
 
     else:  # Case where no version exists
         pm_object = load_001(pm_object, case_data)
+
+    pm_object.check_market_data_status()
 
     return pm_object
 
@@ -688,11 +690,11 @@ def load_004(pm_object, case_data):
         pm_object.set_general_parameter_value(parameter, value)
         pm_object.set_general_parameter(parameter)
 
-    representative_week_df = case_data[case_data['type'] == 'representative_weeks']
-    index = representative_week_df.index[0]
-    pm_object.set_uses_representative_weeks(representative_week_df.loc[index, 'representative_weeks'])
-    pm_object.set_path_weighting(representative_week_df.loc[index, 'path_weighting'])
-    pm_object.set_covered_period(representative_week_df.loc[index, 'covered_period'])
+    representative_periods_df = case_data[case_data['type'] == 'representative_weeks']
+    index = representative_periods_df.index[0]
+    pm_object.set_uses_representative_periods(representative_periods_df.loc[index, 'representative_weeks'])
+    pm_object.set_path_weighting(representative_periods_df.loc[index, 'path_weighting'])
+    pm_object.set_covered_period(representative_periods_df.loc[index, 'covered_period'])
 
     """Allocate components and parameters"""
     component_df = case_data[case_data['type'] == 'component']
@@ -1439,11 +1441,11 @@ def load_003(pm_object, case_data):
         pm_object.set_general_parameter_value(parameter, value)
         pm_object.set_general_parameter(parameter)
 
-    representative_week_df = case_data[case_data['type'] == 'representative_weeks']
-    index = representative_week_df.index[0]
-    pm_object.set_uses_representative_weeks(representative_week_df.loc[index, 'representative_weeks'])
-    pm_object.set_path_weighting(representative_week_df.loc[index, 'path_weighting'])
-    pm_object.set_covered_period(representative_week_df.loc[index, 'covered_period'])
+    representative_periods_df = case_data[case_data['type'] == 'representative_weeks']
+    index = representative_periods_df.index[0]
+    pm_object.set_uses_representative_periods(representative_periods_df.loc[index, 'representative_weeks'])
+    pm_object.set_path_weighting(representative_periods_df.loc[index, 'path_weighting'])
+    pm_object.set_covered_period(representative_periods_df.loc[index, 'covered_period'])
 
     """Allocate components and parameters"""
     component_df = case_data[case_data['type'] == 'component']

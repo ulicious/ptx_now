@@ -84,6 +84,12 @@ class Commodity:
     def get_demand(self):
         return self.demand
 
+    def set_demand_type(self, status):
+        self.demand_type = status
+
+    def get_demand_type(self):
+        return self.demand_type
+
     def set_total_demand(self, status):
         self.total_demand = status
 
@@ -111,17 +117,18 @@ class Commodity:
     def __copy__(self):
         return Commodity(
             name=self.name, nice_name=self.nice_name, commodity_unit=self.commodity_unit,
-            energy_content=self.energy_content, final_commodity=self.final_commodity, custom_commodity=self.custom_commodity,
-            emittable=self.emittable, available=self.available, purchasable=self.purchasable,
-            purchase_price=self.purchase_price, purchase_price_type=self.purchase_price_type, saleable=self.saleable,
+            energy_content=self.energy_content, final_commodity=self.final_commodity,
+            custom_commodity=self.custom_commodity, emittable=self.emittable, available=self.available,
+            purchasable=self.purchasable, purchase_price=self.purchase_price,
+            purchase_price_type=self.purchase_price_type, saleable=self.saleable,
             sale_price=self.sale_price, sale_price_type=self.sale_price_type, demanded=self.demanded,
-            demand=self.demand, total_demand=self.total_demand)
+            demand=self.demand, total_demand=self.total_demand, demand_type=self.demand_type)
 
-    def __init__(self, name, nice_name, commodity_unit, energy_content=None, final_commodity=False, custom_commodity=False,
-                 emittable=False, available=False,
-                 purchasable=False, purchase_price=None, purchase_price_type='fixed',
-                 saleable=False, sale_price=None, sale_price_type='fixed',
-                 demanded=False, demand=0, total_demand=False):
+    def __init__(self, name, nice_name, commodity_unit, energy_content=None, final_commodity=False,
+                 custom_commodity=False, emittable=False, available=False,
+                 purchasable=False, purchase_price=0, purchase_price_type='fixed',
+                 saleable=False, sale_price=0, sale_price_type='fixed',
+                 demanded=False, demand=0, total_demand=False, demand_type='fixed'):
 
         """
 
@@ -164,17 +171,30 @@ class Commodity:
         else:
             self.energy_content = 0
 
-        self.final_commodity = final_commodity
-        self.custom_commodity = custom_commodity
+        self.final_commodity = bool(final_commodity)
+        self.custom_commodity = bool(custom_commodity)
 
-        self.emittable = emittable
-        self.available = available
-        self.purchasable = purchasable
-        self.purchase_price = purchase_price
+        self.emittable = bool(emittable)
+        self.available = bool(available)
+
+        self.purchasable = bool(purchasable)
+        if purchase_price_type == 'fixed':
+            self.purchase_price = float(purchase_price)
+        else:
+            self.purchase_price = purchase_price
         self.purchase_price_type = purchase_price_type
-        self.saleable = saleable
-        self.sale_price = sale_price
+
+        self.saleable = bool(saleable)
+        if sale_price_type == 'fixed':
+            self.sale_price = float(sale_price)
+        else:
+            self.sale_price = sale_price
         self.sale_price_type = sale_price_type
-        self.demanded = demanded
-        self.demand = demand
-        self.total_demand = total_demand
+
+        self.demanded = bool(demanded)
+        self.total_demand = bool(total_demand)
+        if demand_type == 'fixed':
+            self.demand = float(demand)
+        else:
+            self.demand = demand
+        self.demand_type = demand_type

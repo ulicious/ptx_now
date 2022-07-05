@@ -790,46 +790,6 @@ def create_visualization(path):
                             ])
                         ])
                     ]
-                ),
-                dcc.Tab(label='Load profile',
-                    children=[
-                        html.Div([
-                            html.Div([
-                                html.Div([
-                                    html.H4(children="Generator Selection",
-                                            className="subtitle padded", style={'font-family': 'Arial'}),
-                                    dcc.Checklist(
-                                        id='load_profile_checklist',
-                                        options=[{
-                                            'label': c[0] + ' ' + c[1],
-                                            'value': str(('Generation',) + c)} for c in
-                                            time_series_df.loc['Generation'].index],
-                                        labelStyle={'display': 'block'})],
-                                    style={'width': '85%', 'display': 'inline-block'})],
-                                style={'width': '16%', 'display': 'inline-block',
-                                       'vertical-align': 'top', 'marginTop': '40px', 'marginLeft': '20px'}),
-                            dcc.Graph(
-                                id='load_profile',
-                                figure=go.Figure(
-                                    data=[],
-                                    layout=go.Layout(
-                                        title="Load profile",
-                                        xaxis=dict(
-                                            title='h',
-                                            categoryorder='category descending'),
-                                        yaxis=dict(
-                                            title='kW',
-                                            rangemode='tozero'),
-                                        barmode='stack',
-                                        legend=dict(
-                                            orientation='h',
-                                            bgcolor='rgba(255, 255, 255, 0)',
-                                            bordercolor='rgba(255, 255, 255, 0)'),
-                                        paper_bgcolor='rgba(255, 255, 255, 255)',
-                                        plot_bgcolor='#f7f7f7')),
-                                style={'width': '80%', 'display': 'inline-block'})
-                        ])
-                    ]
                 )
             ])
         ])
@@ -1014,7 +974,7 @@ def create_visualization(path):
 
                     generators_with_s = generation_single[f][generation_single[f]['Generated Commodity'] == s].index
 
-                    if len(generators_with_s.columns) > 0:
+                    if len(generators_with_s) > 0:
 
                         potential_generation_s = 0
                         total_capacity_s = 0
@@ -1028,25 +988,30 @@ def create_visualization(path):
                             unit_capacity = unit + ' ' + s + '/h'
 
                         for g in generators_with_s:
-                            folder_df.loc[f2, g + ' Capacity'] = generation_single[f].loc[g, 'Capacity']
+                            folder_df.loc[f, g + ' Capacity'] = generation_single[f].loc[g, 'Capacity']
                             units_dict[g + ' Capacity'] = unit_capacity
 
-                            folder_df.loc[f2, g + ' Potential Full-load Hours'] = generation_single[f].loc[
+                            folder_df.loc[f, g + ' Potential Full-load Hours'] = generation_single[f].loc[
                                 g, 'Potential Full-load Hours']
                             units_dict[g + ' Potential Full-load Hours'] = 'h'
 
-                            folder_df.loc[f2, g + ' Potential LCOE'] = generation_single[f].loc[
+                            folder_df.loc[f, g + ' Potential LCOE'] = generation_single[f].loc[
                                 g, 'LCOE before Curtailment']
                             units_dict[g + ' Potential LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
 
-                            folder_df.loc[f2, g + ' Curtailment'] = generation_single[f].loc[g, 'Curtailment']
-                            units_dict[g + ' Curtailment'] = unit + ' ' + s
+                            folder_df.loc[f, g + ' Absolute Curtailment'] = generation_single[f].loc[g, 'Curtailment']
+                            units_dict[g + ' Absolute Curtailment'] = unit + ' ' + s
 
-                            folder_df.loc[f2, g + ' Actual Full-load Hours'] = generation_single[f].loc[
+                            folder_df.loc[f, g + ' Relative Curtailment'] = generation_single[f].loc[g, 'Curtailment'] \
+                                 / (folder_df.loc[f, g + ' Capacity']
+                                    * folder_df.loc[f, g + ' Potential Full-load Hours']) * 100
+                            units_dict[g + ' Relative Curtailment'] = '% of Potential Generation'
+
+                            folder_df.loc[f, g + ' Actual Full-load Hours'] = generation_single[f].loc[
                                 g, 'Actual Full-load Hours']
                             units_dict[g + ' Actual Full-load Hours'] = 'h'
 
-                            folder_df.loc[f2, g + ' Actual LCOE'] = generation_single[f].loc[
+                            folder_df.loc[f, g + ' Actual LCOE'] = generation_single[f].loc[
                                 g, 'LCOE after Curtailment']
                             units_dict[g + ' Actual LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
 
@@ -1059,68 +1024,67 @@ def create_visualization(path):
 
                         generators_with_s_df = generation_profiles_single[f][generators_with_s]
 
-                        if len(generators_with_s_df.columns) == 1:
-                            maximal_flh = generation_profiles_single[f].loc[
-                                generators_with_s_df[0], 'Potential Full-load Hours']
+                        if len(generators_with_s) == 1:
+                            maximal_flh = generation_profiles_single[f].sum().sum()
                         else:
                             maximal_flh = calculate_maximal_full_load_hours(generators_with_s_df)
 
-                        folder_df.loc[f2, s + ' Capacity'] = total_capacity_s
+                        folder_df.loc[f, s + ' Capacity'] = total_capacity_s
                         units_dict[s + ' Capacity'] = unit_capacity
 
-                        folder_df.loc[f2, s + ' Maximal Full-load Hours'] = maximal_flh
+                        folder_df.loc[f, s + ' Maximal Full-load Hours'] = maximal_flh
                         units_dict[s + ' Maximal Full-load Hours'] = 'h'
 
-                        folder_df.loc[f2, s + ' Potential Full-load Hours'] = potential_generation_s / (
+                        folder_df.loc[f, s + ' Potential Full-load Hours'] = potential_generation_s / (
                                 total_capacity_s * 8760) * 8760
                         units_dict[s + ' Potential Full-load Hours'] = 'h'
 
-                        folder_df.loc[f2, s + ' Potential LCOE'] = commodities_single[f].loc[
+                        folder_df.loc[f, s + ' Potential LCOE'] = commodities_single[f].loc[
                                                                        s, 'Total Generation Fix Costs'] / (
                                                                            total_capacity_s * 8760) * 8760
                         units_dict[s + ' Potential LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
 
-                        folder_df.loc[f2, s + ' Curtailment'] = curtailment_s
+                        folder_df.loc[f, s + ' Curtailment'] = curtailment_s
                         units_dict[s + ' Curtailment'] = unit + ' ' + s
 
-                        folder_df.loc[f2, s + ' Actual Full-load Hours'] = actual_generation_s / (
+                        folder_df.loc[f, s + ' Actual Full-load Hours'] = actual_generation_s / (
                                 total_capacity_s * 8760) * 8760
                         units_dict[s + ' Actual Full-load Hours'] = 'h'
 
-                        folder_df.loc[f2, s + ' Actual LCOE'] = commodities_single[f].loc[
+                        folder_df.loc[f, s + ' Actual LCOE'] = commodities_single[f].loc[
                                                                     s, 'Production Costs per Unit'] / actual_generation_s
                         units_dict[s + ' Actual LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
 
-                        folder_df.loc[f2, s + ' Generation Costs'] = commodities_single[f].loc[
+                        folder_df.loc[f, s + ' Generation Costs'] = commodities_single[f].loc[
                             s, 'Costs per used unit']
                         units_dict[s + ' Generation Costs'] = monetary_unit_str + '/' + unit + ' ' + s
 
                 for c in components_single[f].index:
 
                     if components_single[f].loc[c, 'Capacity Basis'] == 'input':
-                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
+                        folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
                         capacity_unit = components_single[f].loc[c, 'Capacity Unit [input]']
                         units_dict[c + ' Capacity'] = capacity_unit
 
-                        folder_df.loc[f2, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
+                        folder_df.loc[f, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
                         units_dict[c + ' Full-load Hours'] = 'h'
                     elif components_single[f].loc[c, 'Capacity Basis'] == 'output':
-                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
+                        folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
                         capacity_unit = components_single[f].loc[c, 'Capacity Unit [output]']
                         units_dict[c + ' Capacity'] = capacity_unit
 
-                        folder_df.loc[f2, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
+                        folder_df.loc[f, c + ' Full-load Hours'] = components_single[f].loc[c, 'Full-load Hours']
                         units_dict[c + ' Full-load Hours'] = 'h'
                     elif components_single[f].loc[c, 'Capacity [output]'] == '':
-                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
+                        folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [input]']
                         capacity_unit = components_single[f].loc[c, 'Capacity Unit [input]']
                         units_dict[c + ' Capacity'] = capacity_unit
                     else:
-                        folder_df.loc[f2, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
+                        folder_df.loc[f, c + ' Capacity'] = components_single[f].loc[c, 'Capacity [output]']
                         capacity_unit = components_single[f].loc[c, 'Capacity Unit [output]']
                         units_dict[c + ' Capacity'] = capacity_unit
 
-                folder_df.loc[f2, 'Production Costs'] = results_overview_single[f].loc[
+                folder_df.loc[f, 'Production Costs'] = results_overview_single[f].loc[
                     'Production Costs per Unit', 0]
                 units_dict['Production Costs'] = monetary_unit_str + '/' + annual_production_unit_str
 
@@ -1172,8 +1136,13 @@ def create_visualization(path):
                             folder_df.loc[f2, g + ' Potential LCOE'] = generation_multiple[f1][f2].loc[g, 'LCOE before Curtailment']
                             units_dict[g + ' Potential LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
 
-                            folder_df.loc[f2, g + ' Curtailment'] = generation_multiple[f1][f2].loc[g, 'Curtailment']
-                            units_dict[g + ' Curtailment'] = unit + ' ' + s
+                            folder_df.loc[f2, g + ' Absolute Curtailment'] = generation_multiple[f1][f2].loc[g, 'Curtailment']
+                            units_dict[g + ' Absolute Curtailment'] = unit + ' ' + s
+
+                            folder_df.loc[f2, g + ' Relative Curtailment'] = folder_df.loc[f2, g + ' Absolute Curtailment'] \
+                                 / (folder_df.loc[f2, g + ' Capacity']
+                                    * folder_df.loc[f2, g + ' Potential Full-load Hours']) * 100
+                            units_dict[g + ' Relative Curtailment'] = '% of Potential Generation'
 
                             folder_df.loc[f2, g + ' Actual Full-load Hours'] = generation_multiple[f1][f2].loc[
                                 g, 'Actual Full-load Hours']
@@ -1191,8 +1160,8 @@ def create_visualization(path):
 
                         generators_with_s_df = generation_profiles_multiple[f1][f2][generators_with_s]
 
-                        if len(generators_with_s_df.columns) == 1:
-                            maximal_flh = generation_multiple[f1][f2].loc[generators_with_s_df.columns[0], 'Potential Full-load Hours']
+                        if len(generators_with_s) == 1:
+                            maximal_flh = generation_profiles_multiple[f1][f2].sum().sum()
                         else:
                             maximal_flh = calculate_maximal_full_load_hours(generators_with_s_df)
 
@@ -1856,9 +1825,10 @@ def create_visualization(path):
             if True:
 
                 sub_df = results_dataframe.copy()
+                sub_df = sub_df.fillna(0)
                 sub_df.sort_values(by=[feature], inplace=True)
 
-                if 'Super Folder' not in results_dataframe.columns:
+                if 'Super Folder' not in sub_df.columns:
 
                     sub_df['Case Name'] = sub_df.index
 
@@ -1891,13 +1861,16 @@ def create_visualization(path):
              Input('radioitem_trendline', 'value')])
         def update_scatter_chart(x_axis, y_axis, ri_value):
 
-            if 'Super Folder' not in results_dataframe.columns:
+            sub_df = results_dataframe.copy()
+            sub_df = sub_df.fillna(0)
+
+            if 'Super Folder' not in sub_df.columns:
                 if ri_value == 'None':
-                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis)
+                    fig = px.scatter(sub_df, x=x_axis, y=y_axis)
                 elif ri_value == 'Linear':
-                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, trendline="ols")
+                    fig = px.scatter(sub_df, x=x_axis, y=y_axis, trendline="ols")
                 else:
-                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, trendline="ols",
+                    fig = px.scatter(sub_df, x=x_axis, y=y_axis, trendline="ols",
                                      trendline_options=dict(log_x=True))
 
                 fig.update_layout(
@@ -1906,11 +1879,11 @@ def create_visualization(path):
 
             else:
                 if ri_value == 'None':
-                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, color='Super Folder')
+                    fig = px.scatter(sub_df, x=x_axis, y=y_axis, color='Super Folder')
                 elif ri_value == 'Linear':
-                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, color='Super Folder', trendline="ols")
+                    fig = px.scatter(sub_df, x=x_axis, y=y_axis, color='Super Folder', trendline="ols")
                 else:
-                    fig = px.scatter(results_dataframe, x=x_axis, y=y_axis, color='Super Folder', trendline="ols",
+                    fig = px.scatter(sub_df, x=x_axis, y=y_axis, color='Super Folder', trendline="ols",
                                      trendline_options=dict(log_x=True))
 
                 fig.update_layout(
@@ -1926,16 +1899,19 @@ def create_visualization(path):
             Input("parameter", "value"))
         def update_dist_charts(parameter):
 
-            if 'Super Folder' in results_dataframe.columns:
+            sub_df = results_dataframe.copy()
+            sub_df = sub_df.fillna(0)
+
+            if 'Super Folder' in sub_df.columns:
 
                 hist_data = []
                 group_labels = []
-                for f in results_dataframe['Super Folder'].unique():
-                    ind = results_dataframe[results_dataframe['Super Folder'] == f].index
-                    hist_data.append(results_dataframe.loc[ind, parameter].values)
+                for f in sub_df['Super Folder'].unique():
+                    ind = sub_df[sub_df['Super Folder'] == f].index
+                    hist_data.append(sub_df.loc[ind, parameter].values)
                     group_labels.append(f)  # name of the dataset
 
-                fig1 = px.histogram(results_dataframe, x=parameter, color='Super Folder', marginal="box",
+                fig1 = px.histogram(sub_df, x=parameter, color='Super Folder', marginal="box",
                                     barmode='group')
                 fig1.update_layout(
                     xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
@@ -1949,10 +1925,10 @@ def create_visualization(path):
                     legend_title="Scenario")
 
             else:
-                hist_data = [results_dataframe[parameter].values]
+                hist_data = [sub_df[parameter].values]
                 group_labels = [parameter]  # name of the dataset
 
-                fig1 = px.histogram(results_dataframe[parameter], marginal="box")
+                fig1 = px.histogram(sub_df[parameter], marginal="box")
                 fig1.update_layout(
                     xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
                     yaxis_title="Amount",

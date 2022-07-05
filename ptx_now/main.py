@@ -18,6 +18,7 @@ from load_projects import load_project
 
 import os
 from os import walk
+import yaml
 
 
 def run_main():
@@ -58,7 +59,11 @@ def run_main():
                     file_without_ending = file.split('.')[0]
 
                     pm_object = ParameterObject('parameter', integer_steps=10)
-                    case_data = pd.read_excel(path, index_col=0)
+                    if 'xlsx' in path:
+                        case_data = pd.read_excel(path, index_col=0)
+                    else:
+                        yaml_file = open(path)
+                        case_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
                     pm_object = load_project(pm_object, case_data)
                     pm_object.set_project_name(file_without_ending)
 
@@ -108,7 +113,7 @@ class GUI:
         self.data.pack(fill='both', expand=True)
 
         self.overall_notebook.add(self.general_assumptions, text='General Assumptions')
-        self.overall_notebook.add(self.components, text='Components')
+        self.overall_notebook.add(self.components, text='Conversions')
         self.overall_notebook.add(self.commodities, text='Commodities')
         self.overall_notebook.add(self.storages, text='Storages')
         self.overall_notebook.add(self.generators, text='Generators')
@@ -118,13 +123,13 @@ class GUI:
 
         button_frame = ttk.Frame(self.root)
 
-        check_commodities_button = ttk.Button(button_frame, text='Check settings', command=self.check_all_settings)
+        check_commodities_button = ttk.Button(button_frame, text='Check Project', command=self.check_all_settings)
         check_commodities_button.grid(row=0, column=0, sticky='ew')
 
         self.optimize_button = ttk.Button(button_frame, text='Optimize', state=DISABLED, command=self.optimize_now)
         self.optimize_button.grid(row=0, column=1, sticky='ew')
 
-        save_settings = ttk.Button(button_frame, text='Save settings', command=self.save_setting_window)
+        save_settings = ttk.Button(button_frame, text='Save Project', command=self.save_setting_window)
         save_settings.grid(row=1, column=0, sticky='ew')
 
         return_to_start = ttk.Button(button_frame, text='Cancel', command=self.cancel)
@@ -170,14 +175,14 @@ class GUI:
         commodities_without_sink = []
         profile_not_exist = []
 
-        if not self.pm_object_copy.get_market_data_status():
+        if self.pm_object_copy.get_commodity_data_needed():
             try:
-                sell_purchase_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_market_data(),
-                                                      index_col=0)
+                commodity_data = pd.read_excel(self.path_data + self.pm_object_copy.get_commodity_data(),
+                                               index_col=0)
             except:
-                sell_purchase_profile = None
+                commodity_data = None
         else:
-            sell_purchase_profile = None
+            commodity_data = None
 
         for commodity in self.pm_object_copy.get_final_commodities_objects():
 
@@ -188,17 +193,6 @@ class GUI:
             if commodity.is_available():
                 well_existing = True
             elif commodity.is_purchasable():
-
-                if commodity.get_purchase_price_type() == 'variable':
-                    profile_exists = False
-                    if sell_purchase_profile is not None:
-                        for c in sell_purchase_profile.columns:
-                            if c.split('_')[0] == commodity.get_nice_name():
-                                profile_exists = True
-
-                    if not profile_exists:
-                        profile_not_exist.append(commodity.get_nice_name())
-
                 well_existing = True
 
             # If no well exists, the commodity has to be generated or converted from other commodity
@@ -224,28 +218,15 @@ class GUI:
                 sink_existing = True
             elif commodity.is_saleable():
                 sink_existing = True
-
-                if commodity.get_sale_price_type() == 'variable':
-                    profile_exists = False
-                    if sell_purchase_profile is not None:
-                        for c in sell_purchase_profile.columns:
-                            if c.split('_')[0] == commodity.get_nice_name():
-                                profile_exists = True
-
-                    if not profile_exists:
-                        profile_not_exist.append(commodity.get_nice_name())
-
             elif commodity.is_demanded():
                 sink_existing = True
 
-            # If no well exists, the commodity has to be generated or converted from other commodity
-            if not sink_existing:
-                for component in self.pm_object_copy.get_final_conversion_components_objects():
-                    inputs = component.get_inputs()
-                    for i in [*inputs.keys()]:
-                        if i == commodity.get_name():
-                            sink_existing = True
-                            break
+            for component in self.pm_object_copy.get_final_conversion_components_objects():
+                inputs = component.get_inputs()
+                for i in [*inputs.keys()]:
+                    if i == commodity.get_name():
+                        sink_existing = True
+                        break
 
             if not sink_existing:
                 commodities_without_sink.append(commodity.get_name())
@@ -261,22 +242,53 @@ class GUI:
                 all_commodities_valid = False
 
         # Check if a profile for the generation unit exists, if generation unit is enabled
-        profiles_exist = True
         if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
-            if self.pm_object_copy.get_generation_data_status():
+            if self.pm_object_copy.get_single_or_multiple_generation_profiles():
                 generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_generation_data(), index_col=0)
+
+                for generator in self.pm_object_copy.get_final_generator_components_objects():
+                    if generator.get_nice_name() not in generation_profile.columns:
+                        profile_not_exist.append(generator.get_nice_name())
             else:
                 path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_generation_data()
                 _, _, filenames = next(walk(path_to_generation_files))
-                generation_profile = pd.read_excel(path_to_generation_files + '/' + filenames[0], index_col=0)
 
-            for generator in self.pm_object_copy.get_final_generator_components_objects():
-                if generator.get_nice_name() not in generation_profile.columns:
-                    profiles_exist = False
-                    profile_not_exist.append(generator.get_nice_name())
+                for f in filenames:
+                    generation_profile = pd.read_excel(path_to_generation_files + '/' + f, index_col=0)
 
+                    for generator in self.pm_object_copy.get_final_generator_components_objects():
+                        if generator.get_nice_name() not in generation_profile.columns:
+                            profile_not_exist.append(generator.get_nice_name())
+
+        # Check if a profile for the commodities exists, if needed
+        for commodity in self.pm_object_copy.get_final_commodities_objects():
+            if commodity.is_saleable():
+                if commodity.get_sale_price_type() == 'variable':
+                    if commodity_data is not None:
+                        name = commodity.get_nice_name() + '_Selling_Price'
+                        if name not in commodity_data.columns:
+                            profile_not_exist.append(commodity.get_nice_name())
+                            break
+
+            if commodity.is_purchasable():
+                if commodity.get_purchase_price_type() == 'variable':
+                    if commodity_data is not None:
+                        name = commodity.get_nice_name() + '_Purchase_Price'
+                        if name not in commodity_data.columns:
+                            profile_not_exist.append(commodity.get_nice_name())
+                            break
+
+            if commodity.is_demanded():
+                if commodity.get_demand_type() == 'variable':
+                    if commodity_data is not None:
+                        name = commodity.get_nice_name() + '_Demand'
+                        if name not in commodity_data.columns:
+                            profile_not_exist.append(commodity.get_nice_name())
+                            break
+
+        # Create alert if sink, well or profile is missing
         error_in_setting = False
-        if (not profiles_exist) | (not all_commodities_valid):
+        if len(profile_not_exist) > 0 | (not all_commodities_valid):
             error_in_setting = True
 
         if error_in_setting:
@@ -335,8 +347,8 @@ class GUI:
                                   ' Please adjust your inputs/outputs or the individual commodity').pack()
                     tk.Label(alert_window, text='').pack()
 
-            if not profiles_exist:
-                no_profile_text = 'The following generators and commodities have no profile: '
+            if len(profile_not_exist) > 0:
+                no_profile_text = 'The following generators or commodities have no profile: '
 
                 for u in profile_not_exist:
                     if profile_not_exist.index(u) != len(profile_not_exist) - 1:
@@ -363,9 +375,9 @@ class GUI:
                 now = datetime.now()
                 dt_string = now.strftime("%d%m%Y_%H%M%S")
 
-                path_name = self.path_projects + "/" + dt_string + ".xlsx"
+                path_name = self.path_projects + "/" + dt_string + ".yaml"
             else:
-                path_name = self.path_projects + "/" + name_entry.get() + ".xlsx"
+                path_name = self.path_projects + "/" + name_entry.get() + ".yaml"
 
                 self.root.title(name_entry.get())
                 self.pm_object_copy.set_project_name(name_entry.get())
@@ -436,7 +448,11 @@ class GUI:
                                                   path_data=path_data, project_name=custom_title)
 
             path = self.path_projects + '/' + self.path_optimize
-            case_data = pd.read_excel(path, index_col=0)
+            if 'xlsx' in path:
+                case_data = pd.read_excel(path, index_col=0)
+            else:
+                yaml_file = open(path)
+                case_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
             self.pm_object_original = load_project(self.pm_object_original, case_data)
             self.pm_object_copy = load_project(self.pm_object_copy, case_data)

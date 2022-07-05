@@ -859,7 +859,7 @@ class ConversionFrame:
                             used_commodities.append(outp)
 
                 for commodity in used_commodities:
-                    if commodity not in self.pm_object.get_final_commodities():
+                    if commodity not in self.pm_object.get_final_commodities_names():
                         self.pm_object.activate_commodity(commodity)
 
                 me_balance_window.destroy()

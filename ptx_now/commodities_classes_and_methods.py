@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import *
-from tkinter import filedialog
 
 
 class CommodityFrame:
@@ -24,7 +23,6 @@ class CommodityFrame:
             child_parameters.destroy()
 
         self.initialize_commodity()
-        max_columns = 1
 
         i = 0
 
@@ -33,41 +31,30 @@ class CommodityFrame:
             text_dummy = 'Yes'
         else:
             text_dummy = 'No'
-        tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+        tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
 
         i += 1
 
         tk.Label(self.frame, text='Commodity purchasable?').grid(row=i, column=0, sticky='w')
         if self.purchasable_var.get():
             text_dummy = 'Yes'
-            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
 
-            if self.commodity_object.get_purchase_price() == '':
-                if self.purchase_price_type_var.get() == 'fixed':
-                    text_purchase_price = 'Please enter fix purchase price'
-                else:
-                    text_purchase_price = ''
+            text_purchase_price = str(self.commodity_object.get_purchase_price())
+            text_purchase_price_unit = self.monetary_unit + ' / ' + self.commodity_object.get_unit()
 
-                text_purchase_price_unit = ''
-            else:
-                text_purchase_price = self.commodity_object.get_purchase_price()
-                text_purchase_price_unit = self.monetary_unit + ' / ' + self.commodity_object.get_unit()
-
-            tk.Label(self.frame, text='Purchase price type:').grid(row=i+1, column=0, sticky='w')
+            tk.Label(self.frame, text='Purchase price type:').grid(row=i + 1, column=0, sticky='w')
             if self.purchase_price_type_var.get() == 'fixed':
-                tk.Label(self.frame, text='Fixed price').grid(row=i+1, column=1)
-                tk.Label(self.frame, text='Purchase price:').grid(row=i+1, column=2)
-                tk.Label(self.frame, text=text_purchase_price).grid(row=i+1, column=3)
-                tk.Label(self.frame, text=text_purchase_price_unit).grid(row=i+1, column=4)
-                max_columns = max(max_columns, 4)
+                text = 'Fixed price at: ' + text_purchase_price + ' ' + text_purchase_price_unit
+                tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
             else:
-                tk.Label(self.frame, text='Variable price').grid(row=i+1, column=1)
-                max_columns = max(max_columns, 1)
+                text = 'Variable price [see profile data]'
+                tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
 
             i += 2
         else:
             text_dummy = 'No'
-            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
 
             i += 1
 
@@ -76,73 +63,67 @@ class CommodityFrame:
             text_dummy = 'Yes'
         else:
             text_dummy = 'No'
-        tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+        tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
         i += 1
 
         tk.Label(self.frame, text='Commodity saleable?').grid(row=i, column=0, sticky='w')
         if self.saleable_var.get():
             text_dummy = 'Yes'
-            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
 
-            if self.commodity_object.get_sale_price() == '':
-                if self.sale_price_type_var.get() == 'fixed':
-                    text_sale_price = 'Please enter fix selling price'
-                else:
-                    text_sale_price = 'Please choose selling price curve'
-
-                text_sale_price_unit = ''
-            else:
-                text_sale_price = self.commodity_object.get_sale_price()
-                text_sale_price_unit = self.monetary_unit + ' / ' + self.commodity_object.get_unit()
+            text_sale_price = str(self.commodity_object.get_sale_price())
+            text_sale_price_unit = self.monetary_unit + ' / ' + self.commodity_object.get_unit()
 
             tk.Label(self.frame, text='Sale price type:').grid(row=i+1, column=0, sticky='w')
             if self.sale_price_type_var.get() == 'fixed':
-                tk.Label(self.frame, text='Fixed price').grid(row=i+1, column=1)
-                tk.Label(self.frame, text='Sale price:').grid(row=i+1, column=2)
-                tk.Label(self.frame, text=text_sale_price).grid(row=i+1, column=3)
-                tk.Label(self.frame, text=text_sale_price_unit).grid(row=i+1, column=4)
-                max_columns = max(max_columns, 4)
+                text = 'Fixed price at: ' + text_sale_price + ' ' + text_sale_price_unit
+                tk.Label(self.frame, text=text).grid(row=i+1, column=1, sticky='w')
             else:
-                tk.Label(self.frame, text='Variable price').grid(row=i+1, column=1)
-                max_columns = max(max_columns, 1)
+                text = 'Variable price [see profile data]'
+                tk.Label(self.frame, text=text).grid(row=i+1, column=1, sticky='w')
 
             i += 2
         else:
             text_dummy = 'No'
-            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
 
             i += 1
 
         tk.Label(self.frame, text='Commodity demanded?').grid(row=i, column=0, sticky='w')
         if self.demand_var.get():
             text_dummy = 'Yes'
-            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
+            tk.Label(self.frame, text='Demand type').grid(row=i + 1, column=0, sticky='w')
 
-            if not self.total_demand_var.get():
-                tk.Label(self.frame, text='Hourly demand:').grid(row=i+1, column=0, sticky='w')
-                tk.Label(self.frame, text=self.demand_text_var.get()).grid(row=i+1, column=1)
+            if self.demand_type_var.get() == 'fixed':
 
-                if self.commodity_object.get_unit() == 'MWh':
-                    unit_new = 'MW'
-                elif self.commodity_object.get_unit() == 'GWh':
-                    unit_new = 'GW'
-                elif self.commodity_object.get_unit() == 'kWh':
-                    unit_new = 'kW'
+                if not self.total_demand_var.get():
+
+                    if self.commodity_object.get_unit() == 'MWh':
+                        unit_new = 'MW'
+                    elif self.commodity_object.get_unit() == 'GWh':
+                        unit_new = 'GW'
+                    elif self.commodity_object.get_unit() == 'kWh':
+                        unit_new = 'kW'
+                    else:
+                        unit_new = self.commodity_object.get_unit() + ' / h'
+
+                    text = 'Hourly fixed demand of: ' + self.demand_text_var.get() + ' ' + unit_new
+                    tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
                 else:
-                    unit_new = self.commodity_object.get_unit() + ' / h'
+                    text = 'Total demand of: ' + self.demand_text_var.get() + ' ' + self.commodity_object.get_unit()
+                    tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
 
-                tk.Label(self.frame, text=unit_new).grid(row=i+1, column=2)
-                max_columns = max(max_columns, 2)
+                i += 2
+
             else:
-                tk.Label(self.frame, text='Total demand:').grid(row=i+1, column=0, sticky='w')
-                tk.Label(self.frame, text=self.demand_text_var.get()).grid(row=i + 1, column=1)
-                tk.Label(self.frame, text=self.commodity_object.get_unit()).grid(row=i+1, column=2)
-                max_columns = max(max_columns, 2)
+                tk.Label(self.frame, text='Hourly variable demand [see profile]').grid(row=i + 1, column=1, sticky='w')
 
-            i += 2
+                i += 2
+
         else:
             text_dummy = 'No'
-            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1)
+            tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
 
             i += 1
 
@@ -152,7 +133,7 @@ class CommodityFrame:
         if not self.commodity_object.get_unit() in energy_units:
             ttk.Label(self.frame, text='Energy content:').grid(row=i, column=0, sticky='w')
             ttk.Label(self.frame, text=self.energy_content_var.get() + ' MWh/' + self.commodity_object.get_unit())\
-                .grid(row=i, column=1)
+                .grid(row=i, column=1, sticky='w')
 
             i += 1
 
@@ -169,10 +150,10 @@ class CommodityFrame:
 
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid(row=i, column=0, columnspan=max_columns+1, sticky='ew')
+        button_frame.grid(row=i, columnspan=2, sticky='ew')
 
-        for j in range(max_columns + 1):
-            self.frame.grid_columnconfigure(j, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1)
+        self.frame.grid_columnconfigure(1, weight=1)
 
     def initialize_commodity(self):
 
@@ -211,13 +192,19 @@ class CommodityFrame:
             self.demand_var.set(True)
         else:
             self.demand_var.set(False)
+            
+        if self.commodity_object.get_demand_type() == 'fixed':
 
-        if self.commodity_object.is_total_demand():
-            self.total_demand_var.set(True)
+            if self.commodity_object.is_total_demand():
+                self.total_demand_var.set(True)
+            else:
+                self.total_demand_var.set(False)
+                
         else:
             self.total_demand_var.set(False)
 
         self.demand_text_var.set(self.commodity_object.get_demand())
+        self.demand_type_var.set(self.commodity_object.get_demand_type())
 
         self.energy_content_var.set(self.commodity_object.get_energy_content())
 
@@ -226,13 +213,15 @@ class CommodityFrame:
             commodity_object = self.pm_object.get_commodity(s)
             if commodity_object.is_final():
                 if (commodity_object.is_purchasable()) or (commodity_object.is_saleable()):
-                    if (commodity_object.get_sale_price_type() == 'variable') | (commodity_object.get_purchase_price_type() == 'variable'):
+                    if (commodity_object.get_sale_price_type() == 'variable')\
+                            | (commodity_object.get_purchase_price_type() == 'variable')\
+                            | (commodity_object.get_demand_type() == 'variable'):
                         self.profile_needed.set(True)
-                        if self.pm_object.get_market_data_status():
+                        if self.pm_object.get_single_or_multiple_commodity_profiles():
                             self.profile_var.set('single')
                         else:
                             self.profile_var.set('multiple')
-                        self.textvar_profile.set(self.pm_object.get_market_data())
+                        self.textvar_profile.set(self.pm_object.get_commodity_data())
 
     def __init__(self, parent, frame, commodity, pm_object, pm_object_original):
 
@@ -261,6 +250,7 @@ class CommodityFrame:
         self.demand_var = tk.BooleanVar()
         self.total_demand_var = tk.BooleanVar()
         self.demand_text_var = StringVar()
+        self.demand_type_var = StringVar()
 
         self.energy_content_var = StringVar()
 
@@ -274,26 +264,6 @@ class CommodityFrame:
 class AdjustCommodityWindow:
 
     def create_widgets_in_frame(self):
-
-        def change_total_demand():
-
-            if not self.total_demand_var.get():
-                if self.commodity_object.get_unit() == 'MWh':
-                    unit_new = 'MW'
-                    text_new = 'Demand [' + unit_new + ']'
-                elif self.commodity_object.get_unit() == 'GWh':
-                    unit_new = 'GW'
-                    text_new = 'Demand [' + unit_new + ']'
-                elif self.commodity_object.get_unit() == 'kWh':
-                    unit_new = 'kW'
-                    text_new = 'Demand [' + unit_new + ']'
-                else:
-                    unit_new = self.commodity_object.get_unit()
-                    text_new = 'Demand [' + unit_new + ' / h]'
-            else:
-                text_new = 'Demand [' + self.commodity_object.get_unit() + ']'
-
-            demand_cb.config(text=text_new)
 
         self.initialize_commodity()
 
@@ -313,17 +283,17 @@ class AdjustCommodityWindow:
         ttk.Separator(self.newWindow).grid(row=1, columnspan=3, sticky='ew')
 
         ttk.Checkbutton(self.newWindow, text='Purchasable', variable=self.purchasable_var, onvalue=True, offvalue=False,
-                       command=self.configure_purchasable_commodities) \
+                       command=self.configure_purchase) \
             .grid(row=2, column=0, rowspan=3, sticky='w')
 
         self.purchase_fixed_price_radiobutton.config(text='Fixed price [' + self.monetary_unit + ' / ' + self.commodity_object.get_unit() + ']',
                                                      variable=self.purchase_price_type_var, value='fixed',
-                                                     command=self.set_purchase_fixed_price)
+                                                     command=self.configure_purchase)
         self.purchase_fixed_price_radiobutton.grid(row=2, column=1, sticky='w')
 
         self.purchase_variable_radiobutton.config(text='Price curve',
                                                   variable=self.purchase_price_type_var, value='variable',
-                                                  command=self.set_purchase_fixed_price)
+                                                  command=self.configure_purchase())
         self.purchase_variable_radiobutton.grid(row=3, rowspan=2, column=1, sticky='w')
 
         self.purchase_fixed_price_entry.config(text=self.purchase_price_fixed_text_var)
@@ -332,59 +302,71 @@ class AdjustCommodityWindow:
         ttk.Separator(self.newWindow).grid(row=5, columnspan=3, sticky='ew')
 
         ttk.Checkbutton(self.newWindow, text='Saleable', variable=self.saleable_var,
-                        onvalue=True, offvalue=False, command=self.configure_saleable_commodities) \
+                        onvalue=True, offvalue=False, command=self.configure_sale) \
             .grid(row=6, column=0, rowspan=3, sticky='w')
 
         self.sale_fixed_price_radiobutton.config(text='Fixed price [' + self.monetary_unit + ' / ' + self.commodity_object.get_unit() + ']',
                                                  variable=self.sale_price_type_var, value='fixed',
-                                                 command=self.set_sell_fixed_price)
+                                                 command=self.configure_sale)
         self.sale_fixed_price_radiobutton.grid(row=6, column=1, sticky='w')
 
         self.sale_variable_radiobutton.config(text='Price curve',
                                               variable=self.sale_price_type_var,
                                               value='variable',
-                                              command=self.set_sell_fixed_price)
-        self.sale_variable_radiobutton.grid(row=7, column=1, rowspan=2, sticky='w')
+                                              command=self.configure_sale())
+        self.sale_variable_radiobutton.grid(row=7, column=1, sticky='w')
 
         self.sale_fixed_price_entry.config(text=self.sale_price_fixed_text_var)
         self.sale_fixed_price_entry.grid(row=6, column=2, sticky='ew')
 
         ttk.Separator(self.newWindow).grid(row=9, columnspan=3, sticky='ew')
 
-        if not self.total_demand_var.get():
-            if self.commodity_object.get_unit() == 'MWh':
-                unit = 'MW'
-                text = 'Demand [' + unit + ']'
-            elif self.commodity_object.get_unit() == 'GWh':
-                unit = 'GW'
-                text = 'Demand [' + unit + ']'
-            elif self.commodity_object.get_unit() == 'kWh':
-                unit = 'kW'
-                text = 'Demand [' + unit + ']'
-            else:
-                unit = self.commodity_object.get_unit()
-                text = 'Demand [' + unit + ' / h]'
+        demand_cb = ttk.Checkbutton(self.newWindow, text='Demand', variable=self.demand_var, onvalue=True,
+                                    offvalue=False, command=self.configure_demand)
+        demand_cb.grid(row=10, rowspan=3, column=0, sticky='w')
+
+        text_total = 'Fixed Total Demand [' + self.commodity_object.get_unit() + ']'
+        if self.commodity_object.get_unit() == 'MWh':
+            unit = 'MW'
+            text_hourly = 'Fixed Hourly Demand [' + unit + ']'
+        elif self.commodity_object.get_unit() == 'GWh':
+            unit = 'GW'
+            text_hourly = 'Fixed Hourly Demand [' + unit + ']'
+        elif self.commodity_object.get_unit() == 'kWh':
+            unit = 'kW'
+            text_hourly = 'Fixed Hourly Demand [' + unit + ']'
         else:
-            text = 'Demand [' + self.commodity_object.get_unit() + ']'
+            unit = self.commodity_object.get_unit()
+            text_hourly = 'Fixed Hourly Demand [' + unit + ' / h]'
 
-        demand_cb = ttk.Checkbutton(self.newWindow, text=text, variable=self.demand_var, onvalue=True,
-                                    offvalue=False, command=self.configure_demand_commodities)
-        demand_cb.grid(row=10, column=0, sticky='w')
+        self.demand_type_fixed_hourly_radiobutton.config(
+            text=text_hourly,
+            variable=self.demand_type_var, value='fixed_hourly',
+            command=self.configure_demand)
+        self.demand_type_fixed_hourly_radiobutton.grid(row=10, column=1, sticky='w')
 
-        self.demand_entry.config(text=self.demand_text_var)
-        self.demand_entry.grid(row=10, column=1, sticky='ew')
+        self.demand_type_fixed_total_radiobutton.config(
+            text=text_total,
+            variable=self.demand_type_var, value='fixed_total',
+            command=self.configure_demand)
+        self.demand_type_fixed_total_radiobutton.grid(row=11, column=1, sticky='w')
 
-        self.demand_total_demand_button.config(text='Cumulated Demand', variable=self.total_demand_var,
-                                               onvalue=True, offvalue=False, command=change_total_demand)
-        self.demand_total_demand_button.grid(row=10, column=2, sticky='w')
+        self.fixed_demand_entry.config(text=self.demand_text_var)
+        self.fixed_demand_entry.grid(row=10, rowspan=2, column=2, sticky='ew')
+
+        self.demand_type_variable_radiobutton.config(text='Variable Demand',
+                                              variable=self.demand_type_var,
+                                              value='variable',
+                                              command=self.configure_demand)
+        self.demand_type_variable_radiobutton.grid(row=12, column=1, sticky='w')
 
         i = 0
         energy_units = ['kWh', 'MWh', 'GWh', 'kJ', 'MJ', 'GJ']
         if not self.commodity_object.get_unit() in energy_units:
-            ttk.Separator(self.newWindow).grid(row=11, columnspan=3, sticky='ew')
-            ttk.Label(self.newWindow, text='Energy content').grid(row=12, column=0, sticky='w')
-            ttk.Entry(self.newWindow, textvariable=self.energy_content_var).grid(row=12, column=1, sticky='w')
-            ttk.Label(self.newWindow, text='MWh/' + self.commodity_object.get_unit()).grid(row=12, column=2, sticky='w')
+            ttk.Separator(self.newWindow).grid(row=13, columnspan=3, sticky='ew')
+            ttk.Label(self.newWindow, text='Energy content').grid(row=14, column=0, sticky='w')
+            ttk.Entry(self.newWindow, textvariable=self.energy_content_var).grid(row=14, column=1, sticky='w')
+            ttk.Label(self.newWindow, text='MWh/' + self.commodity_object.get_unit()).grid(row=14, column=2, sticky='w')
             i = 2
 
         button_frame = ttk.Frame(self.newWindow)
@@ -396,11 +378,11 @@ class AdjustCommodityWindow:
         ttk.Button(button_frame, text='Cancel', command=self.kill_only) \
             .grid(row=0, column=1, sticky='ew')
 
-        button_frame.grid(row=11+i, columnspan=3, sticky='ew')
+        button_frame.grid(row=14+i, columnspan=3, sticky='ew')
 
-        self.configure_purchasable_commodities()
-        self.configure_saleable_commodities()
-        self.configure_demand_commodities()
+        self.configure_purchase()
+        self.configure_sale()
+        self.configure_demand()
 
     def initialize_commodity(self):
 
@@ -441,81 +423,62 @@ class AdjustCommodityWindow:
         else:
             self.demand_var.set(False)
 
-        if self.commodity_object.is_total_demand():
-            self.total_demand_var.set(True)
+        if self.commodity_object.get_demand_type() == 'fixed':
+            if not self.commodity_object.is_total_demand():
+                self.demand_type_var.set('fixed_hourly')
+            else:
+                self.demand_type_var.set('fixed_total')
         else:
-            self.total_demand_var.set(False)
+            self.demand_type_var.set('variable')
 
         self.demand_text_var.set(self.commodity_object.get_demand())
 
         self.energy_content_var.set(self.commodity_object.get_energy_content())
 
-    def configure_purchasable_commodities(self):
+    def configure_purchase(self):
         if self.purchasable_var.get():
             self.purchase_fixed_price_radiobutton.config(state=NORMAL)
             self.purchase_variable_radiobutton.config(state=NORMAL)
-            self.purchase_fixed_price_entry.config(state=NORMAL)
 
-        else:
-            self.purchase_fixed_price_radiobutton.config(state=DISABLED)
-            self.purchase_variable_radiobutton.config(state=DISABLED)
-            self.purchase_fixed_price_entry.config(state=DISABLED)
-
-        self.set_purchase_fixed_price()
-
-    def set_purchase_fixed_price(self):
-        if not self.purchasable_var.get():
-            self.purchase_fixed_price_radiobutton.config(state=DISABLED)
-            self.purchase_variable_radiobutton.config(state=DISABLED)
-            self.purchase_fixed_price_entry.config(state=DISABLED)
-        else:
             if self.purchase_price_type_var.get() == 'fixed':
                 self.purchase_fixed_price_entry.config(state=NORMAL)
             else:
                 self.purchase_fixed_price_entry.config(state=DISABLED)
 
-    def choose_purchase_price_curve(self):
-        folder_selected = filedialog.askopenfilename()
-        file_name = folder_selected.split('/')[-1]
-        self.purchase_price_curve_text_var.set(file_name)
+        else:
+            self.purchase_fixed_price_radiobutton.config(state=DISABLED)
+            self.purchase_variable_radiobutton.config(state=DISABLED)
+            self.purchase_fixed_price_entry.config(state=DISABLED)
 
-    def configure_saleable_commodities(self):
+    def configure_sale(self):
         if self.saleable_var.get():
             self.sale_fixed_price_radiobutton.config(state=NORMAL)
-            self.sale_fixed_price_entry.config(state=NORMAL)
             self.sale_variable_radiobutton.config(state=NORMAL)
-        else:
-            self.sale_fixed_price_radiobutton.config(state=DISABLED)
-            self.sale_fixed_price_entry.config(state=DISABLED)
-            self.sale_variable_radiobutton.config(state=DISABLED)
 
-        self.set_sell_fixed_price()
-
-    def set_sell_fixed_price(self):
-        if not self.saleable_var.get():
-            self.sale_fixed_price_radiobutton.config(state=DISABLED)
-            self.sale_variable_radiobutton.config(state=DISABLED)
-            self.sale_fixed_price_entry.config(state=DISABLED)
-        else:
             if self.sale_price_type_var.get() == 'fixed':
                 self.sale_fixed_price_entry.config(state=NORMAL)
             else:
                 self.sale_fixed_price_entry.config(state=DISABLED)
-
-    def choose_sell_price_curve(self):
-        folder_selected = filedialog.askopenfilename()
-        file_name = folder_selected.split('/')[-1]
-        self.sale_price_curve_text_var.set(file_name)
-
-    def configure_demand_commodities(self):
-
-        if self.demand_var.get():
-            self.demand_entry.config(state=NORMAL)
-            self.demand_total_demand_button.config(state=NORMAL)
         else:
-            self.demand_entry.config(state=DISABLED)
-            self.total_demand_var.set(False)
-            self.demand_total_demand_button.config(state=DISABLED)
+            self.sale_fixed_price_radiobutton.config(state=DISABLED)
+            self.sale_fixed_price_entry.config(state=DISABLED)
+            self.sale_variable_radiobutton.config(state=DISABLED)
+
+    def configure_demand(self):
+        if not self.demand_var.get():
+            self.demand_type_fixed_hourly_radiobutton.config(state=DISABLED)
+            self.demand_type_fixed_total_radiobutton.config(state=DISABLED)
+            self.demand_type_variable_radiobutton.config(state=DISABLED)
+            self.fixed_demand_entry.config(state=DISABLED)
+        else:
+            self.demand_type_fixed_hourly_radiobutton.config(state=NORMAL)
+            self.demand_type_fixed_total_radiobutton.config(state=NORMAL)
+            self.demand_type_variable_radiobutton.config(state=NORMAL)
+
+            self.fixed_demand_entry.config(state=NORMAL)
+
+            if self.demand_type_var.get() == 'variable':
+                self.fixed_demand_entry.config(state=DISABLED)
 
     def kill_only(self):
         self.newWindow.destroy()
@@ -558,15 +521,18 @@ class AdjustCommodityWindow:
         # Set demand settings
         if self.demand_var.get():
             self.commodity_object.set_demanded(True)
-            self.commodity_object.set_demand(self.demand_entry.get())
+            if self.demand_type_var.get() == 'fixed_hourly':
+                self.commodity_object.set_demand_type('fixed')
+                self.commodity_object.set_demand(self.fixed_demand_entry.get())
+                self.commodity_object.set_total_demand(False)
+            elif self.demand_type_var.get() == 'fixed_total':
+                self.commodity_object.set_demand_type('fixed')
+                self.commodity_object.set_demand(self.fixed_demand_entry.get())
+                self.commodity_object.set_total_demand(True)
+            else:
+                self.commodity_object.set_demand_type('variable')
         else:
             self.commodity_object.set_demanded(False)
-
-        # Set total demand settings
-        if self.total_demand_var.get():
-            self.commodity_object.set_total_demand(True)
-        else:
-            self.commodity_object.set_total_demand(False)
 
         if self.purchasable_var.get():
             if self.purchase_price_type_var.get() == 'fixed':
@@ -579,15 +545,17 @@ class AdjustCommodityWindow:
         self.commodity_object.set_energy_content(self.energy_content_var.get())
 
         # Check if any commodity has variable purchase or selling profile --> If not, deactivate
-        self.pm_object.set_market_data_status(True)
+        self.pm_object.set_single_or_multiple_commodity_profiles(True)
         for s in self.pm_object.get_all_commodities():
             commodity_object = self.pm_object.get_commodity(s)
             if commodity_object.is_final():
                 if (commodity_object.is_purchasable()) or (commodity_object.is_saleable()):
-                    if (commodity_object.get_sale_price_type() == 'variable') | (commodity_object.get_purchase_price_type() == 'variable'):
-                        self.pm_object.set_market_data_status(False)
+                    if (commodity_object.get_sale_price_type() == 'variable') \
+                            | (commodity_object.get_purchase_price_type() == 'variable') \
+                            | (commodity_object.get_demand_type() == 'variable'):
+                        self.pm_object.set_single_or_multiple_commodity_profiles(False)
 
-        self.pm_object.check_market_data_status()
+        self.pm_object.check_commodity_data_needed()
 
         self.parent.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.parent.update_widgets()
@@ -607,23 +575,22 @@ class AdjustCommodityWindow:
         self.newWindow.grab_set()
 
         # variables
-        self.purchasable_var = tk.BooleanVar()
-        self.purchase_price_type_var = tk.StringVar()
-        self.purchase_price_fixed_text_var = tk.StringVar()
-        self.purchase_price_curve_text_var = tk.StringVar()
+        self.purchasable_var = BooleanVar()
+        self.purchase_price_type_var = StringVar()
+        self.purchase_price_fixed_text_var = StringVar()
+        self.purchase_price_curve_text_var = StringVar()
 
-        self.saleable_var = tk.BooleanVar()
-        self.sale_price_type_var = tk.StringVar()
-        self.sale_price_fixed_text_var = tk.StringVar()
-        self.sale_price_curve_text_var = tk.StringVar()
+        self.saleable_var = BooleanVar()
+        self.sale_price_type_var = StringVar()
+        self.sale_price_fixed_text_var = StringVar()
+        self.sale_price_curve_text_var = StringVar()
 
-        self.available_var = tk.BooleanVar()
-        self.emitted_var = tk.BooleanVar()
-        self.demand_var = tk.BooleanVar()
-        self.total_demand_var = tk.BooleanVar()
+        self.available_var = BooleanVar()
+        self.emitted_var = BooleanVar()
+        self.demand_var = BooleanVar()
+        self.demand_type_var = StringVar()
 
         self.demand_text_var = StringVar()
-        self.initial_purchase_price_var = StringVar()
 
         self.energy_content_var = StringVar()
 
@@ -636,7 +603,9 @@ class AdjustCommodityWindow:
         self.sale_variable_radiobutton = ttk.Radiobutton(self.newWindow)
         self.sale_fixed_price_entry = ttk.Entry(self.newWindow)
 
-        self.demand_entry = ttk.Entry(self.newWindow)
-        self.demand_total_demand_button = ttk.Checkbutton(self.newWindow)
+        self.fixed_demand_entry = ttk.Entry(self.newWindow)
+        self.demand_type_fixed_hourly_radiobutton = ttk.Radiobutton(self.newWindow)
+        self.demand_type_fixed_total_radiobutton = ttk.Radiobutton(self.newWindow)
+        self.demand_type_variable_radiobutton = ttk.Radiobutton(self.newWindow)
 
         self.create_widgets_in_frame()

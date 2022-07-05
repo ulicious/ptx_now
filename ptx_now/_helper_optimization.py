@@ -15,24 +15,24 @@ def optimize(pm_object, path_data, path_results, solver):
     depend on number of generation, purchase and sale data"""
 
     generation_data_before = pm_object.get_generation_data()
-    market_data_before = pm_object.get_market_data()
+    commodity_data_before = pm_object.get_commodity_data()
 
     optimization_problem = None
     if len(pm_object.get_final_generator_components_names()) > 0:
         # Case generators are used
 
-        if pm_object.get_market_data_needed():  # Case market data available
+        if pm_object.get_commodity_data_needed():  # Case market data available
 
-            if pm_object.get_generation_data_status():  # Case single file generation
+            if pm_object.get_single_or_multiple_generation_profiles() == 'single':  # Case single file generation
 
                 path_to_generation_files = path_data + pm_object.get_generation_data()
                 pm_object.set_generation_data(path_to_generation_files)
 
-                path_to_sell_purchase_files = path_data + pm_object.get_market_data()
+                path_to_sell_purchase_files = path_data + pm_object.get_commodity_data()
 
-                if pm_object.get_market_data_status():  # Case single market data file
+                if pm_object.get_single_or_multiple_commodity_profiles() == 'single':  # Case single market data file
 
-                    pm_object.set_market_data(path_to_sell_purchase_files)
+                    pm_object.set_commodity_data(path_to_sell_purchase_files)
 
                     optimization_problem = OptimizationProblem(pm_object, path_data, solver)
                     analyze_results(pm_object, optimization_problem, path_results)
@@ -41,19 +41,19 @@ def optimize(pm_object, path_data, path_results, solver):
 
                     _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
                     for fsp in filenames_sell_purchase:
-                        pm_object.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+                        pm_object.set_commodity_data(path_to_sell_purchase_files + '/' + fsp)
 
                         optimization_problem = OptimizationProblem(pm_object, path_data, solver)
                         analyze_results(pm_object, optimization_problem, path_results)
 
             else:  # Case several generation files
                 path_to_generation_files = path_data + pm_object.get_generation_data()
-                path_to_sell_purchase_files = path_data + pm_object.get_market_data()
+                path_to_sell_purchase_files = path_data + pm_object.get_commodity_data()
 
-                if pm_object.get_market_data_status():
+                if pm_object.get_single_or_multiple_commodity_profiles() == 'single':
                     # Case with several generation profiles but only one market profile
 
-                    pm_object.set_market_data(path_to_sell_purchase_files)
+                    pm_object.set_commodity_data(path_to_sell_purchase_files)
 
                     _, _, filenames_generation = next(walk(path_to_generation_files))
                     for fg in filenames_generation:
@@ -70,14 +70,15 @@ def optimize(pm_object, path_data, path_results, solver):
                         for fsp in filenames_sell_purchase:
                             pm_object.set_generation_data(path_to_generation_files + '/' + fg)
 
-                            pm_object.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+                            pm_object.set_commodity_data(path_to_sell_purchase_files + '/' + fsp)
 
                             optimization_problem = OptimizationProblem(pm_object, path_data,
                                                                        solver)
                             analyze_results(pm_object, optimization_problem, path_results)
 
         else:  # Case no market data
-            if pm_object.get_generation_data_status():  # Case only generation with single file
+            if pm_object.get_single_or_multiple_commodity_profiles() == 'single':
+                # Case only generation with single file
 
                 path_to_generation_files = path_data + pm_object.get_generation_data()
                 pm_object.set_generation_data(path_to_generation_files)
@@ -97,20 +98,20 @@ def optimize(pm_object, path_data, path_results, solver):
 
     else:  # Case generators are not used
 
-        if pm_object.get_market_data_needed():
-            if pm_object.get_market_data_status():
+        if pm_object.get_commodity_data_needed():
+            if pm_object.get_single_or_multiple_commodity_profiles() == 'single':
                 #  one case
-                path_to_market_file = path_data + pm_object.get_market_data()
-                pm_object.set_market_data(path_to_market_file)
+                path_to_market_file = path_data + pm_object.get_commodity_data()
+                pm_object.set_commodity_data(path_to_market_file)
                 optimization_problem = OptimizationProblem(pm_object, path_data, solver)
                 analyze_results(pm_object, optimization_problem, path_results)
             else:
                 # Case with several purchase and selling price data
-                path_to_sell_purchase_files = path_data + pm_object.get_market_data()
+                path_to_sell_purchase_files = path_data + pm_object.get_commodity_data()
 
                 _, _, filenames_sell_purchase = next(walk(path_to_sell_purchase_files))
                 for fsp in filenames_sell_purchase:
-                    pm_object.set_market_data(path_to_sell_purchase_files + '/' + fsp)
+                    pm_object.set_commodity_data(path_to_sell_purchase_files + '/' + fsp)
 
                     optimization_problem = OptimizationProblem(pm_object, path_data, solver)
                     analyze_results(pm_object, optimization_problem, path_results)
@@ -120,7 +121,7 @@ def optimize(pm_object, path_data, path_results, solver):
             analyze_results(pm_object, optimization_problem, path_results)
 
     pm_object.set_generation_data(generation_data_before)
-    pm_object.set_market_data(market_data_before)
+    pm_object.set_commodity_data(commodity_data_before)
 
 
 def analyze_results(pm_object, optimization_problem, path_result):

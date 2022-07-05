@@ -32,6 +32,16 @@ class GeneratorFrame:
 
     def adjust_values(self):
 
+        def check_fixed_capacity():
+
+            if self.checkbox_fixed_capacity_var.get():
+                fixed_capacity_label.config(state=NORMAL)
+                fixed_capacity_entry.config(state=NORMAL)
+
+            else:
+                fixed_capacity_label.config(state=DISABLED)
+                fixed_capacity_entry.config(state=DISABLED)
+
         def get_values_and_kill_window():
             generator = self.pm_object.get_component(self.generator)
             if capex_entry.get() != '':
@@ -43,6 +53,9 @@ class GeneratorFrame:
 
             generator.set_generated_commodity(self.pm_object.get_abbreviation(generated_commodity_cb.get()))
             generator.set_curtailment_possible(self.checkbox_curtailment_var.get())
+
+            generator.set_has_fixed_capacity(self.checkbox_fixed_capacity_var.get())
+            generator.set_fixed_capacity(self.fixed_capacity_var.get())
 
             self.parent.parent.pm_object_copy = self.pm_object
             self.parent.parent.update_widgets()
@@ -79,14 +92,26 @@ class GeneratorFrame:
         generated_commodity_cb.grid(row=3, column=1, sticky='ew')
         generated_commodity_cb.set(self.generated_commodity_var.get())
 
-        ttk.Checkbutton(window, text='Curtailment possible?', variable=self.checkbox_curtailment_var).grid(row=4, column=0,  sticky='ew')
+        ttk.Checkbutton(window, text='Curtailment possible?', variable=self.checkbox_curtailment_var).grid(row=4,
+                                                                                                           column=0,
+                                                                                                           sticky='ew')
 
-        ttk.Button(window, text='Adjust values', command=get_values_and_kill_window).grid(row=5, column=0,  sticky='ew')
+        ttk.Checkbutton(window, text='Fixed Capacity used?', variable=self.checkbox_fixed_capacity_var,
+                        command=check_fixed_capacity).grid(row=5, column=0, sticky='ew')
 
-        ttk.Button(window, text='Cancel', command=kill_window).grid(row=5, column=1, sticky='ew')
+        fixed_capacity_label = ttk.Label(window, text='Fixed Capacity [' + self.commodity_unit + ']:')
+        fixed_capacity_label.grid(row=6, column=0)
+        fixed_capacity_entry = ttk.Entry(window, text=self.fixed_capacity_var)
+        fixed_capacity_entry.grid(row=6, column=1)
+
+        ttk.Button(window, text='Adjust values', command=get_values_and_kill_window).grid(row=7, column=0,  sticky='ew')
+
+        ttk.Button(window, text='Cancel', command=kill_window).grid(row=7, column=1, sticky='ew')
 
         window.grid_columnconfigure(0, weight=1, uniform='a')
         window.grid_columnconfigure(1, weight=1, uniform='a')
+
+        check_fixed_capacity()
 
     def set_generator_settings_to_default(self):
 
@@ -117,6 +142,8 @@ class GeneratorFrame:
         self.maintenance.set(round(float(self.generator_object.get_maintenance()) * 100, 2))
         self.generated_commodity_var.set(self.generated_commodity)
         self.checkbox_curtailment_var.set(self.curtailment_possible)
+        self.checkbox_fixed_capacity_var.set(self.has_fixed_capacity)
+        self.fixed_capacity_var.set(self.fixed_capacity)
 
         if self.generator_object in self.pm_object.get_final_generator_components_objects():
             state = NORMAL
@@ -154,6 +181,16 @@ class GeneratorFrame:
         self.curtailment_label = ttk.Label(self.frame, text=text_curtailment, state=state)
         self.curtailment_label.grid(row=6, column=1, sticky='w')
 
+        ttk.Label(self.frame, text='Fixed Capacity [' + self.commodity_unit + ']: ').grid(row=7, column=0, sticky='w')
+        if self.checkbox_fixed_capacity_var.get():
+            text_fixed_capacity = self.fixed_capacity_var.get()
+
+        else:
+            text_fixed_capacity = 'Not used'
+
+        self.fixed_capacity_label = ttk.Label(self.frame, text=text_fixed_capacity, state=state)
+        self.fixed_capacity_label.grid(row=7, column=1, sticky='w')
+
         button_frame = ttk.Frame(self.frame)
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
@@ -169,7 +206,7 @@ class GeneratorFrame:
         if self.generator_object.is_custom():
             self.default_generators_button.config(state=DISABLED)
 
-        button_frame.grid(row=7, columnspan=2, sticky='ew')
+        button_frame.grid(row=8, columnspan=2, sticky='ew')
 
     def __init__(self, parent, frame, generator, pm_object, pm_object_original):
 
@@ -186,6 +223,8 @@ class GeneratorFrame:
         self.generated_commodity = self.pm_object.get_nice_name(self.generator_object.get_generated_commodity())
         self.commodity_unit = self.pm_object.get_commodity(self.generator_object.get_generated_commodity()).get_unit()
         self.curtailment_possible = self.generator_object.get_curtailment_possible()
+        self.has_fixed_capacity = self.generator_object.get_has_fixed_capacity()
+        self.fixed_capacity = self.generator_object.get_fixed_capacity()
 
         self.textvar_profile = StringVar()
         self.checkbox_var = BooleanVar()
@@ -195,6 +234,8 @@ class GeneratorFrame:
         self.maintenance = StringVar()
         self.generated_commodity_var = StringVar()
         self.checkbox_curtailment_var = BooleanVar()
+        self.checkbox_fixed_capacity_var = BooleanVar()
+        self.fixed_capacity_var = StringVar()
 
         self.monetary_unit = self.pm_object.get_monetary_unit()
 

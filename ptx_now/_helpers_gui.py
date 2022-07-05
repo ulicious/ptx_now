@@ -17,6 +17,8 @@ import os
 
 from datetime import datetime
 
+import yaml
+
 
 class AssumptionsInterface(ttk.Frame):
 
@@ -635,7 +637,7 @@ class GeneratorInterface(ttk.Frame):
         delete_generators_window.title('Delete Generators')
 
         generators = []
-        for gen in self.pm_object_copy.get_generator_components():
+        for gen in self.pm_object_copy.get_generator_components_objects():
             generators.append(gen.get_name())
 
         checked_generators = {}
@@ -706,15 +708,21 @@ class GeneratorInterface(ttk.Frame):
 
 class DataInterface(ttk.Frame):
 
+    def set_generation_single_or_multiple_profiles(self):
+        if self.single_or_multiple_generation_profiles_var.get() == 'single':
+            self.pm_object_copy.set_single_or_multiple_generation_profiles('single')
+        else:
+            self.pm_object_copy.set_single_or_multiple_generation_profiles('multiple')
+
     def set_generation_data(self):
-        if self.generation_data_status_var.get() == 'single':
+        if self.single_or_multiple_generation_profiles_var.get() == 'single':
             path = filedialog.askopenfilename()
             file_name = path.split('/')[-1]
 
             if file_name != '':
                 if file_name.split('.')[-1] == 'xlsx':
                     self.pm_object_copy.set_generation_data(file_name)
-                    self.pm_object_copy.set_generation_data_status(True)
+                    self.pm_object_copy.set_single_or_multiple_generation_profiles('single')
 
                     self.parent.pm_object_copy = self.pm_object_copy
                     self.parent.update_widgets()
@@ -733,7 +741,7 @@ class DataInterface(ttk.Frame):
             folder_name = path.split('/')[-1]
 
             self.pm_object_copy.set_generation_data(folder_name)
-            self.pm_object_copy.set_generation_data_status(False)
+            self.pm_object_copy.set_single_or_multiple_generation_profiles('multiple')
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
@@ -765,20 +773,25 @@ class DataInterface(ttk.Frame):
         os.system('start excel.exe "%s"' % (path,))
 
         self.pm_object_copy.set_generation_data(dt_string + '_' + project_name + '_generation_profiles.xlsx')
-        self.pm_object_copy.set_generation_data_status(True)
+        self.pm_object_copy.set_single_or_multiple_generation_profiles('single')
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
 
-    def set_market_data(self):
-        if self.market_data_status_var.get() == 'single':
+    def set_commodity_single_or_multiple_profiles(self):
+        if self.single_or_multiple_commodity_profiles_var.get() == 'single':
+            self.pm_object_copy.set_single_or_multiple_commodity_profiles('single')
+        else:
+            self.pm_object_copy.set_single_or_multiple_commodity_profiles('multiple')
+
+    def set_commodity_data(self):
+        if self.single_or_multiple_commodity_profiles_var.get() == 'single':
             path = filedialog.askopenfilename()
             file_name = path.split('/')[-1]
 
             if file_name != '':
                 if file_name.split('.')[-1] == 'xlsx':
-                    self.pm_object_copy.set_market_data(file_name)
-                    self.pm_object_copy.set_market_data_status(True)
+                    self.pm_object_copy.set_commodity_data(file_name)
 
                     self.parent.pm_object_copy = self.pm_object_copy
                     self.parent.update_widgets()
@@ -796,8 +809,7 @@ class DataInterface(ttk.Frame):
             path = filedialog.askdirectory()
             folder_name = path.split('/')[-1]
 
-            self.pm_object_copy.set_market_data(folder_name)
-            self.pm_object_copy.set_market_data_status(False)
+            self.pm_object_copy.set_commodity_data(folder_name)
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
@@ -823,7 +835,7 @@ class DataInterface(ttk.Frame):
                 ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
                                                                                                  expand=True)
 
-    def create_market_data_template(self):
+    def create_commodity_data_template(self):
 
         if self.pm_object_copy.get_project_name() is None:
             project_name = ''
@@ -834,9 +846,14 @@ class DataInterface(ttk.Frame):
         for s in self.pm_object_copy.get_all_commodities():
             commodity_object = self.pm_object_copy.get_commodity(s)
             if commodity_object.is_purchasable():
-                columns.append(commodity_object.get_nice_name() + '_Purchase_Price')
+                if commodity_object.get_purchase_price_type() == 'variable':
+                    columns.append(commodity_object.get_nice_name() + '_Purchase_Price')
             if commodity_object.is_saleable():
-                columns.append(commodity_object.get_nice_name() + '_Selling_Price')
+                if commodity_object.get_sale_price_type() == 'variable':
+                    columns.append(commodity_object.get_nice_name() + '_Selling_Price')
+            if commodity_object.is_demanded():
+                if commodity_object.get_demand_type() == 'variable':
+                    columns.append(commodity_object.get_nice_name() + '_Demand')
 
         if self.pm_object_copy.get_uses_representative_periods():
             number_periods = len(pd.read_excel(self.pm_object_copy.get_path_data() + self.pm_object_copy.get_path_weighting(), index_col=0).index)
@@ -852,8 +869,8 @@ class DataInterface(ttk.Frame):
 
         os.system('start excel.exe "%s"' % (path, ))
 
-        self.pm_object_copy.set_market_data(dt_string + '_' + project_name + '_market_prices.xlsx')
-        self.pm_object_copy.set_market_data_status(True)
+        self.pm_object_copy.set_commodity_data(dt_string + '_' + project_name + '_market_prices.xlsx')
+        self.pm_object_copy.set_single_or_multiple_commodity_profiles('single')
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
@@ -871,87 +888,109 @@ class DataInterface(ttk.Frame):
 
         # ------
         # Generation data
-        generation_data_frame = ttk.Frame(self.data_frame)
-        ttk.Label(generation_data_frame, text='Generation Data', font='Helvetica 10 bold').grid(row=0, columnspan=2,
-                                                                                                sticky='ew')
+        if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
+            generation_data_frame = ttk.Frame(self.data_frame)
+            ttk.Label(generation_data_frame, text='Generation Data', font='Helvetica 10 bold').grid(row=0, columnspan=2,
+                                                                                                    sticky='ew')
 
-        self.generation_data_status_var = StringVar()
-        if self.pm_object_copy.get_generation_data_status():
-            self.generation_data_status_var.set('single')
-        else:
-            self.generation_data_status_var.set('multiple')
+            self.single_or_multiple_generation_profiles_var = StringVar()
+            if self.pm_object_copy.get_single_or_multiple_generation_profiles():
+                self.single_or_multiple_generation_profiles_var.set('single')
+            else:
+                self.single_or_multiple_generation_profiles_var.set('multiple')
 
-        self.rb_single_generation = ttk.Radiobutton(generation_data_frame, text='Use single profile', value='single',
-                                                    variable=self.generation_data_status_var)
-        self.rb_single_generation.grid(row=1, column=0, sticky='ew')
+            self.rb_single_generation = ttk.Radiobutton(generation_data_frame, text='Use single profile', value='single',
+                                                        variable=self.single_or_multiple_generation_profiles_var,
+                                                        command=self.set_generation_single_or_multiple_profiles)
+            self.rb_single_generation.grid(row=1, column=0, sticky='ew')
 
-        self.rb_several = ttk.Radiobutton(generation_data_frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.generation_data_status_var)
-        self.rb_several.grid(row=1, column=1, sticky='ew')
+            self.rb_several = ttk.Radiobutton(generation_data_frame, text='Use multiple profiles', value='multiple',
+                                              variable=self.single_or_multiple_generation_profiles_var,
+                                              command=self.set_generation_single_or_multiple_profiles)
+            self.rb_several.grid(row=1, column=1, sticky='ew')
 
-        self.generation_data_textvar = StringVar()
-        try:
-            path_generation = self.pm_object_copy.get_generation_data()
-            file_name_generation = path_generation.split('/')[-1]
-            self.generation_data_textvar.set(file_name_generation)
-        except:
-            self.generation_data_textvar.set('')
+            self.generation_data_textvar = StringVar()
+            try:
+                path_generation = self.pm_object_copy.get_generation_data()
+                file_name_generation = path_generation.split('/')[-1]
+                self.generation_data_textvar.set(file_name_generation)
+            except:
+                self.generation_data_textvar.set('')
 
-        ttk.Label(generation_data_frame, text='File/Folder').grid(row=2, column=0, sticky='w')
-        ttk.Label(generation_data_frame, text=self.generation_data_textvar.get()).grid(row=2, column=1, sticky='ew')
+            ttk.Label(generation_data_frame, text='File/Folder').grid(row=2, column=0, sticky='w')
+            ttk.Label(generation_data_frame, text=self.generation_data_textvar.get()).grid(row=2, column=1, sticky='ew')
 
-        ttk.Button(generation_data_frame, text='Select profile(s)', command=self.set_generation_data).grid(row=3,
-                                                                                                           column=0,
-                                                                                                           sticky='ew')
+            ttk.Button(generation_data_frame, text='Select profile(s)', command=self.set_generation_data).grid(row=3,
+                                                                                                               column=0,
+                                                                                                               sticky='ew')
 
-        ttk.Button(generation_data_frame, text='Create new generation template',
-                   command=self.create_generation_template).grid(row=3, column=1, sticky='ew')
+            ttk.Button(generation_data_frame, text='Create new generation template',
+                       command=self.create_generation_template).grid(row=3, column=1, sticky='ew')
 
-        generation_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
-        generation_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
-        generation_data_frame.grid(row=0, sticky='ew')
+            generation_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
+            generation_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
+            generation_data_frame.grid(row=0, sticky='ew')
 
         # ----------
-        # Market data
+        # commodity data
 
-        market_data_frame = ttk.Frame(self.data_frame)
-        ttk.Separator(market_data_frame).grid(row=0, columnspan=2, sticky='ew')
-        ttk.Label(market_data_frame, text='Market Data', font='Helvetica 10 bold').grid(row=1, columnspan=2,
-                                                                                        sticky='ew')
+        # Check necessity of commodity data
+        necessary = False
+        for commodity in self.pm_object_copy.get_final_commodities_objects():
+            if commodity.is_saleable():
+                if commodity.get_sale_price_type() == 'variable':
+                    necessary = True
 
-        self.market_data_status_var = StringVar()
-        if self.pm_object_copy.get_market_data_status():
-            self.market_data_status_var.set('single')
-        else:
-            self.market_data_status_var.set('multiple')
+            if commodity.is_purchasable():
+                if commodity.get_purchase_price_type() == 'variable':
+                    necessary = True
 
-        self.rb_single = ttk.Radiobutton(market_data_frame, text='Use single profile', value='single',
-                                         variable=self.market_data_status_var)
-        self.rb_single.grid(row=2, column=0, sticky='ew')
+            if commodity.is_demanded():
+                if commodity.get_demand_type() == 'variable':
+                    necessary = True
 
-        self.rb_several = ttk.Radiobutton(market_data_frame, text='Use multiple profiles', value='multiple',
-                                          variable=self.market_data_status_var)
-        self.rb_several.grid(row=2, column=1, sticky='ew')
+        if necessary:
 
-        self.market_data_textvar = StringVar()
-        try:
-            path = self.pm_object_copy.get_market_data()
-            file_name = path.split('/')[-1]
-            self.market_data_textvar.set(file_name)
-        except:
-            self.market_data_textvar.set('')
+            commodity_data_frame = ttk.Frame(self.data_frame)
+            ttk.Separator(commodity_data_frame).grid(row=0, columnspan=2, sticky='ew')
+            ttk.Label(commodity_data_frame, text='Commodity Data', font='Helvetica 10 bold').grid(row=1, columnspan=2,
+                                                                                            sticky='ew')
 
-        ttk.Label(market_data_frame, text='File/Folder').grid(row=3, column=0, sticky='ew')
-        ttk.Label(market_data_frame, text=self.market_data_textvar.get()).grid(row=3, column=1, sticky='ew')
+            self.single_or_multiple_commodity_profiles_var = StringVar()
+            if self.pm_object_copy.get_single_or_multiple_commodity_profiles():
+                self.single_or_multiple_commodity_profiles_var.set('single')
+            else:
+                self.single_or_multiple_commodity_profiles_var.set('multiple')
 
-        ttk.Button(market_data_frame, text='Select profile(s)', command=self.set_market_data).grid(row=4, column=0,
-                                                                                                   sticky='ew')
-        ttk.Button(market_data_frame, text='Create new price template',
-                   command=self.create_market_data_template).grid(row=4, column=1, sticky='ew')
+            self.rb_single = ttk.Radiobutton(commodity_data_frame, text='Use single profile', value='single',
+                                             variable=self.single_or_multiple_commodity_profiles_var,
+                                             command=self.set_commodity_single_or_multiple_profiles)
+            self.rb_single.grid(row=2, column=0, sticky='ew')
 
-        market_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
-        market_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
-        market_data_frame.grid(row=1, sticky='ew')
+            self.rb_several = ttk.Radiobutton(commodity_data_frame, text='Use multiple profiles', value='multiple',
+                                              variable=self.single_or_multiple_commodity_profiles_var,
+                                              command=self.set_commodity_single_or_multiple_profiles)
+            self.rb_several.grid(row=2, column=1, sticky='ew')
+
+            self.commodity_data_textvar = StringVar()
+            try:
+                path = self.pm_object_copy.get_commodity_data()
+                file_name = path.split('/')[-1]
+                self.commodity_data_textvar.set(file_name)
+            except:
+                self.commodity_data_textvar.set('')
+
+            ttk.Label(commodity_data_frame, text='File/Folder').grid(row=3, column=0, sticky='ew')
+            ttk.Label(commodity_data_frame, text=self.commodity_data_textvar.get()).grid(row=3, column=1, sticky='ew')
+
+            ttk.Button(commodity_data_frame, text='Select profile(s)', command=self.set_commodity_data).grid(row=4, column=0,
+                                                                                                       sticky='ew')
+            ttk.Button(commodity_data_frame, text='Create new commodity template',
+                       command=self.create_commodity_data_template).grid(row=4, column=1, sticky='ew')
+
+            commodity_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
+            commodity_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
+            commodity_data_frame.grid(row=1, sticky='ew')
 
         # ----
         # Representative Period Data
@@ -1082,7 +1121,7 @@ class SettingWindow:
             profile_label.grid(row=4, column=1, columnspan=2, sticky='w')
 
             ttk.Label(frame, text='Solver').grid(row=5, column=0, sticky='w')
-            solvers = ['gurobi', 'cplex', 'glpk']
+            solvers = ['gurobi', 'cplex', 'glpk', 'cbc']
             self.solver_combobox = ttk.Combobox(frame, values=solvers, state='readonly')
             self.solver_combobox.set(self.choose_solver_var.get())
             self.solver_combobox.grid(row=5, column=1, sticky='ew')
@@ -1130,27 +1169,37 @@ class SettingWindow:
             ttk.Label(window_no_paths, text='Please choose Optimization Project(s)').pack()
             ttk.Button(window_no_paths, text='Ok', command=kill_no_paths_window).pack()
 
-        elif (self.optimize_variable.get() == 'visualize_only') & (check_empty(self.path_visualization)):
+        elif (self.optimize_or_visualize_projects_variable.get() == 'visualize') & (check_empty(self.path_visualization)):
             window_no_paths = Toplevel(self.window)
             ttk.Label(window_no_paths, text='Please choose result folder').pack()
             ttk.Button(window_no_paths, text='Ok', command=kill_no_paths_window).pack()
 
         else:
 
-            self.base_settings.loc['path_data'] = self.path_data
-            self.base_settings.loc['path_result'] = self.path_result
-            self.base_settings.loc['path_projects'] = self.path_projects
-
-            self.base_settings.loc['optimization_or_visualization'] = self.optimize_or_visualize_projects_variable.get()
+            config = {'path_data': self.path_data,
+                      'path_result': self.path_result,
+                      'path_projects': self.path_projects,
+                      'optimization_or_visualization': self.optimize_or_visualize_projects_variable.get()}
 
             if self.optimize_or_visualize_projects_variable.get() == 'optimize':
-                self.base_settings.loc['chosen_optimization_setting'] = self.optimize_variable.get()
-                self.base_settings.loc['path_optimize'] = self.path_optimize
-                self.base_settings.loc['solver'] = self.solver_combobox.get()
-            else:
-                self.base_settings.loc['path_visualization'] = self.path_visualization
+                config['chosen_optimization_setting'] = self.optimize_variable.get()
+                config['path_optimize'] = self.path_optimize
+                config['solver'] = self.solver_combobox.get()
+                config['path_visualization'] = self.path_visualization
 
-            self.base_settings.to_excel(os.getcwd() + '/base_settings.xlsx', index=True)
+                self.solver = self.solver_combobox.get()
+
+            else:
+                config['chosen_optimization_setting'] = self.config_yaml.get("chosen_optimization_setting")
+                config['path_optimize'] = self.path_optimize
+                config['solver'] = self.solver
+                config['path_visualization'] = self.path_visualization
+
+            file = open(self.path_config, "w")
+
+            yaml.dump(config, file)
+
+            file.close()
 
             self.go_on = True
             self.window.destroy()
@@ -1167,21 +1216,22 @@ class SettingWindow:
         self.frame.pack()
         self.go_on = False
 
-        path_base_setting = os.getcwd() + '/base_settings.xlsx'
-        self.base_settings = pd.read_excel(path_base_setting, index_col=0)
+        self.path_config = os.getcwd() + '/config.yaml'
+        yaml_file = open(self.path_config)
+        self.config_yaml = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
-        self.path_data = self.base_settings.loc['path_data'].values[0]
-        self.path_result = self.base_settings.loc['path_result'].values[0]
-        self.path_projects = self.base_settings.loc['path_projects'].values[0]
-        self.path_optimize = self.base_settings.loc['path_optimize'].values[0]
-        self.solver = self.base_settings.loc['solver'].values[0]
-        self.path_visualization = self.base_settings.loc['path_visualization'].values[0]
+        self.path_data = self.config_yaml.get("path_data")
+        self.path_result = self.config_yaml.get("path_result")
+        self.path_projects = self.config_yaml.get("path_projects")
+        self.path_optimize = self.config_yaml.get("path_optimize")
+        self.solver = self.config_yaml.get("solver")
+        self.path_visualization = self.config_yaml.get("path_visualization")
 
         self.optimize_or_visualize_projects_variable = StringVar()
-        self.optimize_or_visualize_projects_variable.set(self.base_settings.loc['optimization_or_visualization'].values[0])
+        self.optimize_or_visualize_projects_variable.set(self.config_yaml.get("optimization_or_visualization"))
 
         self.optimize_variable = StringVar()
-        self.optimize_variable.set(self.base_settings.loc['chosen_optimization_setting'].values[0])
+        self.optimize_variable.set(self.config_yaml.get("chosen_optimization_setting"))
 
         self.choose_data_folder_var = StringVar()
         self.choose_result_folder_var = StringVar()
@@ -1276,186 +1326,171 @@ class SettingWindow:
 
 def save_current_parameters_and_options(pm_object, path_name):
 
-    case_data = pd.DataFrame()
-
-    k = 0
-
-    case_data.loc[k, 'version'] = '0.0.7'
-
-    k += 1
+    case_data = {'version': '0.0.8', 'general_parameter': {}}
 
     for parameter in pm_object.get_general_parameters():
+        case_data['general_parameter'][parameter] = {}
         value = pm_object.get_general_parameter_value(parameter)
+        nice_name = pm_object.get_nice_name(parameter)
+        case_data['general_parameter'][parameter]['value'] = value
+        case_data['general_parameter'][parameter]['nice_name'] = nice_name
 
-        case_data.loc[k, 'type'] = 'general_parameter'
-        case_data.loc[k, 'parameter'] = parameter
-        case_data.loc[k, 'value'] = value
+    case_data['representative_periods'] = {}
+    case_data['representative_periods']['uses_representative_periods'] = pm_object.get_uses_representative_periods()
+    case_data['representative_periods']['representative_periods_length'] = pm_object.get_representative_periods_length()
+    case_data['representative_periods']['path_weighting'] = pm_object.get_path_weighting()
+    case_data['representative_periods']['covered_period'] = pm_object.get_covered_period()
 
-        k += 1
+    case_data['monetary_unit'] = pm_object.get_monetary_unit()
 
-    case_data.loc[k, 'type'] = 'representative_periods'
-    case_data.loc[k, 'representative_periods'] = pm_object.get_uses_representative_periods()
-    case_data.loc[k, 'representative_periods_length'] = pm_object.get_representative_periods_length()
-    case_data.loc[k, 'path_weighting'] = pm_object.get_path_weighting()
-    case_data.loc[k, 'covered_period'] = pm_object.get_covered_period()
+    case_data['generation_data'] = {}
+    case_data['generation_data']['single_or_multiple_profiles'] = pm_object.get_single_or_multiple_generation_profiles()
+    case_data['generation_data']['generation_data'] = pm_object.get_generation_data()
 
-    k += 1
+    case_data['commodity_data'] = {}
+    case_data['commodity_data']['single_or_multiple_profiles'] = pm_object.get_single_or_multiple_commodity_profiles()
+    case_data['commodity_data']['commodity_data'] = pm_object.get_commodity_data()
 
-    case_data.loc[k, 'type'] = 'monetary_unit'
-    case_data.loc[k, 'monetary_unit'] = pm_object.get_monetary_unit()
-
-    k += 1
-
-    case_data.loc[k, 'type'] = 'generation_data'
-    case_data.loc[k, 'single_profile'] = pm_object.get_generation_data_status()
-    case_data.loc[k, 'generation_data'] = pm_object.get_generation_data()
-
-    k += 1
-
-    case_data.loc[k, 'type'] = 'market_data'
-    case_data.loc[k, 'single_profile'] = pm_object.get_market_data_status()
-    case_data.loc[k, 'market_data'] = pm_object.get_market_data()
-
-    k += 1
+    case_data['component'] = {}
 
     for component in pm_object.get_all_components():
 
-        case_data.loc[k, 'type'] = 'component'
-        case_data.loc[k, 'component_type'] = component.get_component_type()
-        case_data.loc[k, 'final'] = component.is_final()
-        case_data.loc[k, 'name'] = component.get_name()
-        case_data.loc[k, 'nice_name'] = component.get_nice_name()
-        case_data.loc[k, 'capex'] = component.get_capex()
-        case_data.loc[k, 'lifetime'] = component.get_lifetime()
-        case_data.loc[k, 'maintenance'] = component.get_maintenance()
+        case_data['component'][component.get_name()] = {}
+
+        case_data['component'][component.get_name()]['component_type'] = component.get_component_type()
+        case_data['component'][component.get_name()]['final'] = component.is_final()
+        case_data['component'][component.get_name()]['name'] = component.get_name()
+        case_data['component'][component.get_name()]['nice_name'] = component.get_nice_name()
+        case_data['component'][component.get_name()]['capex'] = component.get_capex()
+        case_data['component'][component.get_name()]['lifetime'] = component.get_lifetime()
+        case_data['component'][component.get_name()]['maintenance'] = component.get_maintenance()
 
         if component.get_component_type() == 'conversion':
 
-            case_data.loc[k, 'capex_basis'] = component.get_capex_basis()
-            case_data.loc[k, 'scalable'] = component.is_scalable()
-            case_data.loc[k, 'base_investment'] = component.get_base_investment()
-            case_data.loc[k, 'base_capacity'] = component.get_base_capacity()
-            case_data.loc[k, 'economies_of_scale'] = component.get_economies_of_scale()
-            case_data.loc[k, 'max_capacity_economies_of_scale'] = component.get_max_capacity_economies_of_scale()
+            case_data['component'][component.get_name()]['capex_basis'] = component.get_capex_basis()
+            case_data['component'][component.get_name()]['scalable'] = component.is_scalable()
+            case_data['component'][component.get_name()]['base_investment'] = component.get_base_investment()
+            case_data['component'][component.get_name()]['base_capacity'] = component.get_base_capacity()
+            case_data['component'][component.get_name()]['economies_of_scale'] = component.get_economies_of_scale()
+            case_data['component'][component.get_name()]['max_capacity_economies_of_scale'] = component.get_max_capacity_economies_of_scale()
 
-            case_data.loc[k, 'min_p'] = component.get_min_p()
-            case_data.loc[k, 'max_p'] = component.get_max_p()
+            case_data['component'][component.get_name()]['min_p'] = component.get_min_p()
+            case_data['component'][component.get_name()]['max_p'] = component.get_max_p()
 
-            case_data.loc[k, 'ramp_up'] = component.get_ramp_up()
-            case_data.loc[k, 'ramp_down'] = component.get_ramp_down()
+            case_data['component'][component.get_name()]['ramp_up'] = component.get_ramp_up()
+            case_data['component'][component.get_name()]['ramp_down'] = component.get_ramp_down()
 
-            case_data.loc[k, 'shut_down_ability'] = component.get_shut_down_ability()
+            case_data['component'][component.get_name()]['shut_down_ability'] = component.get_shut_down_ability()
             if component.get_shut_down_ability():
-                case_data.loc[k, 'start_up_time'] = component.get_start_up_time()
-                case_data.loc[k, 'start_up_costs'] = component.get_start_up_costs()
+                case_data['component'][component.get_name()]['start_up_time'] = component.get_start_up_time()
+                case_data['component'][component.get_name()]['start_up_costs'] = component.get_start_up_costs()
             else:
-                case_data.loc[k, 'start_up_time'] = 0
-                case_data.loc[k, 'start_up_costs'] = 0
+                case_data['component'][component.get_name()]['start_up_time'] = 0
+                case_data['component'][component.get_name()]['start_up_costs'] = 0
 
-            case_data.loc[k, 'hot_standby_ability'] = component.get_hot_standby_ability()
+            case_data['component'][component.get_name()]['hot_standby_ability'] = component.get_hot_standby_ability()
             if component.get_hot_standby_ability():
-                case_data.loc[k, 'hot_standby_commodity'] = [*component.get_hot_standby_demand().keys()][0]
-                case_data.loc[k, 'hot_standby_demand'] = component.get_hot_standby_demand()[
+                case_data['component'][component.get_name()]['hot_standby_commodity'] = [*component.get_hot_standby_demand().keys()][0]
+                case_data['component'][component.get_name()]['hot_standby_demand'] = component.get_hot_standby_demand()[
                     [*component.get_hot_standby_demand().keys()][0]]
-                case_data.loc[k, 'hot_standby_startup_time'] = component.get_hot_standby_startup_time()
+                case_data['component'][component.get_name()]['hot_standby_startup_time'] = component.get_hot_standby_startup_time()
             else:
-                case_data.loc[k, 'hot_standby_commodity'] = ''
-                case_data.loc[k, 'hot_standby_demand'] = 0
-                case_data.loc[k, 'hot_standby_startup_time'] = 0
+                case_data['component'][component.get_name()]['hot_standby_commodity'] = ''
+                case_data['component'][component.get_name()]['hot_standby_demand'] = 0
+                case_data['component'][component.get_name()]['hot_standby_startup_time'] = 0
 
-            case_data.loc[k, 'number_parallel_units'] = component.get_number_parallel_units()
+            case_data['component'][component.get_name()]['number_parallel_units'] = component.get_number_parallel_units()
 
         elif component.get_component_type() == 'generator':
 
-            case_data.loc[k, 'generated_commodity'] = component.get_generated_commodity()
-            case_data.loc[k, 'curtailment_possible'] = component.get_curtailment_possible()
+            case_data['component'][component.get_name()]['generated_commodity'] = component.get_generated_commodity()
+            case_data['component'][component.get_name()]['curtailment_possible'] = component.get_curtailment_possible()
+            case_data['component'][component.get_name()]['has_fixed_capacity'] = component.get_has_fixed_capacity()
+            case_data['component'][component.get_name()]['fixed_capacity'] = component.get_fixed_capacity()
 
         elif component.get_component_type() == 'storage':
 
-            case_data.loc[k, 'min_soc'] = component.get_min_soc()
-            case_data.loc[k, 'max_soc'] = component.get_max_soc()
-            case_data.loc[k, 'initial_soc'] = component.get_initial_soc()
-            case_data.loc[k, 'charging_efficiency'] = component.get_charging_efficiency()
-            case_data.loc[k, 'discharging_efficiency'] = component.get_discharging_efficiency()
-            case_data.loc[k, 'leakage'] = component.get_leakage()
-            case_data.loc[k, 'ratio_capacity_p'] = component.get_ratio_capacity_p()
+            case_data['component'][component.get_name()]['min_soc'] = component.get_min_soc()
+            case_data['component'][component.get_name()]['max_soc'] = component.get_max_soc()
+            case_data['component'][component.get_name()]['initial_soc'] = component.get_initial_soc()
+            case_data['component'][component.get_name()]['charging_efficiency'] = component.get_charging_efficiency()
+            case_data['component'][component.get_name()]['discharging_efficiency'] = component.get_discharging_efficiency()
+            case_data['component'][component.get_name()]['leakage'] = component.get_leakage()
+            case_data['component'][component.get_name()]['ratio_capacity_p'] = component.get_ratio_capacity_p()
 
-        case_data.loc[k, 'taxes_and_insurance'] = pm_object\
+        case_data['component'][component.get_name()]['taxes_and_insurance'] = pm_object\
             .get_applied_parameter_for_component('taxes_and_insurance', component.get_name())
-        case_data.loc[k, 'personnel_costs'] = pm_object\
+        case_data['component'][component.get_name()]['personnel_costs'] = pm_object\
             .get_applied_parameter_for_component('personnel_costs', component.get_name())
-        case_data.loc[k, 'overhead'] = pm_object\
+        case_data['component'][component.get_name()]['overhead'] = pm_object\
             .get_applied_parameter_for_component('overhead', component.get_name())
-        case_data.loc[k, 'working_capital'] = pm_object\
+        case_data['component'][component.get_name()]['working_capital'] = pm_object\
             .get_applied_parameter_for_component('working_capital', component.get_name())
 
-        k += 1
-
+    case_data['conversions'] = {}
     for component in pm_object.get_final_conversion_components_objects():
 
+        case_data['conversions'][component.get_name()] = {}
+        case_data['conversions'][component.get_name()]['input'] = {}
+        case_data['conversions'][component.get_name()]['output'] = {}
+
         inputs = component.get_inputs()
+        inputs_dict = {}
         for i in [*inputs.keys()]:
-            case_data.loc[k, 'type'] = 'input'
-            case_data.loc[k, 'component'] = component.get_name()
-            case_data.loc[k, 'input_commodity'] = i
-            case_data.loc[k, 'coefficient'] = inputs[i]
+
+            inputs_dict[i] = inputs[i]
 
             if i == component.get_main_input():
-                case_data.loc[k, 'main_input'] = True
-            else:
-                case_data.loc[k, 'main_input'] = False
+                case_data['conversions'][component.get_name()]['main_input'] = i
 
-            k += 1
+        case_data['conversions'][component.get_name()]['input'] = inputs_dict
 
         outputs = component.get_outputs()
+        outputs_dict = {}
         for o in [*outputs.keys()]:
-            case_data.loc[k, 'type'] = 'output'
-            case_data.loc[k, 'component'] = component.get_name()
-            case_data.loc[k, 'output_commodity'] = o
-            case_data.loc[k, 'coefficient'] = outputs[o]
+
+            outputs_dict[o] = outputs[o]
 
             if o == component.get_main_output():
-                case_data.loc[k, 'main_output'] = True
-            else:
-                case_data.loc[k, 'main_output'] = False
+                case_data['conversions'][component.get_name()]['main_output'] = o
 
-            k += 1
+        case_data['conversions'][component.get_name()]['output'] = outputs_dict
 
+    case_data['commodity'] = {}
     for commodity in pm_object.get_final_commodities_objects():
+        case_data['commodity'][commodity.get_name()] = {}
 
-        case_data.loc[k, 'type'] = 'commodity'
-        case_data.loc[k, 'name'] = commodity.get_name()
-        case_data.loc[k, 'nice_name'] = commodity.get_nice_name()
-        case_data.loc[k, 'unit'] = commodity.get_unit()
+        case_data['commodity'][commodity.get_name()]['name'] = commodity.get_name()
+        case_data['commodity'][commodity.get_name()]['nice_name'] = commodity.get_nice_name()
+        case_data['commodity'][commodity.get_name()]['unit'] = commodity.get_unit()
 
-        case_data.loc[k, 'available'] = commodity.is_available()
-        case_data.loc[k, 'emitted'] = commodity.is_emittable()
-        case_data.loc[k, 'purchasable'] = commodity.is_purchasable()
-        case_data.loc[k, 'saleable'] = commodity.is_saleable()
-        case_data.loc[k, 'demanded'] = commodity.is_demanded()
-        case_data.loc[k, 'total_demand'] = commodity.is_total_demand()
-        case_data.loc[k, 'final'] = commodity.is_final()
+        case_data['commodity'][commodity.get_name()]['available'] = commodity.is_available()
+        case_data['commodity'][commodity.get_name()]['emitted'] = commodity.is_emittable()
+        case_data['commodity'][commodity.get_name()]['purchasable'] = commodity.is_purchasable()
+        case_data['commodity'][commodity.get_name()]['saleable'] = commodity.is_saleable()
+        case_data['commodity'][commodity.get_name()]['demanded'] = commodity.is_demanded()
+        case_data['commodity'][commodity.get_name()]['total_demand'] = commodity.is_total_demand()
+        case_data['commodity'][commodity.get_name()]['final'] = commodity.is_final()
 
         # Purchasable commodities
-        case_data.loc[k, 'purchase_price_type'] = commodity.get_purchase_price_type()
-        case_data.loc[k, 'purchase_price'] = commodity.get_purchase_price()
+        case_data['commodity'][commodity.get_name()]['purchase_price_type'] = commodity.get_purchase_price_type()
+        case_data['commodity'][commodity.get_name()]['purchase_price'] = commodity.get_purchase_price()
 
         # Saleable commodities
-        case_data.loc[k, 'selling_price_type'] = commodity.get_sale_price_type()
-        case_data.loc[k, 'selling_price'] = commodity.get_sale_price()
+        case_data['commodity'][commodity.get_name()]['selling_price_type'] = commodity.get_sale_price_type()
+        case_data['commodity'][commodity.get_name()]['selling_price'] = commodity.get_sale_price()
 
         # Demand
-        case_data.loc[k, 'demand'] = commodity.get_demand()
+        case_data['commodity'][commodity.get_name()]['demand'] = commodity.get_demand()
+        case_data['commodity'][commodity.get_name()]['demand_type'] = commodity.get_demand_type()
 
-        case_data.loc[k, 'energy_content'] = commodity.get_energy_content()
+        case_data['commodity'][commodity.get_name()]['energy_content'] = commodity.get_energy_content()
 
-        k += 1
-
+    case_data['names'] = {}
     for abbreviation in pm_object.get_all_abbreviations():
-        case_data.loc[k, 'type'] = 'names'
-        case_data.loc[k, 'name'] = abbreviation
-        case_data.loc[k, 'nice_name'] = pm_object.get_nice_name(abbreviation)
+        case_data['names']['name'] = abbreviation
+        case_data['names']['nice_name'] = pm_object.get_nice_name(abbreviation)
 
-        k += 1
-
-    case_data.to_excel(path_name, index=True)
+    file = open(path_name, "w")
+    yaml.dump(case_data, file)
+    file.close()

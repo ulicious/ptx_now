@@ -68,17 +68,17 @@ class Component:
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
-        self.name = name
-        self.nice_name = nice_name
+        self.name = str(name)
+        self.nice_name = str(nice_name)
         self.component_type = None
 
         self.final_unit = bool(final_unit)
         self.custom_unit = bool(custom_unit)
 
-        self.capex = capex
+        self.capex = float(capex)
 
-        self.lifetime = lifetime
-        self.maintenance = maintenance
+        self.lifetime = float(lifetime)
+        self.maintenance = float(maintenance)
 
 
 class ConversionComponent(Component):
@@ -327,14 +327,14 @@ class ConversionComponent(Component):
         else:
             self.commodities = commodities
 
-        self.min_p = min_p
-        self.max_p = max_p
-        self.ramp_down = ramp_down
-        self.ramp_up = ramp_up
+        self.min_p = float(min_p)
+        self.max_p = float(max_p)
+        self.ramp_down = float(ramp_down)
+        self.ramp_up = float(ramp_up)
 
         self.shut_down_ability = bool(shut_down_ability)
         self.start_up_time = int(start_up_time)
-        self.start_up_costs = start_up_costs
+        self.start_up_costs = float(start_up_costs)
 
         self.hot_standby_ability = bool(hot_standby_ability)
         if hot_standby_demand is None:
@@ -343,14 +343,13 @@ class ConversionComponent(Component):
             self.hot_standby_demand = hot_standby_demand
         self.hot_standby_startup_time = int(hot_standby_startup_time)
 
-        self.capex = capex
         self.capex_basis = capex_basis
-        self.base_investment = base_investment
-        self.base_capacity = base_capacity
-        self.economies_of_scale = economies_of_scale
-        self.max_capacity_economies_of_scale = max_capacity_economies_of_scale
+        self.base_investment = float(base_investment)
+        self.base_capacity = float(base_capacity)
+        self.economies_of_scale = float(economies_of_scale)
+        self.max_capacity_economies_of_scale = float(max_capacity_economies_of_scale)
 
-        self.number_parallel_units = number_parallel_units
+        self.number_parallel_units = int(number_parallel_units)
 
 
 class StorageComponent(Component):
@@ -454,20 +453,33 @@ class GenerationComponent(Component):
         return self.generated_commodity
 
     def set_curtailment_possible(self, status):
-        self.curtailment_possible = status
+        self.curtailment_possible = bool(status)
 
     def get_curtailment_possible(self):
         return self.curtailment_possible
+
+    def set_has_fixed_capacity(self, status):
+        self.has_fixed_capacity = bool(status)
+
+    def get_has_fixed_capacity(self):
+        return self.has_fixed_capacity
+
+    def set_fixed_capacity(self, fixed_capacity):
+        self.fixed_capacity = float(fixed_capacity)
+
+    def get_fixed_capacity(self):
+        return self.fixed_capacity
 
     def __copy__(self):
         return GenerationComponent(name=self.name, nice_name=self.nice_name, lifetime=self.lifetime,
                                    maintenance=self.maintenance, capex=self.capex,
                                    generated_commodity=self.generated_commodity,
                                    curtailment_possible=self.curtailment_possible,
+                                   has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
                                    final_unit=self.final_unit, custom_unit=self.custom_unit)
 
     def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., generated_commodity='electricity',
-                 curtailment_possible=True,
+                 curtailment_possible=True, has_fixed_capacity=False, fixed_capacity=0.,
                  final_unit=False, custom_unit=False):
 
         """
@@ -489,3 +501,5 @@ class GenerationComponent(Component):
 
         self.generated_commodity = generated_commodity
         self.curtailment_possible = bool(curtailment_possible)
+        self.has_fixed_capacity = bool(has_fixed_capacity)
+        self.fixed_capacity = float(fixed_capacity)

@@ -3,6 +3,14 @@ from pyomo.core import *
 from pyomo.core import Binary
 from copy import deepcopy
 
+import os
+
+GLPK_FOLDER_PATH = "C:/Users/mt5285/glpk/w64"
+os.environ["PATH"] += os.pathsep + str(GLPK_FOLDER_PATH)
+
+from pyutilib.services import register_executable
+register_executable(name='glpsol')
+
 
 class OptimizationProblem:
 
@@ -98,6 +106,8 @@ class OptimizationProblem:
         self.model.maximal_soc = Param(self.model.STORAGES, initialize=self.maximal_soc_dict)
 
         self.model.ratio_capacity_p = Param(self.model.STORAGES, initialize=self.ratio_capacity_power_dict)
+
+        self.model.generator_fixed_capacity = Param(self.model.GENERATORS, initialize=self.fixed_capacity_dict)
 
     def attach_scalable_component_parameters_to_optimization_problem(self):
         # Investment linearized: Investment = capex var * capacity + capex fix
@@ -571,6 +581,13 @@ class OptimizationProblem:
         model.power_generation_con = Constraint(model.GENERATORS, model.ME_STREAMS, model.TIME,
                                                 rule=power_generation_rule)
 
+        def attach_fixed_capacity_rule(m, g):
+            if pm_object.get_component(g).get_has_fixed_capacity():
+                return m.nominal_cap[g] == m.generator_fixed_capacity[g]
+            else:
+                return Constraint.Skip
+        model.attach_fixed_capacity_con = Constraint(model.GENERATORS, rule=attach_fixed_capacity_rule)
+
         def total_power_generation_rule(m, me, t):
             return m.mass_energy_total_generation[me, t] == sum(m.mass_energy_generation[g, me, t]
                                                                 for g in m.GENERATORS)
@@ -851,7 +868,12 @@ class OptimizationProblem:
         return model
 
     def optimize(self, instance=None):
-        opt = pyo.SolverFactory(self.solver, solver_io="python")
+
+        if (self.solver == 'cbc') | (self.solver == 'glpk'):
+            opt = pyo.SolverFactory(self.solver)
+        else:
+            opt = pyo.SolverFactory(self.solver, solver_io="python")
+
         opt.options["mipgap"] = 0.01
         if instance is None:
             instance = self.model.create_instance()
@@ -888,7 +910,7 @@ class OptimizationProblem:
             self.shut_down_down_time_dict, self.shut_down_start_up_costs, self.standby_down_time_dict,\
             self.charging_efficiency_dict, self.discharging_efficiency_dict,\
             self.minimal_soc_dict, self.maximal_soc_dict, \
-            self.ratio_capacity_power_dict = self.pm_object.get_all_component_parameters()
+            self.ratio_capacity_power_dict, self.fixed_capacity_dict = self.pm_object.get_all_component_parameters()
 
         self.scalable_components, self.not_scalable_components, self.shut_down_components,\
             self.no_shut_down_components, self.standby_components,\

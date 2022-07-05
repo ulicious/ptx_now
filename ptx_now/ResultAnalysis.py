@@ -1721,8 +1721,8 @@ class ResultAnalysis:
             shutil.copy(self.pm_object.get_generation_data(),
                         self.new_result_folder + '/8_generation_profile.xlsx')
 
-        if self.pm_object.get_market_data_needed():
-            pd.read_excel(self.pm_object.get_market_data(),
+        if self.pm_object.get_commodity_data_needed():
+            pd.read_excel(self.pm_object.get_commodity_data(),
                           index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
 
     def __init__(self, optimization_problem, path_result):

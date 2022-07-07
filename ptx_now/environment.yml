@@ -1,7 +1,0 @@
-name: ptx_now
-channels:
-  - defaults
-dependencies:
-  - pip:
-    - pandas
-    - gurobipy

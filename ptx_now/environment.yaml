@@ -1,0 +1,11 @@
+name: ptx_now
+channels:
+  - defaults
+dependencies:
+  - pip:
+    - geographiclib==1.52
+    - geopy==2.2.0
+    - haversine==2.5.1
+    - pint==0.18
+    - ply==3.11
+    - pyomo==6.4.0

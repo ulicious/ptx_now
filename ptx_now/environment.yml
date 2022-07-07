@@ -1,0 +1,5 @@
+name: ptx_now
+channels:
+  - defaults
+dependencies:
+  - pandas

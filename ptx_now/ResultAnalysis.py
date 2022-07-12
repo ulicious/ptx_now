@@ -1307,7 +1307,11 @@ class ResultAnalysis:
 
             generation_df = pd.DataFrame(index=pd.Index([self.pm_object.get_component(s).get_nice_name()
                                                          for s in self.model.GENERATORS]))
-            generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+
+            if self.pm_object.get_generation_data().split('.')[-1] == 'xlsx':
+                generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+            else:
+                generation_profile = pd.read_csv(self.pm_object.get_generation_data(), index_col=0)
 
             covered_period = self.pm_object.get_covered_period()-1
 
@@ -1317,7 +1321,7 @@ class ResultAnalysis:
                 generator_nice_name = generator_object.get_nice_name()
                 generated_commodity = self.pm_object.get_commodity(generator_object.get_generated_commodity()).get_nice_name()
 
-                generator_profile = generation_profile.loc[0:covered_period, generator_nice_name]
+                generator_profile = generation_profile.iloc[0:covered_period+1][generator_nice_name]
 
                 investment = self.all_variables_dict['investment'][generator]
                 capacity = self.all_variables_dict['nominal_cap'][generator]
@@ -1718,12 +1722,21 @@ class ResultAnalysis:
     def copy_input_data(self):
         import shutil
         if self.model.GENERATORS:
-            shutil.copy(self.pm_object.get_generation_data(),
-                        self.new_result_folder + '/8_generation_profile.xlsx')
+            if self.pm_object.get_generation_data().split('.')[-1] == 'xlsx':
+                shutil.copy(self.pm_object.get_generation_data(),
+                            self.new_result_folder + '/8_generation_profile.xlsx')
+            else:
+                shutil.copy(self.pm_object.get_generation_data(),
+                            self.new_result_folder + '/8_generation_profile.csv')
 
         if self.pm_object.get_commodity_data_needed():
-            pd.read_excel(self.pm_object.get_commodity_data(),
-                          index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
+
+            if self.pm_object.get_commodity_data().split('.')[-1] == 'xlsx':
+                pd.read_excel(self.pm_object.get_commodity_data(),
+                              index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
+            else:
+                pd.read_csv(self.pm_object.get_commodity_data(),
+                            index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
 
     def __init__(self, optimization_problem, path_result):
 

@@ -175,15 +175,6 @@ class GUI:
         commodities_without_sink = []
         profile_not_exist = []
 
-        if self.pm_object_copy.get_commodity_data_needed():
-            try:
-                commodity_data = pd.read_excel(self.path_data + self.pm_object_copy.get_commodity_data(),
-                                               index_col=0)
-            except:
-                commodity_data = None
-        else:
-            commodity_data = None
-
         for commodity in self.pm_object_copy.get_final_commodities_objects():
 
             well_existing = False
@@ -243,7 +234,7 @@ class GUI:
 
         # Check if a profile for the generation unit exists, if generation unit is enabled
         if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
-            if self.pm_object_copy.get_single_or_multiple_generation_profiles():
+            if self.pm_object_copy.get_single_or_multiple_generation_profiles() == 'single':
                 generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_generation_data(), index_col=0)
 
                 for generator in self.pm_object_copy.get_final_generator_components_objects():
@@ -254,36 +245,109 @@ class GUI:
                 _, _, filenames = next(walk(path_to_generation_files))
 
                 for f in filenames:
-                    generation_profile = pd.read_excel(path_to_generation_files + '/' + f, index_col=0)
+                    path = path_to_generation_files + '/' + f
+                    if path.split('.')[-1] == 'xlsx':
+                        generation_profile = pd.read_excel(path, index_col=0)
+                    else:
+                        generation_profile = pd.read_csv(path, index_col=0)
 
                     for generator in self.pm_object_copy.get_final_generator_components_objects():
                         if generator.get_nice_name() not in generation_profile.columns:
                             profile_not_exist.append(generator.get_nice_name())
 
-        # Check if a profile for the commodities exists, if needed
+                    break
+
+        # Check if a profile for the commodity unit exists
         for commodity in self.pm_object_copy.get_final_commodities_objects():
             if commodity.is_saleable():
                 if commodity.get_sale_price_type() == 'variable':
-                    if commodity_data is not None:
-                        name = commodity.get_nice_name() + '_Selling_Price'
-                        if name not in commodity_data.columns:
-                            profile_not_exist.append(commodity.get_nice_name())
+
+                    column_name = commodity.get_nice_name() + '_Selling_Price'
+
+                    if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                        if self.pm_object_copy.get_commodity_data().split('.')[-1] == 'xlsx':
+                            commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_commodity_data(),
+                                                              index_col=0)
+                        else:
+                            commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_commodity_data(),
+                                                            index_col=0)
+
+                        if column_name not in commodity_profile.columns:
+                            profile_not_exist.append(commodity.get_nice_name() + ' Selling Price')
+                    else:
+                        path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_commodity_data()
+                        _, _, filenames = next(walk(path_to_commodity_files))
+
+                        for f in filenames:
+                            path = path_to_commodity_files + '/' + f
+                            if path.split('.')[-1] == 'xlsx':
+                                commodity_profile = pd.read_excel(path, index_col=0)
+                            else:
+                                commodity_profile = pd.read_csv(path, index_col=0)
+
+                            if column_name not in commodity_profile.columns:
+                                profile_not_exist.append(commodity.get_nice_name() + ' Selling Price')
+
                             break
 
             if commodity.is_purchasable():
                 if commodity.get_purchase_price_type() == 'variable':
-                    if commodity_data is not None:
-                        name = commodity.get_nice_name() + '_Purchase_Price'
-                        if name not in commodity_data.columns:
-                            profile_not_exist.append(commodity.get_nice_name())
+                    column_name = commodity.get_nice_name() + '_Purchase_Price'
+
+                    if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                        if self.pm_object_copy.get_commodity_data().split('.')[-1] == 'xlsx':
+                            commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_commodity_data(),
+                                                              index_col=0)
+                        else:
+                            commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_commodity_data(),
+                                                            index_col=0)
+
+                        if column_name not in commodity_profile.columns:
+                            profile_not_exist.append(commodity.get_nice_name() + ' Purchase Price')
+                    else:
+                        path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_commodity_data()
+                        _, _, filenames = next(walk(path_to_commodity_files))
+
+                        for f in filenames:
+                            path = path_to_commodity_files + '/' + f
+                            if path.split('.')[-1] == 'xlsx':
+                                commodity_profile = pd.read_excel(path, index_col=0)
+                            else:
+                                commodity_profile = pd.read_csv(path, index_col=0)
+
+                            if column_name not in commodity_profile.columns:
+                                profile_not_exist.append(commodity.get_nice_name() + ' Purchase Price')
+
                             break
 
             if commodity.is_demanded():
-                if commodity.get_demand_type() == 'variable':
-                    if commodity_data is not None:
-                        name = commodity.get_nice_name() + '_Demand'
-                        if name not in commodity_data.columns:
-                            profile_not_exist.append(commodity.get_nice_name())
+                if commodity.get_purchase_price_type() == 'variable':
+                    column_name = commodity.get_nice_name() + '_Demand'
+
+                    if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                        if self.pm_object_copy.get_commodity_data().split('.')[-1] == 'xlsx':
+                            commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_commodity_data(),
+                                                              index_col=0)
+                        else:
+                            commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_commodity_data(),
+                                                            index_col=0)
+
+                        if column_name not in commodity_profile.columns:
+                            profile_not_exist.append(commodity.get_nice_name() + ' Demand')
+                    else:
+                        path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_commodity_data()
+                        _, _, filenames = next(walk(path_to_commodity_files))
+
+                        for f in filenames:
+                            path = path_to_commodity_files + '/' + f
+                            if path.split('.')[-1] == 'xlsx':
+                                commodity_profile = pd.read_excel(path, index_col=0)
+                            else:
+                                commodity_profile = pd.read_csv(path, index_col=0)
+
+                            if column_name not in commodity_profile.columns:
+                                profile_not_exist.append(commodity.get_nice_name() + ' Demand')
+
                             break
 
         # Create alert if sink, well or profile is missing

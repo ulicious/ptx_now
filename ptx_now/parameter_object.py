@@ -942,8 +942,8 @@ class ParameterObject:
             if generator.get_generated_commodity() not in generated_commodities:
                 generated_commodities.append(generator.get_generated_commodity())
 
-        return final_commodities, available_commodities, emittable_commodities, purchasable_commodities, saleable_commodities,\
-            demanded_commodities, total_demand_commodities, generated_commodities
+        return final_commodities, available_commodities, emittable_commodities, purchasable_commodities,\
+            saleable_commodities, demanded_commodities, total_demand_commodities, generated_commodities
 
     def get_input_conversions(self):
         input_tuples = []
@@ -996,7 +996,13 @@ class ParameterObject:
         generation_profiles_dict = {}
 
         if self.get_generation_data() is not None:
-            generation_profile = pd.read_excel(self.get_generation_data(), index_col=0)
+
+            if self.get_generation_data().split('.')[-1] == 'xlsx':
+                generation_profile = pd.read_excel(self.get_generation_data(), index_col=0)
+
+            else:
+                generation_profile = pd.read_csv(self.get_generation_data(), index_col=0)
+
             for generator in self.get_final_generator_components_objects():
                 generator_name = generator.get_name()
                 for t in range(self.get_time_steps()):
@@ -1019,8 +1025,15 @@ class ParameterObject:
                         demand_dict.update({(commodity_name, t): float(commodity.get_demand())})
 
                 else:
-                    demand_curve_df = pd.read_excel(self.get_commodity_data(), index_col=0)
+
+                    if self.get_commodity_data().split('.')[-1] == 'xlsx':
+                        demand_curve_df = pd.read_excel(self.get_commodity_data(), index_col=0)
+
+                    else:
+                        demand_curve_df = pd.read_csv(self.get_commodity_data(), index_col=0)
+
                     demand_curve = demand_curve_df.loc[:, commodity_nice_name + '_Demand']
+
                     for t in range(self.get_time_steps()):
                         demand_dict.update({(commodity_name, t): float(demand_curve.loc[t])})
 
@@ -1038,9 +1051,15 @@ class ParameterObject:
                         purchase_price_dict.update({(commodity_name, t): float(commodity.get_purchase_price())})
 
                 else:
-                    sell_purchase_price_curve = pd.read_excel(self.get_commodity_data(),
-                                                              index_col=0)
+
+                    if self.get_commodity_data().split('.')[-1] == 'xlsx':
+                        sell_purchase_price_curve = pd.read_excel(self.get_commodity_data(), index_col=0)
+
+                    else:
+                        sell_purchase_price_curve = pd.read_csv(self.get_commodity_data(), index_col=0)
+
                     purchase_price_curve = sell_purchase_price_curve.loc[:, commodity_nice_name + '_Purchase_Price']
+
                     for t in range(self.get_time_steps()):
                         purchase_price_dict.update({(commodity_name, t): float(purchase_price_curve.loc[t])})
 
@@ -1056,9 +1075,15 @@ class ParameterObject:
                     for t in range(self.get_time_steps()):
                         sell_price_dict.update({(commodity_name, t): float(commodity.get_sale_price())})
                 else:
-                    sell_purchase_price_curve = pd.read_excel(self.get_commodity_data(),
-                                                              index_col=0)
+
+                    if self.get_commodity_data().split('.')[-1] == 'xlsx':
+                        sell_purchase_price_curve = pd.read_excel(self.get_commodity_data(), index_col=0)
+
+                    else:
+                        sell_purchase_price_curve = pd.read_csv(self.get_commodity_data(), index_col=0)
+
                     sale_price_curve = sell_purchase_price_curve.loc[:, commodity_nice_name + '_Selling_Price']
+
                     for t in range(self.get_time_steps()):
                         sell_price_dict.update({(commodity_name, t): float(sale_price_curve.loc[t])})
 
@@ -1067,7 +1092,14 @@ class ParameterObject:
     def get_weightings_time_series(self):
         weightings_dict = {}
         if self.get_uses_representative_periods():
-            weightings = pd.read_excel(self.path_data + self.get_path_weighting(), index_col=0)
+
+            path = self.path_data + self.get_path_weighting()
+
+            if path.split('.')[-1] == 'xlsx':
+                weightings = pd.read_excel(path, index_col=0)
+            else:
+                weightings = pd.read_csv(path, index_col=0)
+
             j = 0
             for i in weightings.index:
                 for k in range(7 * 24):

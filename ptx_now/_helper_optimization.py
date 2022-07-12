@@ -127,4 +127,4 @@ def optimize(pm_object, path_data, path_results, solver):
 def analyze_results(pm_object, optimization_problem, path_result):
 
     result = ResultAnalysis(optimization_problem, path_result)
-    save_current_parameters_and_options(pm_object, result.new_result_folder + '/7_settings.xlsx')
+    save_current_parameters_and_options(pm_object, result.new_result_folder + '/7_settings.yaml')

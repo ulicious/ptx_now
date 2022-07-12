@@ -17,6 +17,8 @@ import numpy as np
 
 import plotly.figure_factory as ff
 
+import yaml
+
 
 def create_visualization(path):
 
@@ -56,7 +58,8 @@ def create_visualization(path):
         except:
             generation_file = None
 
-        settings_file = pd.read_excel(path + '7_settings.xlsx', index_col=0).fillna('')
+        yaml_file = open(path + '7_settings.yaml')
+        settings_file = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
         return assumptions_file, overview_file, components_file, cost_distribution_file, \
             commodities_file, time_series_file, generation_file, settings_file
@@ -90,7 +93,7 @@ def create_visualization(path):
                 time_series_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '5_time_series_commodities.xlsx',
                                                          index_col=[0, 1, 2]).fillna('')
             except:
-                commodities_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '4_streams.xlsx',
+                commodities_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '4_commodities.xlsx',
                                                          index_col=0).fillna('')
                 time_series_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '5_time_series_streams.xlsx',
                                                          index_col=[0, 1, 2]).fillna('')
@@ -103,13 +106,19 @@ def create_visualization(path):
             except:
                 generation_dict[folder] = None
 
-            settings_dict[folder] = pd.read_excel(path + '\\' + folder + '\\' + '7_settings.xlsx',
-                                                  index_col=0).fillna('')
+            yaml_file = open(path + '\\' + folder + '\\' + '7_settings.yaml')
+            settings_dict[folder] = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
             try:
-                generation_profiles_dict[folder] = pd.read_excel(
-                    path + '\\' + folder + '\\' + '8_generation_profile.xlsx',
-                    index_col=0).fillna('')
+                try:
+                    generation_profiles_dict[folder] = pd.read_excel(
+                        path + '\\' + folder + '\\' + '8_generation_profile.xlsx',
+                        index_col=0).fillna('')
+                except:
+                    generation_profiles_dict[folder] = pd.read_csv(
+                        path + '\\' + folder + '\\' + '8_generation_profile.csv',
+                        index_col=0).fillna('')
+
             except:
                 generation_profiles_dict[folder] = None
 
@@ -179,13 +188,19 @@ def create_visualization(path):
                                                             index_col=0).fillna('')
                 except:
                     generation_dict[f1][f2] = None
-                settings_dict[f1][f2] = pd.read_excel(path + '\\' + f1 + '\\' + f2 + '\\' + '7_settings.xlsx',
-                                                      index_col=0).fillna('')
+
+                yaml_file = open(path + '\\' + f1 + '\\' + f2 + '\\' + '7_settings.yaml')
+                settings_dict[f1][f2] = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
                 try:
-                    generation_profiles_dict[f1][f2] = pd.read_excel(
-                        path + '\\' + f1 + '\\' + f2 + '\\' + '8_generation_profile.xlsx',
-                        index_col=0).fillna('')
+                    try:
+                        generation_profiles_dict[f1][f2] = pd.read_excel(
+                            path + '\\' + f1 + '\\' + f2 + '\\' + '8_generation_profile.xlsx',
+                            index_col=0).fillna('')
+                    except:
+                        generation_profiles_dict[f1][f2] = pd.read_csv(
+                            path + '\\' + f1 + '\\' + f2 + '\\' + '8_generation_profile.csv',
+                            index_col=0).fillna('')
                 except:
                     generation_profiles_dict[f1][f2] = None
 
@@ -446,7 +461,7 @@ def create_visualization(path):
         assumptions_tab = create_assumptions_table()
         assumptions_tab_columns = assumptions_tab.columns[1:]
 
-        monetary_unit = settings_df.loc[settings_df[settings_df['type'] == 'monetary_unit'].index, 'monetary_unit'].values[0]
+        monetary_unit = settings_df['monetary_unit']
 
         create_assumptions_table()
 

@@ -720,7 +720,7 @@ class DataInterface(ttk.Frame):
             file_name = path.split('/')[-1]
 
             if file_name != '':
-                if file_name.split('.')[-1] == 'xlsx':
+                if (file_name.split('.')[-1] == 'xlsx') or (file_name.split('.')[-1] == 'csv'):
                     self.pm_object_copy.set_generation_data(file_name)
                     self.pm_object_copy.set_single_or_multiple_generation_profiles('single')
 
@@ -732,7 +732,7 @@ class DataInterface(ttk.Frame):
                     wrong_file_window.title('')
                     wrong_file_window.grab_set()
 
-                    ttk.Label(wrong_file_window, text='File is not xlsx format').pack(fill='both', expand=True)
+                    ttk.Label(wrong_file_window, text='File is not xlsx/csv format').pack(fill='both', expand=True)
 
                     ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
                                                                                                      expand=True)
@@ -790,7 +790,7 @@ class DataInterface(ttk.Frame):
             file_name = path.split('/')[-1]
 
             if file_name != '':
-                if file_name.split('.')[-1] == 'xlsx':
+                if (file_name.split('.')[-1] == 'xlsx') or (file_name.split('.')[-1] == 'csv'):
                     self.pm_object_copy.set_commodity_data(file_name)
 
                     self.parent.pm_object_copy = self.pm_object_copy
@@ -801,7 +801,7 @@ class DataInterface(ttk.Frame):
                     wrong_file_window.title('')
                     wrong_file_window.grab_set()
 
-                    ttk.Label(wrong_file_window, text='File is not xlsx format').pack(fill='both', expand=True)
+                    ttk.Label(wrong_file_window, text='File is not xlsx/csv format').pack(fill='both', expand=True)
 
                     ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
                                                                                                      expand=True)
@@ -819,7 +819,7 @@ class DataInterface(ttk.Frame):
         file_name = path.split('/')[-1]
 
         if file_name != '':
-            if file_name.split('.')[-1] == 'xlsx':
+            if (file_name.split('.')[-1] == 'xlsx') or (file_name.split('.')[-1] == 'csv'):
                 self.pm_object_copy.set_path_weighting(file_name)
 
                 self.parent.pm_object_copy = self.pm_object_copy
@@ -830,7 +830,7 @@ class DataInterface(ttk.Frame):
                 wrong_file_window.title('')
                 wrong_file_window.grab_set()
 
-                ttk.Label(wrong_file_window, text='File is not xlsx format').pack(fill='both', expand=True)
+                ttk.Label(wrong_file_window, text='File is not xlsx/csv format').pack(fill='both', expand=True)
 
                 ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
                                                                                                  expand=True)
@@ -894,7 +894,7 @@ class DataInterface(ttk.Frame):
                                                                                                     sticky='ew')
 
             self.single_or_multiple_generation_profiles_var = StringVar()
-            if self.pm_object_copy.get_single_or_multiple_generation_profiles():
+            if self.pm_object_copy.get_single_or_multiple_generation_profiles() == 'single':
                 self.single_or_multiple_generation_profiles_var.set('single')
             else:
                 self.single_or_multiple_generation_profiles_var.set('multiple')
@@ -957,7 +957,7 @@ class DataInterface(ttk.Frame):
                                                                                             sticky='ew')
 
             self.single_or_multiple_commodity_profiles_var = StringVar()
-            if self.pm_object_copy.get_single_or_multiple_commodity_profiles():
+            if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
                 self.single_or_multiple_commodity_profiles_var.set('single')
             else:
                 self.single_or_multiple_commodity_profiles_var.set('multiple')

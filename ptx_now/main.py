@@ -67,8 +67,7 @@ def run_main():
                     pm_object = load_project(pm_object, case_data)
                     pm_object.set_project_name(file_without_ending)
 
-                    optimization_problem = OptimizationProblem(pm_object, path_data=path_data, solver=solver)
-                    ResultAnalysis(optimization_problem, path_result)
+                    optimize(pm_object, path_data, path_result, solver)
 
         else:
 

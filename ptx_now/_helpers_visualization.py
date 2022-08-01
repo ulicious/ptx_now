@@ -1946,14 +1946,12 @@ def create_visualization(path):
                 fig1 = px.histogram(sub_df[parameter], marginal="box")
                 fig1.update_layout(
                     xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
-                    yaxis_title="Amount",
-                    legend_title="Legend Title",)
+                    yaxis_title="Amount")
 
                 fig2 = ff.create_distplot(hist_data, group_labels, show_hist=False)
                 fig2.update_layout(
                     xaxis_title=parameter + ' [' + units_dictionary[parameter] + ']',
-                    yaxis_title="Probability",
-                    legend_title="Legend Title",)
+                    yaxis_title="Probability")
 
             return fig1, fig2
 

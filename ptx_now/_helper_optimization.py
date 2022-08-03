@@ -77,7 +77,7 @@ def optimize(pm_object, path_data, path_results, solver):
                             analyze_results(pm_object, optimization_problem, path_results)
 
         else:  # Case no market data
-            if pm_object.get_single_or_multiple_commodity_profiles() == 'single':
+            if pm_object.get_single_or_multiple_generation_profiles() == 'single':
                 # Case only generation with single file
 
                 path_to_generation_files = path_data + pm_object.get_generation_data()

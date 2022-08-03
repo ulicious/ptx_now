@@ -667,10 +667,12 @@ class AddNewComponentWindow:
         input_random = random.choice([*self.pm_object.get_all_commodities().keys()])
         new_component.add_input(input_random, 1)
         new_component.set_main_input(input_random)
+        self.pm_object.get_commodity(input_random).set_final(True)
 
         output_random = random.choice([*self.pm_object.get_all_commodities().keys()])
         new_component.add_output(output_random, 1)
         new_component.set_main_output(output_random)
+        self.pm_object.get_commodity(output_random).set_final(True)
 
         self.pm_object.add_component(self.name.get(), new_component)
 

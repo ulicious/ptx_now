@@ -304,9 +304,6 @@ class ResultAnalysis:
 
         for c in self.pm_object.get_final_components_objects():
 
-            if self.all_variables_dict['investment'][c.get_name()] == 0:
-                continue
-
             if c.component_type == 'storage':
                 index_df.append(c.get_nice_name() + ' Storage')
             else:
@@ -1364,7 +1361,26 @@ class ResultAnalysis:
                     generation_df.loc[generator_nice_name, 'Potential Generation'] = 0
                     generation_df.loc[generator_nice_name, 'Potential Full-load Hours'] = potential_generation
 
-                    generation_df.loc[generator_nice_name, 'LCOE before Curtailment'] = '-'
+                    # Calculate potential LCOE
+                    wacc = self.pm_object.get_general_parameter_value_dictionary()['wacc']
+                    generator_object = self.pm_object.get_component(generator)
+                    lifetime = generator_object.get_lifetime()
+                    if lifetime != 0:
+                        anf_component = (1 + wacc) ** lifetime * wacc \
+                                        / ((1 + wacc) ** lifetime - 1)
+                    else:
+                        anf_component = 0
+
+                    capex = generator_object.get_capex()
+                    maintenance = generator_object.get_maintenance()
+                    other_fix_costs = 0
+                    for param in self.pm_object.get_general_parameters():
+                        if self.pm_object.get_applied_parameter_for_component(param, generator):
+                            other_fix_costs += self.pm_object.get_applied_parameter_value(param)
+
+                    total_costs_1_capacity = capex * (anf_component + other_fix_costs + maintenance)
+
+                    generation_df.loc[generator_nice_name, 'LCOE before Curtailment'] = total_costs_1_capacity / potential_generation
 
                     generation_df.loc[generator_nice_name, 'Actual Generation'] = 0
                     generation_df.loc[generator_nice_name, 'Actual Full-load Hours'] = 0

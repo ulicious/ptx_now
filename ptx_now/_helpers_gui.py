@@ -170,20 +170,33 @@ class ComponentInterface(ttk.Frame):
 
                     component.set_final(False)
 
-                    # Set all commodities to not final if commodity is not used anymore
+                    # Set commodity to not final if commodity is not used anymore
                     for commodity in self.pm_object_copy.get_final_commodities_objects():
                         commodity_used_elsewhere = False
                         for other_component in self.pm_object_copy.get_final_conversion_components_objects():
                             if other_component != component:
                                 if commodity.get_name() in [*other_component.get_inputs().keys()]:
                                     commodity_used_elsewhere = True
+                                    dummy_commodity = commodity
                                     break
                                 if commodity.get_name() in [*other_component.get_outputs().keys()]:
                                     commodity_used_elsewhere = True
+                                    dummy_commodity = commodity
                                     break
 
                         if not commodity_used_elsewhere:
                             self.pm_object_copy.remove_commodity(commodity.get_name())
+
+                            # Check if commodity storage exists and remove if so
+                            for storage in self.pm_object_copy.get_final_storage_components_objects():
+                                if storage.get_name() == commodity.get_name():
+                                    storage.set_final(False)
+
+                            # Check if generator produces this commodity and change to null
+                            for generator in self.pm_object_copy.get_generator_components_objects():
+                                if generator.get_generated_commodity() == commodity.get_name():
+                                    generator.set_generated_commodity(dummy_commodity.get_name())
+                                    generator.set_final(False)
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()

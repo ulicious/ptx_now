@@ -698,7 +698,7 @@ class GeneratorInterface(ttk.Frame):
 
         # Create Combobox, which contains all generators and can be selected
         generators = []
-        for generator in self.pm_object_copy.get_final_generator_components_objects():
+        for generator in self.pm_object_copy.get_generator_components_objects():
             generators.append(generator.get_nice_name())
 
         if len(generators) == 0:

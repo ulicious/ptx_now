@@ -541,6 +541,37 @@ class ResultAnalysis:
                                                           self.pm_object.get_nice_name(c),
                                                           self.pm_object.get_nice_name(commodity))] = list_values
 
+        # Create potential generation time series
+        if self.pm_object.get_generation_data().split('.')[-1] == 'xlsx':
+            generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+        else:
+            generation_profile = pd.read_csv(self.pm_object.get_generation_data(), index_col=0)
+
+        for commodity in self.pm_object.get_final_commodities_objects():
+            total_profile = []
+
+            for generator in self.model.GENERATORS:
+                generator_object = self.pm_object.get_component(generator)
+                generated_commodity = self.pm_object.get_commodity(
+                    generator_object.get_generated_commodity()).get_nice_name()
+
+                if commodity.get_nice_name() == generated_commodity:
+                    capacity = self.all_variables_dict['nominal_cap'][generator_object.get_name()]
+                    total_profile.append(capacity * generation_profile.loc[:, generator_object.get_nice_name()])
+
+            if total_profile:
+
+                first = True
+                potential_profile = None
+                for pr in total_profile:
+                    if first:
+                        potential_profile = pr
+                        first = False
+                    else:
+                        potential_profile += pr
+
+                time_depending_variables['Total Potential Generation', '', commodity.get_nice_name()] = potential_profile.tolist()[0:self.pm_object.get_covered_period()]
+
         ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component', 'Commodity'))
         self.time_depending_variables_df = pd.DataFrame(index=ind)
         self.time_depending_variables_df = self.time_depending_variables_df.sort_index()
@@ -562,7 +593,8 @@ class ResultAnalysis:
 
         # Sort index for better readability
         ordered_list = ['Weighting', 'Freely Available', 'Purchase', 'Emitting', 'Selling', 'Demand', 'Charging',
-                        'Discharging', 'State of Charge', 'Total Generation', 'Generation', 'Input', 'Output', 'Hot Standby Demand']
+                        'Discharging', 'State of Charge', 'Total Potential Generation', 'Total Generation',
+                        'Generation', 'Input', 'Output', 'Hot Standby Demand']
 
         index_order = []
         for o in ordered_list:
@@ -1514,7 +1546,7 @@ class ResultAnalysis:
             for i, elem in enumerate(time_depending_variables[key]):
                 time_depending_variables_df.loc[key, i] = elem
 
-        if True:
+        if False:
             # Only for maintenance
             if len(time_depending_variables_df.index) > 0:
                 time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_binaries.xlsx')

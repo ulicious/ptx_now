@@ -20,12 +20,14 @@ class ResultAnalysis:
 
             list_value = []
 
-            if [*variable_dict.keys()][0] is None:
+            if len([*variable_dict]) == 0:
                 number_keys = 0
-            elif isinstance([*variable_dict.keys()][0], tuple):
-                number_keys = len([*variable_dict.keys()][0])
-            else:
+            elif type([*variable_dict][0]) == str:
                 number_keys = 1
+            elif [*variable_dict][0] is None:
+                number_keys = 0
+            else:
+                number_keys = len([*variable_dict][0])
 
             if number_keys == 0:
                 value_list = list(variable_dict.values())
@@ -302,6 +304,9 @@ class ResultAnalysis:
 
         for c in self.pm_object.get_final_components_objects():
 
+            if self.all_variables_dict['investment'][c.get_name()] == 0:
+                continue
+
             if c.component_type == 'storage':
                 index_df.append(c.get_nice_name() + ' Storage')
             else:
@@ -539,44 +544,6 @@ class ResultAnalysis:
                                                           self.pm_object.get_nice_name(c),
                                                           self.pm_object.get_nice_name(commodity))] = list_values
 
-        # Create potential generation time series
-        path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
-        if path.split('.')[-1] == 'xlsx':
-            generation_profile = pd.read_excel(path, index_col=0)
-        else:
-            generation_profile = pd.read_csv(path, index_col=0)
-
-        for commodity in self.pm_object.get_final_commodities_objects():
-            total_profile = []
-
-            for generator in self.model.GENERATORS:
-                generator_object = self.pm_object.get_component(generator)
-                generated_commodity = self.pm_object.get_commodity(
-                    generator_object.get_generated_commodity()).get_nice_name()
-
-                if commodity.get_nice_name() == generated_commodity:
-                    capacity = self.all_variables_dict['nominal_cap'][generator_object.get_name()]
-
-                    if capacity > 0:
-                        profile = capacity * generation_profile.loc[:, generator_object.get_nice_name()]
-                        total_profile.append(profile)
-                        time_depending_variables[
-                            'Potential Generation', generator_object.get_nice_name(), commodity.get_nice_name()] \
-                            = profile.loc[0:self.pm_object.get_covered_period()]
-
-            if total_profile:
-
-                first = True
-                potential_profile = None
-                for pr in total_profile:
-                    if first:
-                        potential_profile = pr
-                        first = False
-                    else:
-                        potential_profile += pr
-
-                time_depending_variables['Total Potential Generation', '', commodity.get_nice_name()] = potential_profile.tolist()[0:self.pm_object.get_covered_period()]
-
         ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component', 'Commodity'))
         self.time_depending_variables_df = pd.DataFrame(index=ind)
         self.time_depending_variables_df = self.time_depending_variables_df.sort_index()
@@ -598,8 +565,7 @@ class ResultAnalysis:
 
         # Sort index for better readability
         ordered_list = ['Weighting', 'Freely Available', 'Purchase', 'Emitting', 'Selling', 'Demand', 'Charging',
-                        'Discharging', 'State of Charge', 'Total Potential Generation', 'Total Generation',
-                        'Potential Generation', 'Generation', 'Input', 'Output', 'Hot Standby Demand']
+                        'Discharging', 'State of Charge', 'Total Generation', 'Generation', 'Input', 'Output', 'Hot Standby Demand']
 
         index_order = []
         for o in ordered_list:
@@ -1342,12 +1308,10 @@ class ResultAnalysis:
             generation_df = pd.DataFrame(index=pd.Index([self.pm_object.get_component(s).get_nice_name()
                                                          for s in self.model.GENERATORS]))
 
-            path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
-
-            if path.split('.')[-1] == 'xlsx':
-                generation_profile = pd.read_excel(path, index_col=0)
+            if self.pm_object.get_profile_data().split('.')[-1] == 'xlsx':
+                generation_profile = pd.read_excel(self.pm_object.get_profile_data(), index_col=0)
             else:
-                generation_profile = pd.read_csv(path, index_col=0)
+                generation_profile = pd.read_csv(self.pm_object.get_profile_data(), index_col=0)
 
             covered_period = self.pm_object.get_covered_period()-1
 
@@ -1400,27 +1364,7 @@ class ResultAnalysis:
                     generation_df.loc[generator_nice_name, 'Potential Generation'] = 0
                     generation_df.loc[generator_nice_name, 'Potential Full-load Hours'] = potential_generation
 
-                    # Calculate potential LCOE
-                    wacc = self.pm_object.get_general_parameter_value_dictionary()['wacc']
-                    generator_object = self.pm_object.get_component(generator)
-                    lifetime = generator_object.get_lifetime()
-                    if lifetime != 0:
-                        anf_component = (1 + wacc) ** lifetime * wacc \
-                                        / ((1 + wacc) ** lifetime - 1)
-                    else:
-                        anf_component = 0
-
-                    capex = generator_object.get_capex()
-                    maintenance = generator_object.get_maintenance()
-                    other_fix_costs = 0
-                    for param in self.pm_object.get_general_parameters():
-                        if param not in ['wacc', 'covered_period', 'representative_weeks']:
-                            if self.pm_object.check_parameter_applied_for_component(param, generator_object.get_name()):
-                                other_fix_costs += self.pm_object.get_general_parameter_value(param)
-
-                    total_costs_1_capacity = capex * (anf_component + other_fix_costs + maintenance)
-
-                    generation_df.loc[generator_nice_name, 'LCOE before Curtailment'] = total_costs_1_capacity / potential_generation
+                    generation_df.loc[generator_nice_name, 'LCOE before Curtailment'] = '-'
 
                     generation_df.loc[generator_nice_name, 'Actual Generation'] = 0
                     generation_df.loc[generator_nice_name, 'Actual Full-load Hours'] = 0
@@ -1778,15 +1722,21 @@ class ResultAnalysis:
     def copy_input_data(self):
         import shutil
         if self.model.GENERATORS:
-
-            path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
-
-            if path.split('.')[-1] == 'xlsx':
-                shutil.copy(path,
-                            self.new_result_folder + '/8_profile_data.xlsx')
+            if self.pm_object.get_profile_data().split('.')[-1] == 'xlsx':
+                shutil.copy(self.pm_object.get_profile_data(),
+                            self.new_result_folder + '/8_generation_profile.xlsx')
             else:
-                shutil.copy(path,
-                            self.new_result_folder + '/8_profile_data.csv')
+                shutil.copy(self.pm_object.get_profile_data(),
+                            self.new_result_folder + '/8_generation_profile.csv')
+
+        if self.pm_object.get_commodity_data_needed():
+
+            if self.pm_object.get_commodity_data().split('.')[-1] == 'xlsx':
+                pd.read_excel(self.pm_object.get_commodity_data(),
+                              index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
+            else:
+                pd.read_csv(self.pm_object.get_commodity_data(),
+                            index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
 
     def __init__(self, optimization_problem, path_result):
 

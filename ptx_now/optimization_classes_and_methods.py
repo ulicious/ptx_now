@@ -45,7 +45,7 @@ class OptimizationProblem:
                             continue
                         pm_object_copy.set_applied_parameter_for_component(p,
                                                                            parallel_unit_component_name,
-                                                                           self.pm_object.get_applied_parameter_for_component(p, component_name))
+                                                                           self.pm_object.check_parameter_applied_for_component(p, component_name))
 
         return pm_object_copy
 
@@ -756,7 +756,7 @@ class OptimizationProblem:
         model.calculate_total_maintenance_cost_con = Constraint(rule=calculate_total_maintenance_cost_rule)
 
         def calculate_taxes_and_insurance_costs_of_component_rule(m, c):
-            if pm_object.get_applied_parameter_for_component('taxes_and_insurance', c):
+            if pm_object.check_parameter_applied_for_component('taxes_and_insurance', c):
                 return m.taxes_and_insurance_costs[c] == m.investment[c] * m.taxes_and_insurance
             else:
                 return m.taxes_and_insurance_costs[c] == 0
@@ -768,7 +768,7 @@ class OptimizationProblem:
         model.calculate_total_taxes_and_insurance_cost_con = Constraint(rule=calculate_total_taxes_and_insurance_cost_rule)
 
         def calculate_overhead_costs_of_component_rule(m, c):
-            if pm_object.get_applied_parameter_for_component('overhead', c):
+            if pm_object.check_parameter_applied_for_component('overhead', c):
                 return m.overhead_costs[c] == m.investment[c] * m.overhead
             else:
                 return m.overhead_costs[c] == 0
@@ -780,7 +780,7 @@ class OptimizationProblem:
         model.calculate_total_overhead_costs_con = Constraint(rule=calculate_total_overhead_costs_rule)
 
         def calculate_personnel_costs_of_component_rule(m, c):
-            if pm_object.get_applied_parameter_for_component('personnel_costs', c):
+            if pm_object.check_parameter_applied_for_component('personnel_costs', c):
                 return m.personnel_costs[c] == m.investment[c] * m.personnel_cost
             else:
                 return m.personnel_costs[c] == 0
@@ -792,7 +792,7 @@ class OptimizationProblem:
         model.calculate_total_personnel_costs_con = Constraint(rule=calculate_total_personnel_costs_rule)
 
         def calculate_working_capital_of_component_rule(m, c):
-            if pm_object.get_applied_parameter_for_component('working_capital', c):
+            if pm_object.check_parameter_applied_for_component('working_capital', c):
                 return m.working_capital_costs[c] == (m.investment[c] / (1 - m.working_capital)
                                                       * m.working_capital) * m.wacc
             else:

@@ -159,8 +159,8 @@ class GeneralAssumptionsFrame:
                     continue
 
                 general_parameter_var[(gp, c_name)] = BooleanVar()
-                general_parameter_var[(gp, c_name)].set(bool(self.pm_object.get_applied_parameter_for_component(gp,
-                                                                                                                c_name)))
+                general_parameter_var[(gp, c_name)].set(bool(self.pm_object.check_parameter_applied_for_component(gp,
+                                                                                                                  c_name)))
                 tk.Checkbutton(newWindow, text=self.pm_object.get_nice_name(gp),
                                variable=general_parameter_var[(gp, c_name)]).grid(row=i, column=k+1, sticky='w')
 

@@ -394,9 +394,9 @@ def create_visualization(path):
         def merge_tuples(*t):
             return tuple(j for i in t for j in (i if isinstance(i, tuple) else (i,)))
 
-        first_column_index = ['Charging', 'Discharging', 'Demand', 'Emitting', 'Freely Available', 'Generation',
-                              'Purchase', 'Selling', 'Input', 'Output', 'State of Charge', 'Total Generation',
-                              'Hot Standby Demand']
+        first_column_index = ['Charging', 'Discharging', 'Demand', 'Emitting', 'Freely Available', 'Generation', 'Potential Generation',
+                              'Purchase', 'Selling', 'Input', 'Output', 'State of Charge', 'Total Potential Generation',
+                              'Total Generation', 'Hot Standby Demand']
 
         time_series_dataframe['Name'] = time_series_dataframe.index.tolist()
         for c in first_column_index:
@@ -1304,9 +1304,9 @@ def create_visualization(path):
                 def merge_tuples(*t):
                     return tuple(j for i in t for j in (i if isinstance(i, tuple) else (i,)))
 
-                first_column_index = ['Charging', 'Discharging', 'Demand', 'Emitting', 'Freely Available', 'Generation',
-                                      'Purchase', 'Selling', 'Input', 'Output', 'State of Charge', 'Total Generation',
-                                      'Hot Standby Demand']
+                first_column_index = ['Charging', 'Discharging', 'Demand', 'Emitting', 'Freely Available', 'Potential Generation', 'Generation',
+                                      'Purchase', 'Selling', 'Input', 'Output', 'State of Charge',
+                                      'Total Potential Generation', 'Total Generation', 'Hot Standby Demand']
 
                 time_series['Name'] = time_series.index.tolist()
                 for c in first_column_index:
@@ -1775,6 +1775,12 @@ def create_visualization(path):
                             folder_df.loc[result, s + ' Actual LCOE'] = commodity_dataframe.loc[
                                                                        s, 'Total Generation Fix Costs'] / actual_generation_s
                             units_dict[s + ' Actual LCOE'] = monetary_unit_str + '/' + unit + ' ' + s
+
+                            folder_df.loc[result, s + ' Absolute Curtailment'] = curtailment_s
+                            units_dict[s + ' Absolute Curtailment'] = unit + ' ' + s
+
+                            folder_df.loc[result, s + ' Relative Curtailment'] = curtailment_s / potential_generation_s
+                            units_dict[s + ' Relative Curtailment'] = unit + ' ' + s
 
                             folder_df.loc[result, s + ' Generation Costs'] = commodity_dataframe.loc[
                                 s, 'Production Costs per Unit']

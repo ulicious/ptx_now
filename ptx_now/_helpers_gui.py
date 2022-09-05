@@ -45,17 +45,14 @@ class AssumptionsInterface(ttk.Frame):
                 self.pm_object_copy.set_applied_parameter_for_component(p,
                                                                         c.get_name(),
                                                                         self.pm_object_original
-                                                                        .get_applied_parameter_for_component(p,
-                                                                                                             c.get_name()))
+                                                                        .check_parameter_applied_for_component(p,
+                                                                                                               c.get_name()))
 
         if self.pm_object_original.get_uses_representative_periods():
             self.pm_object_copy.set_uses_representative_periods(True)
             representative_periods = self.pm_object_original.get_number_representative_periods()
-            path_file = self.pm_object_original.get_path_weighting()
 
             self.pm_object_copy.set_number_representative_periods(representative_periods)
-            self.pm_object_copy.set_path_weighting(path_file)
-
         else:
             self.pm_object_copy.set_uses_representative_periods(False)
             covered_period = self.pm_object_original.get_covered_period()
@@ -633,7 +630,7 @@ class GeneratorInterface(ttk.Frame):
 
         def delete_checked_generators():
             for g in generators:
-                if checked_generators[g]:
+                if checked_generators[g].get():
                     self.pm_object_copy.remove_component_entirely(g)
 
             self.parent.pm_object_copy = self.pm_object_copy
@@ -721,21 +718,21 @@ class GeneratorInterface(ttk.Frame):
 
 class DataInterface(ttk.Frame):
 
-    def set_generation_single_or_multiple_profiles(self):
-        if self.single_or_multiple_generation_profiles_var.get() == 'single':
-            self.pm_object_copy.set_single_or_multiple_generation_profiles('single')
+    def set_single_or_multiple_profiles(self):
+        if self.single_or_multiple_profiles_var.get() == 'single':
+            self.pm_object_copy.set_single_or_multiple_profiles('single')
         else:
-            self.pm_object_copy.set_single_or_multiple_generation_profiles('multiple')
+            self.pm_object_copy.set_single_or_multiple_profiles('multiple')
 
-    def set_generation_data(self):
-        if self.single_or_multiple_generation_profiles_var.get() == 'single':
+    def set_data_path(self):
+        if self.single_or_multiple_profiles_var.get() == 'single':
             path = filedialog.askopenfilename()
             file_name = path.split('/')[-1]
 
             if file_name != '':
                 if (file_name.split('.')[-1] == 'xlsx') or (file_name.split('.')[-1] == 'csv'):
-                    self.pm_object_copy.set_generation_data(file_name)
-                    self.pm_object_copy.set_single_or_multiple_generation_profiles('single')
+                    self.pm_object_copy.set_profile_data(file_name)
+                    self.pm_object_copy.set_single_or_multiple_profiles('single')
 
                     self.parent.pm_object_copy = self.pm_object_copy
                     self.parent.update_widgets()
@@ -753,102 +750,13 @@ class DataInterface(ttk.Frame):
             path = filedialog.askdirectory()
             folder_name = path.split('/')[-1]
 
-            self.pm_object_copy.set_generation_data(folder_name)
-            self.pm_object_copy.set_single_or_multiple_generation_profiles('multiple')
+            self.pm_object_copy.set_profile_data(folder_name)
+            self.pm_object_copy.set_single_or_multiple_profiles('multiple')
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
 
-    def create_generation_template(self):
-
-        if self.pm_object_copy.get_project_name() is None:
-            project_name = ''
-        else:
-            project_name = self.pm_object_copy.get_project_name()
-
-        generators = []
-        for g in self.pm_object_copy.get_final_generator_components_objects():
-            generators.append((g.get_nice_name()))
-
-        if self.pm_object_copy.get_uses_representative_periods():
-            number_periods = len(pd.read_excel(self.pm_object_copy.get_path_data() + self.pm_object_copy.get_path_weighting(),
-                                             index_col=0).index)
-            covered_period = number_periods * 7 * 24
-        else:
-            covered_period = self.pm_object_copy.get_covered_period()
-
-        now = datetime.now()
-        dt_string = now.strftime("%d%m%Y_%H%M%S")
-
-        path = self.pm_object_copy.get_path_data() + dt_string + '_' + project_name + '_generation_profiles.xlsx'
-        pd.DataFrame(index=[i for i in range(int(covered_period))], columns=generators).to_excel(path)
-
-        os.system('start excel.exe "%s"' % (path,))
-
-        self.pm_object_copy.set_generation_data(dt_string + '_' + project_name + '_generation_profiles.xlsx')
-        self.pm_object_copy.set_single_or_multiple_generation_profiles('single')
-
-        self.parent.pm_object_copy = self.pm_object_copy
-        self.parent.update_widgets()
-
-    def set_commodity_single_or_multiple_profiles(self):
-        if self.single_or_multiple_commodity_profiles_var.get() == 'single':
-            self.pm_object_copy.set_single_or_multiple_commodity_profiles('single')
-        else:
-            self.pm_object_copy.set_single_or_multiple_commodity_profiles('multiple')
-
-    def set_commodity_data(self):
-        if self.single_or_multiple_commodity_profiles_var.get() == 'single':
-            path = filedialog.askopenfilename()
-            file_name = path.split('/')[-1]
-
-            if file_name != '':
-                if (file_name.split('.')[-1] == 'xlsx') or (file_name.split('.')[-1] == 'csv'):
-                    self.pm_object_copy.set_commodity_data(file_name)
-
-                    self.parent.pm_object_copy = self.pm_object_copy
-                    self.parent.update_widgets()
-
-                else:
-                    wrong_file_window = Toplevel()
-                    wrong_file_window.title('')
-                    wrong_file_window.grab_set()
-
-                    ttk.Label(wrong_file_window, text='File is not xlsx/csv format').pack(fill='both', expand=True)
-
-                    ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
-                                                                                                     expand=True)
-        else:
-            path = filedialog.askdirectory()
-            folder_name = path.split('/')[-1]
-
-            self.pm_object_copy.set_commodity_data(folder_name)
-
-            self.parent.pm_object_copy = self.pm_object_copy
-            self.parent.update_widgets()
-
-    def set_weighting(self):
-        path = filedialog.askopenfilename()
-        file_name = path.split('/')[-1]
-
-        if file_name != '':
-            if (file_name.split('.')[-1] == 'xlsx') or (file_name.split('.')[-1] == 'csv'):
-                self.pm_object_copy.set_path_weighting(file_name)
-
-                self.parent.pm_object_copy = self.pm_object_copy
-                self.parent.update_widgets()
-
-            else:
-                wrong_file_window = Toplevel()
-                wrong_file_window.title('')
-                wrong_file_window.grab_set()
-
-                ttk.Label(wrong_file_window, text='File is not xlsx/csv format').pack(fill='both', expand=True)
-
-                ttk.Button(wrong_file_window, text='OK', command=wrong_file_window.destroy).pack(fill='both',
-                                                                                                 expand=True)
-
-    def create_commodity_data_template(self):
+    def create_data_template(self):
 
         if self.pm_object_copy.get_project_name() is None:
             project_name = ''
@@ -856,6 +764,9 @@ class DataInterface(ttk.Frame):
             project_name = self.pm_object_copy.get_project_name()
 
         columns = []
+        for g in self.pm_object_copy.get_final_generator_components_objects():
+            columns.append((g.get_nice_name()))
+
         for s in self.pm_object_copy.get_all_commodities():
             commodity_object = self.pm_object_copy.get_commodity(s)
             if commodity_object.is_purchasable():
@@ -869,21 +780,24 @@ class DataInterface(ttk.Frame):
                     columns.append(commodity_object.get_nice_name() + '_Demand')
 
         if self.pm_object_copy.get_uses_representative_periods():
-            number_periods = len(pd.read_excel(self.pm_object_copy.get_path_data() + self.pm_object_copy.get_path_weighting(), index_col=0).index)
-            covered_period = number_periods * 7 * 24
+            columns.append('Weighting')
+
+        if self.pm_object_copy.get_uses_representative_periods():
+            covered_period = len(pd.read_excel(self.pm_object_copy.get_path_data() + self.pm_object_copy.get_profile_data(),
+                                             index_col=0).index)
         else:
             covered_period = self.pm_object_copy.get_covered_period()
 
         now = datetime.now()
         dt_string = now.strftime("%d%m%Y_%H%M%S")
 
-        path = self.pm_object_copy.get_path_data() + dt_string + '_' + project_name + '_market_prices.xlsx'
+        path = self.pm_object_copy.get_path_data() + dt_string + '_' + project_name + '_profile_data.xlsx'
         pd.DataFrame(index=[i for i in range(int(covered_period))], columns=columns).to_excel(path)
 
-        os.system('start excel.exe "%s"' % (path, ))
+        os.system('start excel.exe "%s"' % (path,))
 
-        self.pm_object_copy.set_commodity_data(dt_string + '_' + project_name + '_market_prices.xlsx')
-        self.pm_object_copy.set_single_or_multiple_commodity_profiles('single')
+        self.pm_object_copy.set_profile_data(dt_string + '_' + project_name + '_profile_data.xlsx')
+        self.pm_object_copy.set_single_or_multiple_profiles('single')
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
@@ -899,134 +813,48 @@ class DataInterface(ttk.Frame):
             self.data_frame.destroy()
         self.data_frame = ttk.Frame(self)
 
-        # ------
-        # Generation data
-        if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
-            generation_data_frame = ttk.Frame(self.data_frame)
-            ttk.Label(generation_data_frame, text='Generation Data', font='Helvetica 10 bold').grid(row=0, columnspan=2,
-                                                                                                    sticky='ew')
+        if (len(self.pm_object_copy.get_final_generator_components_names()) > 0) \
+                | (self.pm_object_copy.get_commodity_data_needed()):
 
-            self.single_or_multiple_generation_profiles_var = StringVar()
-            if self.pm_object_copy.get_single_or_multiple_generation_profiles() == 'single':
-                self.single_or_multiple_generation_profiles_var.set('single')
+            profiles_data_frame = ttk.Frame(self.data_frame)
+
+            self.single_or_multiple_profiles_var = StringVar()
+            if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
+                self.single_or_multiple_profiles_var.set('single')
             else:
-                self.single_or_multiple_generation_profiles_var.set('multiple')
+                self.single_or_multiple_profiles_var.set('multiple')
 
-            self.rb_single_generation = ttk.Radiobutton(generation_data_frame, text='Use single profile', value='single',
-                                                        variable=self.single_or_multiple_generation_profiles_var,
-                                                        command=self.set_generation_single_or_multiple_profiles)
-            self.rb_single_generation.grid(row=1, column=0, sticky='ew')
+            self.rb_single = ttk.Radiobutton(profiles_data_frame, text='Use single profile', value='single',
+                                             variable=self.single_or_multiple_profiles_var,
+                                             command=self.set_single_or_multiple_profiles)
+            self.rb_single.grid(row=1, column=0, sticky='ew')
 
-            self.rb_several = ttk.Radiobutton(generation_data_frame, text='Use multiple profiles', value='multiple',
-                                              variable=self.single_or_multiple_generation_profiles_var,
-                                              command=self.set_generation_single_or_multiple_profiles)
+            self.rb_several = ttk.Radiobutton(profiles_data_frame, text='Use multiple profiles', value='multiple',
+                                              variable=self.single_or_multiple_profiles_var,
+                                              command=self.set_single_or_multiple_profiles)
             self.rb_several.grid(row=1, column=1, sticky='ew')
 
-            self.generation_data_textvar = StringVar()
+            self.data_textvar = StringVar()
             try:
-                path_generation = self.pm_object_copy.get_generation_data()
-                file_name_generation = path_generation.split('/')[-1]
-                self.generation_data_textvar.set(file_name_generation)
+                path_data = self.pm_object_copy.get_profile_data()
+                file_name_generation = path_data.split('/')[-1]
+                self.data_textvar.set(file_name_generation)
             except:
-                self.generation_data_textvar.set('')
+                self.data_textvar.set('')
 
-            ttk.Label(generation_data_frame, text='File/Folder').grid(row=2, column=0, sticky='w')
-            ttk.Label(generation_data_frame, text=self.generation_data_textvar.get()).grid(row=2, column=1, sticky='ew')
+            ttk.Label(profiles_data_frame, text='File/Folder').grid(row=2, column=0, sticky='w')
+            ttk.Label(profiles_data_frame, text=self.data_textvar.get()).grid(row=2, column=1, sticky='ew')
 
-            ttk.Button(generation_data_frame, text='Select profile(s)', command=self.set_generation_data).grid(row=3,
-                                                                                                               column=0,
-                                                                                                               sticky='ew')
-
-            ttk.Button(generation_data_frame, text='Create new generation template',
-                       command=self.create_generation_template).grid(row=3, column=1, sticky='ew')
-
-            generation_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
-            generation_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
-            generation_data_frame.grid(row=0, sticky='ew')
-
-        # ----------
-        # commodity data
-
-        # Check necessity of commodity data
-        necessary = False
-        for commodity in self.pm_object_copy.get_final_commodities_objects():
-            if commodity.is_saleable():
-                if commodity.get_sale_price_type() == 'variable':
-                    necessary = True
-
-            if commodity.is_purchasable():
-                if commodity.get_purchase_price_type() == 'variable':
-                    necessary = True
-
-            if commodity.is_demanded():
-                if commodity.get_demand_type() == 'variable':
-                    necessary = True
-
-        if necessary:
-
-            commodity_data_frame = ttk.Frame(self.data_frame)
-            ttk.Separator(commodity_data_frame).grid(row=0, columnspan=2, sticky='ew')
-            ttk.Label(commodity_data_frame, text='Commodity Data', font='Helvetica 10 bold').grid(row=1, columnspan=2,
-                                                                                            sticky='ew')
-
-            self.single_or_multiple_commodity_profiles_var = StringVar()
-            if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
-                self.single_or_multiple_commodity_profiles_var.set('single')
-            else:
-                self.single_or_multiple_commodity_profiles_var.set('multiple')
-
-            self.rb_single = ttk.Radiobutton(commodity_data_frame, text='Use single profile', value='single',
-                                             variable=self.single_or_multiple_commodity_profiles_var,
-                                             command=self.set_commodity_single_or_multiple_profiles)
-            self.rb_single.grid(row=2, column=0, sticky='ew')
-
-            self.rb_several = ttk.Radiobutton(commodity_data_frame, text='Use multiple profiles', value='multiple',
-                                              variable=self.single_or_multiple_commodity_profiles_var,
-                                              command=self.set_commodity_single_or_multiple_profiles)
-            self.rb_several.grid(row=2, column=1, sticky='ew')
-
-            self.commodity_data_textvar = StringVar()
-            try:
-                path = self.pm_object_copy.get_commodity_data()
-                file_name = path.split('/')[-1]
-                self.commodity_data_textvar.set(file_name)
-            except:
-                self.commodity_data_textvar.set('')
-
-            ttk.Label(commodity_data_frame, text='File/Folder').grid(row=3, column=0, sticky='ew')
-            ttk.Label(commodity_data_frame, text=self.commodity_data_textvar.get()).grid(row=3, column=1, sticky='ew')
-
-            ttk.Button(commodity_data_frame, text='Select profile(s)', command=self.set_commodity_data).grid(row=4, column=0,
-                                                                                                       sticky='ew')
-            ttk.Button(commodity_data_frame, text='Create new commodity template',
-                       command=self.create_commodity_data_template).grid(row=4, column=1, sticky='ew')
-
-            commodity_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
-            commodity_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
-            commodity_data_frame.grid(row=1, sticky='ew')
-
-        # ----
-        # Representative Period Data
-
-        if self.pm_object_copy.get_uses_representative_periods():
-            weighting_data_frame = ttk.Frame(self.data_frame)
-            ttk.Separator(weighting_data_frame).grid(row=0, columnspan=2, sticky='ew')
-            ttk.Label(weighting_data_frame, text='Representative Period Weighting', font='Helvetica 10 bold').grid(
-                row=1, columnspan=2, sticky='ew')
-
-            self.path_weighting_textvar = StringVar()
-            self.path_weighting_textvar.set(self.pm_object_copy.get_path_weighting())
-
-            ttk.Label(weighting_data_frame, text='File').grid(row=2, column=0, sticky='ew')
-            ttk.Label(weighting_data_frame, text=self.path_weighting_textvar.get()).grid(row=2, column=1, sticky='w')
-
-            ttk.Button(weighting_data_frame, text='Select Weighting', command=self.set_weighting).grid(row=3,
-                                                                                                       columnspan=2,
+            ttk.Button(profiles_data_frame, text='Select profile(s)', command=self.set_data_path).grid(row=3,
+                                                                                                       column=0,
                                                                                                        sticky='ew')
 
-            weighting_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
-            weighting_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
-            weighting_data_frame.grid(row=2, sticky='ew')
+            ttk.Button(profiles_data_frame, text='Create new data template',
+                       command=self.create_data_template).grid(row=3, column=1, sticky='ew')
+
+            profiles_data_frame.grid_columnconfigure(0, weight=1, uniform='a')
+            profiles_data_frame.grid_columnconfigure(1, weight=1, uniform='a')
+            profiles_data_frame.grid(row=0, sticky='ew')
 
         self.data_frame.grid_columnconfigure(0, weight=1)
         self.data_frame.pack(fill='both', expand=True)
@@ -1339,7 +1167,7 @@ class SettingWindow:
 
 def save_current_parameters_and_options(pm_object, path_name):
 
-    case_data = {'version': '0.0.8', 'general_parameter': {}}
+    case_data = {'version': '0.0.9', 'general_parameter': {}}
 
     for parameter in pm_object.get_general_parameters():
         case_data['general_parameter'][parameter] = {}
@@ -1351,18 +1179,13 @@ def save_current_parameters_and_options(pm_object, path_name):
     case_data['representative_periods'] = {}
     case_data['representative_periods']['uses_representative_periods'] = pm_object.get_uses_representative_periods()
     case_data['representative_periods']['representative_periods_length'] = pm_object.get_representative_periods_length()
-    case_data['representative_periods']['path_weighting'] = pm_object.get_path_weighting()
     case_data['representative_periods']['covered_period'] = pm_object.get_covered_period()
 
     case_data['monetary_unit'] = pm_object.get_monetary_unit()
 
-    case_data['generation_data'] = {}
-    case_data['generation_data']['single_or_multiple_profiles'] = pm_object.get_single_or_multiple_generation_profiles()
-    case_data['generation_data']['generation_data'] = pm_object.get_generation_data()
-
-    case_data['commodity_data'] = {}
-    case_data['commodity_data']['single_or_multiple_profiles'] = pm_object.get_single_or_multiple_commodity_profiles()
-    case_data['commodity_data']['commodity_data'] = pm_object.get_commodity_data()
+    case_data['data'] = {}
+    case_data['data']['single_or_multiple_profiles'] = pm_object.get_single_or_multiple_profiles()
+    case_data['data']['profile_data'] = pm_object.get_profile_data()
 
     case_data['component'] = {}
 
@@ -1432,13 +1255,13 @@ def save_current_parameters_and_options(pm_object, path_name):
             case_data['component'][component.get_name()]['ratio_capacity_p'] = component.get_ratio_capacity_p()
 
         case_data['component'][component.get_name()]['taxes_and_insurance'] = pm_object\
-            .get_applied_parameter_for_component('taxes_and_insurance', component.get_name())
+            .check_parameter_applied_for_component('taxes_and_insurance', component.get_name())
         case_data['component'][component.get_name()]['personnel_costs'] = pm_object\
-            .get_applied_parameter_for_component('personnel_costs', component.get_name())
+            .check_parameter_applied_for_component('personnel_costs', component.get_name())
         case_data['component'][component.get_name()]['overhead'] = pm_object\
-            .get_applied_parameter_for_component('overhead', component.get_name())
+            .check_parameter_applied_for_component('overhead', component.get_name())
         case_data['component'][component.get_name()]['working_capital'] = pm_object\
-            .get_applied_parameter_for_component('working_capital', component.get_name())
+            .check_parameter_applied_for_component('working_capital', component.get_name())
 
     case_data['conversions'] = {}
     for component in pm_object.get_final_conversion_components_objects():

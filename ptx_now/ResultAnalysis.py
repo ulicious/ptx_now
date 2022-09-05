@@ -20,14 +20,12 @@ class ResultAnalysis:
 
             list_value = []
 
-            if len([*variable_dict]) == 0:
+            if [*variable_dict.keys()][0] is None:
                 number_keys = 0
-            elif type([*variable_dict][0]) == str:
-                number_keys = 1
-            elif [*variable_dict][0] is None:
-                number_keys = 0
+            elif isinstance([*variable_dict.keys()][0], tuple):
+                number_keys = len([*variable_dict.keys()][0])
             else:
-                number_keys = len([*variable_dict][0])
+                number_keys = 1
 
             if number_keys == 0:
                 value_list = list(variable_dict.values())
@@ -542,10 +540,11 @@ class ResultAnalysis:
                                                           self.pm_object.get_nice_name(commodity))] = list_values
 
         # Create potential generation time series
-        if self.pm_object.get_generation_data().split('.')[-1] == 'xlsx':
-            generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+        path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
+        if path.split('.')[-1] == 'xlsx':
+            generation_profile = pd.read_excel(path, index_col=0)
         else:
-            generation_profile = pd.read_csv(self.pm_object.get_generation_data(), index_col=0)
+            generation_profile = pd.read_csv(path, index_col=0)
 
         for commodity in self.pm_object.get_final_commodities_objects():
             total_profile = []
@@ -557,7 +556,13 @@ class ResultAnalysis:
 
                 if commodity.get_nice_name() == generated_commodity:
                     capacity = self.all_variables_dict['nominal_cap'][generator_object.get_name()]
-                    total_profile.append(capacity * generation_profile.loc[:, generator_object.get_nice_name()])
+
+                    if capacity > 0:
+                        profile = capacity * generation_profile.loc[:, generator_object.get_nice_name()]
+                        total_profile.append(profile)
+                        time_depending_variables[
+                            'Potential Generation', generator_object.get_nice_name(), commodity.get_nice_name()] \
+                            = profile.loc[0:self.pm_object.get_covered_period()]
 
             if total_profile:
 
@@ -594,7 +599,7 @@ class ResultAnalysis:
         # Sort index for better readability
         ordered_list = ['Weighting', 'Freely Available', 'Purchase', 'Emitting', 'Selling', 'Demand', 'Charging',
                         'Discharging', 'State of Charge', 'Total Potential Generation', 'Total Generation',
-                        'Generation', 'Input', 'Output', 'Hot Standby Demand']
+                        'Potential Generation', 'Generation', 'Input', 'Output', 'Hot Standby Demand']
 
         index_order = []
         for o in ordered_list:
@@ -1337,10 +1342,12 @@ class ResultAnalysis:
             generation_df = pd.DataFrame(index=pd.Index([self.pm_object.get_component(s).get_nice_name()
                                                          for s in self.model.GENERATORS]))
 
-            if self.pm_object.get_generation_data().split('.')[-1] == 'xlsx':
-                generation_profile = pd.read_excel(self.pm_object.get_generation_data(), index_col=0)
+            path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
+
+            if path.split('.')[-1] == 'xlsx':
+                generation_profile = pd.read_excel(path, index_col=0)
             else:
-                generation_profile = pd.read_csv(self.pm_object.get_generation_data(), index_col=0)
+                generation_profile = pd.read_csv(path, index_col=0)
 
             covered_period = self.pm_object.get_covered_period()-1
 
@@ -1407,8 +1414,9 @@ class ResultAnalysis:
                     maintenance = generator_object.get_maintenance()
                     other_fix_costs = 0
                     for param in self.pm_object.get_general_parameters():
-                        if self.pm_object.get_applied_parameter_for_component(param, generator):
-                            other_fix_costs += self.pm_object.get_applied_parameter_value(param)
+                        if param not in ['wacc', 'covered_period', 'representative_weeks']:
+                            if self.pm_object.check_parameter_applied_for_component(param, generator_object.get_name()):
+                                other_fix_costs += self.pm_object.get_general_parameter_value(param)
 
                     total_costs_1_capacity = capex * (anf_component + other_fix_costs + maintenance)
 
@@ -1770,21 +1778,15 @@ class ResultAnalysis:
     def copy_input_data(self):
         import shutil
         if self.model.GENERATORS:
-            if self.pm_object.get_generation_data().split('.')[-1] == 'xlsx':
-                shutil.copy(self.pm_object.get_generation_data(),
-                            self.new_result_folder + '/8_generation_profile.xlsx')
-            else:
-                shutil.copy(self.pm_object.get_generation_data(),
-                            self.new_result_folder + '/8_generation_profile.csv')
 
-        if self.pm_object.get_commodity_data_needed():
+            path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
 
-            if self.pm_object.get_commodity_data().split('.')[-1] == 'xlsx':
-                pd.read_excel(self.pm_object.get_commodity_data(),
-                              index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
+            if path.split('.')[-1] == 'xlsx':
+                shutil.copy(path,
+                            self.new_result_folder + '/8_profile_data.xlsx')
             else:
-                pd.read_csv(self.pm_object.get_commodity_data(),
-                            index_col=0).to_excel(self.new_result_folder + '/9_purchase_sale_curve.xlsx', index=True)
+                shutil.copy(path,
+                            self.new_result_folder + '/8_profile_data.csv')
 
     def __init__(self, optimization_problem, path_result):
 

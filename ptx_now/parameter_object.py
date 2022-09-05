@@ -57,7 +57,7 @@ class ParameterObject:
     def set_all_applied_parameters(self, applied_parameters):
         self.applied_parameter_for_component = applied_parameters
 
-    def get_applied_parameter_for_component(self, general_parameter, component):
+    def check_parameter_applied_for_component(self, general_parameter, component):
         return self.applied_parameter_for_component[general_parameter][component]
 
     def get_all_applied_parameters(self):
@@ -390,12 +390,6 @@ class ParameterObject:
     def get_representative_periods_length(self):
         return self.representative_periods_length
 
-    def set_path_weighting(self, path):
-        self.path_weighting = str(path)
-
-    def get_path_weighting(self):
-        return self.path_weighting
-
     def set_covered_period(self, covered_period):
         self.covered_period = int(covered_period)
 
@@ -404,34 +398,28 @@ class ParameterObject:
 
     def get_time_steps(self):
         if self.get_uses_representative_periods():
-            length_weighting = len(pd.read_excel(self.path_data + self.get_path_weighting(), index_col=0).index)
-            return int(length_weighting * self.get_representative_periods_length())
+            length_weighting = len(pd.read_excel(self.get_path_data() + self.get_profile_data(), index_col=0).index)
+            return int(length_weighting)
         else:
             return int(self.covered_period)
 
-    def set_single_or_multiple_generation_profiles(self, status):
-        self.single_or_multiple_generation_profiles = status
+    def set_single_or_multiple_profiles(self, status):
+        self.single_or_multiple_profiles = status
 
-    def get_single_or_multiple_generation_profiles(self):
-        return self.single_or_multiple_generation_profiles
+    def get_single_or_multiple_profiles(self):
+        return self.single_or_multiple_profiles
 
-    def set_generation_data(self, generation_data):
-        self.generation_data = generation_data
+    def set_profile_data(self, profile_data):
+        self.profile_data = profile_data
 
-    def get_generation_data(self):
-        return self.generation_data
+    def get_profile_data(self):
+        return self.profile_data
 
-    def set_single_or_multiple_commodity_profiles(self, status):
-        self.single_or_multiple_commodity_profiles = status
+    def set_path_data(self, path_data):
+        self.path_data = path_data
 
-    def get_single_or_multiple_commodity_profiles(self):
-        return self.single_or_multiple_commodity_profiles
-
-    def set_commodity_data(self, commodity_data):
-        self.commodity_data = commodity_data
-
-    def get_commodity_data(self):
-        return self.commodity_data
+    def get_path_data(self):
+        return self.path_data
 
     def check_commodity_data_needed(self):
         commodity_data_needed = False
@@ -455,9 +443,6 @@ class ParameterObject:
 
     def get_commodity_data_needed(self):
         return self.commodity_data_needed
-
-    def get_path_data(self):
-        return self.path_data
 
     def get_project_name(self):
         return self.project_name
@@ -995,20 +980,22 @@ class ParameterObject:
     def get_generation_time_series(self):
         generation_profiles_dict = {}
 
-        if self.get_generation_data() is not None:
+        if self.get_profile_data() is not None:
 
-            if self.get_generation_data().split('.')[-1] == 'xlsx':
-                generation_profile = pd.read_excel(self.get_generation_data(), index_col=0)
+            path = self.get_path_data() + self.get_profile_data()
+
+            if path.split('.')[-1] == 'xlsx':
+                profile = pd.read_excel(path, index_col=0)
 
             else:
-                generation_profile = pd.read_csv(self.get_generation_data(), index_col=0)
+                profile = pd.read_csv(path, index_col=0)
 
             for generator in self.get_final_generator_components_objects():
                 generator_name = generator.get_name()
                 for t in range(self.get_time_steps()):
-                    ind = generation_profile.index[t]
+                    ind = profile.index[t]
                     generation_profiles_dict.update({(generator_name, t):
-                                                     float(generation_profile.loc[ind, generator.get_nice_name()])})
+                                                     float(profile.loc[ind, generator.get_nice_name()])})
 
         return generation_profiles_dict
 
@@ -1026,13 +1013,15 @@ class ParameterObject:
 
                 else:
 
-                    if self.get_commodity_data().split('.')[-1] == 'xlsx':
-                        demand_curve_df = pd.read_excel(self.get_commodity_data(), index_col=0)
+                    path = self.get_path_data() + self.get_profile_data()
+
+                    if path.split('.')[-1] == 'xlsx':
+                        profile = pd.read_excel(path, index_col=0)
 
                     else:
-                        demand_curve_df = pd.read_csv(self.get_commodity_data(), index_col=0)
+                        profile = pd.read_csv(path, index_col=0)
 
-                    demand_curve = demand_curve_df.loc[:, commodity_nice_name + '_Demand']
+                    demand_curve = profile.loc[:, commodity_nice_name + '_Demand']
 
                     for t in range(self.get_time_steps()):
                         demand_dict.update({(commodity_name, t): float(demand_curve.loc[t])})
@@ -1052,13 +1041,15 @@ class ParameterObject:
 
                 else:
 
-                    if self.get_commodity_data().split('.')[-1] == 'xlsx':
-                        sell_purchase_price_curve = pd.read_excel(self.get_commodity_data(), index_col=0)
+                    path = self.get_path_data() + self.get_profile_data()
+
+                    if path.split('.')[-1] == 'xlsx':
+                        profile = pd.read_excel(path, index_col=0)
 
                     else:
-                        sell_purchase_price_curve = pd.read_csv(self.get_commodity_data(), index_col=0)
+                        profile = pd.read_csv(path, index_col=0)
 
-                    purchase_price_curve = sell_purchase_price_curve.loc[:, commodity_nice_name + '_Purchase_Price']
+                    purchase_price_curve = profile.loc[:, commodity_nice_name + '_Purchase_Price']
 
                     for t in range(self.get_time_steps()):
                         purchase_price_dict.update({(commodity_name, t): float(purchase_price_curve.loc[t])})
@@ -1076,13 +1067,15 @@ class ParameterObject:
                         sell_price_dict.update({(commodity_name, t): float(commodity.get_sale_price())})
                 else:
 
-                    if self.get_commodity_data().split('.')[-1] == 'xlsx':
-                        sell_purchase_price_curve = pd.read_excel(self.get_commodity_data(), index_col=0)
+                    path = self.get_path_data() + self.get_profile_data()
+
+                    if path.split('.')[-1] == 'xlsx':
+                        profile = pd.read_excel(path, index_col=0)
 
                     else:
-                        sell_purchase_price_curve = pd.read_csv(self.get_commodity_data(), index_col=0)
+                        profile = pd.read_csv(path, index_col=0)
 
-                    sale_price_curve = sell_purchase_price_curve.loc[:, commodity_nice_name + '_Selling_Price']
+                    sale_price_curve = profile.loc[:, commodity_nice_name + '_Selling_Price']
 
                     for t in range(self.get_time_steps()):
                         sell_price_dict.update({(commodity_name, t): float(sale_price_curve.loc[t])})
@@ -1093,7 +1086,7 @@ class ParameterObject:
         weightings_dict = {}
         if self.get_uses_representative_periods():
 
-            path = self.path_data + self.get_path_weighting()
+            path = self.get_path_data() + self.get_profile_data()
 
             if path.split('.')[-1] == 'xlsx':
                 weightings = pd.read_excel(path, index_col=0)
@@ -1102,9 +1095,8 @@ class ParameterObject:
 
             j = 0
             for i in weightings.index:
-                for k in range(7 * 24):
-                    weightings_dict[j] = weightings.at[i, 'weighting']
-                    j += 1
+                weightings_dict[j] = weightings.at[i, 'Weighting']
+                j += 1
         else:
             for t in range(self.get_time_steps()):
                 weightings_dict[t] = 1
@@ -1178,14 +1170,10 @@ class ParameterObject:
                                nice_names=nice_names,
                                abbreviations_dict=abbreviations_dict,
                                commodities=commodities,
-                               components=self.components,
-                               generation_data=self.generation_data,
-                               single_or_multiple_generation_profiles=self.single_or_multiple_generation_profiles,
-                               commodity_data=self.commodity_data,
-                               single_or_multiple_commodity_profiles=self.single_or_multiple_commodity_profiles,
+                               components=self.components, profile_data=self.profile_data,
+                               single_or_multiple_profiles=self.single_or_multiple_profiles,
                                uses_representative_periods=self.uses_representative_periods,
                                representative_periods_length=self.representative_periods_length,
-                               path_weighting=self.path_weighting,
                                covered_period=self.covered_period,
                                monetary_unit=self.monetary_unit,
                                copy_object=True)
@@ -1193,9 +1181,8 @@ class ParameterObject:
     def __init__(self, name=None, integer_steps=5,
                  general_parameters=None, general_parameter_values=None,
                  nice_names=None, abbreviations_dict=None, commodities=None, components=None,
-                 generation_data=None, single_or_multiple_generation_profiles='single',
-                 commodity_data=None, single_or_multiple_commodity_profiles='single',
-                 uses_representative_periods=False, representative_periods_length=0, path_weighting='',
+                 profile_data='', single_or_multiple_profiles='single',
+                 uses_representative_periods=False, representative_periods_length=0,
                  covered_period=8760, monetary_unit='€',
                  project_name=None, path_data=None,
                  copy_object=False):
@@ -1254,16 +1241,11 @@ class ParameterObject:
         self.covered_period = covered_period
         self.uses_representative_periods = uses_representative_periods
         self.representative_periods_length = representative_periods_length
-        self.path_weighting = path_weighting
         self.integer_steps = integer_steps
         self.monetary_unit = str(monetary_unit)
 
-        self.generation_data = generation_data
-        self.single_or_multiple_generation_profiles = single_or_multiple_generation_profiles
-
-        self.commodity_data = commodity_data
-        self.single_or_multiple_commodity_profiles = single_or_multiple_commodity_profiles
-
+        self.single_or_multiple_profiles = single_or_multiple_profiles
+        self.profile_data = profile_data
         self.path_data = path_data
         self.project_name = project_name
 

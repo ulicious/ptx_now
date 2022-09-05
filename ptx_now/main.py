@@ -233,14 +233,14 @@ class GUI:
 
         # Check if a profile for the generation unit exists, if generation unit is enabled
         if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
-            if self.pm_object_copy.get_single_or_multiple_generation_profiles() == 'single':
-                generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_generation_data(), index_col=0)
+            if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
+                generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
 
                 for generator in self.pm_object_copy.get_final_generator_components_objects():
                     if generator.get_nice_name() not in generation_profile.columns:
                         profile_not_exist.append(generator.get_nice_name())
             else:
-                path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_generation_data()
+                path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                 _, _, filenames = next(walk(path_to_generation_files))
 
                 for f in filenames:

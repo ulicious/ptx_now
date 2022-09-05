@@ -1554,7 +1554,7 @@ class ResultAnalysis:
             for i, elem in enumerate(time_depending_variables[key]):
                 time_depending_variables_df.loc[key, i] = elem
 
-        if False:
+        if True:
             # Only for maintenance
             if len(time_depending_variables_df.index) > 0:
                 time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_binaries.xlsx')

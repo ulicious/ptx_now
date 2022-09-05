@@ -135,6 +135,8 @@ class OptimizationProblem:
         self.model.status_off = Var(self.model.CONVERSION_COMPONENTS, self.model.TIME, within=Binary)
         self.model.status_off_switch_on = Var(self.model.CONVERSION_COMPONENTS, self.model.TIME, within=Binary)
         self.model.status_off_switch_off = Var(self.model.CONVERSION_COMPONENTS, self.model.TIME, within=Binary)
+        self.model.status_standby_switch_on = Var(self.model.CONVERSION_COMPONENTS, self.model.TIME, within=Binary)
+        self.model.status_standby_switch_off = Var(self.model.CONVERSION_COMPONENTS, self.model.TIME, within=Binary)
         self.model.start_up_costs_component = Var(self.model.CONVERSION_COMPONENTS, self.model.TIME, bounds=(0, None))
         self.model.total_start_up_costs_component = Var(self.model.CONVERSION_COMPONENTS, bounds=(0, None))
         self.model.total_start_up_costs = Var(bounds=(0, None))
@@ -412,6 +414,20 @@ class OptimizationProblem:
         model.status_off_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
                                                  rule=status_off_switch_rule)
 
+        def balance_status_standby_switch_rule(m, c, t):
+            return m.status_standby_switch_on[c, t] + m.status_standby_switch_off[c, t] <= 1
+        model.balance_status_standby_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                             rule=balance_status_standby_switch_rule)
+
+        def status_standby_switch_rule(m, c, t):
+            if t > 0:
+                return m.status_standby[c, t] == m.status_standby[c, t - 1] + m.status_standby_switch_on[c, t] \
+                       - m.status_standby_switch_off[c, t]
+            else:
+                return Constraint.Skip
+        model.status_standby_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
+                                                     rule=status_standby_switch_rule)
+
         def balance_status_off_switch_rule(m, c, t):
             return m.status_off_switch_on[c, t] + m.status_off_switch_off[c, t] <= 1
         model.balance_status_off_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.TIME,
@@ -446,7 +462,7 @@ class OptimizationProblem:
                 if t > 0:
                     return (m.mass_energy_component_in_commodities[c, me_in, t]
                             - m.mass_energy_component_in_commodities[c, me_in, t - 1]) <= \
-                           m.nominal_cap[c] * m.ramp_up[c] + (m.status_off[c, t] + m.status_standby[c, t]) * 1000000
+                           m.nominal_cap[c] * m.ramp_up[c] + (m.status_off_switch_off[c, t] + m.status_standby_switch_off[c, t]) * 1000
                 else:
                     return Constraint.Skip
             else:
@@ -460,7 +476,7 @@ class OptimizationProblem:
                     return (m.mass_energy_component_in_commodities[c, me_in, t]
                             - m.mass_energy_component_in_commodities[c, me_in, t - 1]) >= \
                            - (m.nominal_cap[c] * m.ramp_down[c] +
-                              (m.status_off[c, t] + m.status_standby[c, t]) * 1000000)
+                              (m.status_off_switch_on[c, t] + m.status_standby_switch_on[c, t]) * 1000)
                 else:
                     return Constraint.Skip
             else:

@@ -208,21 +208,6 @@ class CommodityFrame:
 
         self.energy_content_var.set(self.commodity_object.get_energy_content())
 
-        self.profile_needed.set(False)
-        for s in self.pm_object.get_all_commodities():
-            commodity_object = self.pm_object.get_commodity(s)
-            if commodity_object.is_final():
-                if (commodity_object.is_purchasable()) or (commodity_object.is_saleable()):
-                    if (commodity_object.get_sale_price_type() == 'variable')\
-                            | (commodity_object.get_purchase_price_type() == 'variable')\
-                            | (commodity_object.get_demand_type() == 'variable'):
-                        self.profile_needed.set(True)
-                        if self.pm_object.get_single_or_multiple_commodity_profiles():
-                            self.profile_var.set('single')
-                        else:
-                            self.profile_var.set('multiple')
-                        self.textvar_profile.set(self.pm_object.get_commodity_data())
-
     def __init__(self, parent, frame, commodity, pm_object, pm_object_original):
 
         self.parent = parent
@@ -543,17 +528,6 @@ class AdjustCommodityWindow:
                 self.commodity_object.set_sale_price(self.sale_fixed_price_entry.get())
 
         self.commodity_object.set_energy_content(self.energy_content_var.get())
-
-        # Check if any commodity has variable purchase or selling profile --> If not, deactivate
-        self.pm_object.set_single_or_multiple_commodity_profiles(True)
-        for s in self.pm_object.get_all_commodities():
-            commodity_object = self.pm_object.get_commodity(s)
-            if commodity_object.is_final():
-                if (commodity_object.is_purchasable()) or (commodity_object.is_saleable()):
-                    if (commodity_object.get_sale_price_type() == 'variable') \
-                            | (commodity_object.get_purchase_price_type() == 'variable') \
-                            | (commodity_object.get_demand_type() == 'variable'):
-                        self.pm_object.set_single_or_multiple_commodity_profiles(False)
 
         self.pm_object.check_commodity_data_needed()
 

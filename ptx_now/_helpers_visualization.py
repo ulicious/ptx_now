@@ -81,10 +81,10 @@ def create_visualization(path):
 
             try:
                 try:
-                    generation_profile = pd.read_excel(p + '8_generation_profile.xlsx',
+                    generation_profile = pd.read_excel(p + '8_profile_data.xlsx',
                         index_col=0).fillna('')
                 except:
-                    generation_profile= pd.read_csv(p + '8_generation_profile.csv',
+                    generation_profile= pd.read_csv(p + '8_profile_data.csv',
                         index_col=0).fillna('')
             except:
                 generation_profile = None

@@ -293,7 +293,7 @@ class ComponentParametersFrame:
         entry_start_up_time = ttk.Entry(newWindow, text=self.label_start_up_time_value_str, state=shut_down_state)
         entry_start_up_time.grid(row=14, column=1, sticky='w')
 
-        ttk.Label(newWindow, text='Cold Start up Costs [' + self.monetary_unit + ']').grid(row=15, column=0, sticky='w')
+        ttk.Label(newWindow, text='Cold Start up Costs [' + self.monetary_unit + '/' + capacity_unit + ']').grid(row=15, column=0, sticky='w')
         entry_start_up_costs = ttk.Entry(newWindow, text=self.label_start_up_costs_value_str, state=shut_down_state)
         entry_start_up_costs.grid(row=15, column=1, sticky='w')
 

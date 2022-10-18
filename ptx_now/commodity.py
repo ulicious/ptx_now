@@ -37,7 +37,7 @@ class Commodity:
         return self.purchase_price_type
 
     def set_purchase_price(self, purchase_price):
-        self.purchase_price = purchase_price
+        self.purchase_price = float(purchase_price)
 
     def get_purchase_price(self):
         return self.purchase_price
@@ -55,7 +55,7 @@ class Commodity:
         return self.sale_price_type
 
     def set_sale_price(self, sale_price):
-        self.sale_price = sale_price
+        self.sale_price = float(sale_price)
 
     def get_sale_price(self):
         return self.sale_price
@@ -79,7 +79,7 @@ class Commodity:
         return self.demanded
 
     def set_demand(self, demand):
-        self.demand = demand
+        self.demand = float(demand)
 
     def get_demand(self):
         return self.demand
@@ -155,7 +155,7 @@ class Commodity:
         self.nice_name = nice_name
         self.commodity_unit = commodity_unit
         if energy_content is not None:
-            self.energy_content = energy_content
+            self.energy_content = float(energy_content)
         elif self.commodity_unit == 'kWh':
             self.energy_content = 0.001
         elif self.commodity_unit == 'MWh':

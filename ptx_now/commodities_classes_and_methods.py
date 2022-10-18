@@ -521,13 +521,13 @@ class AdjustCommodityWindow:
 
         if self.purchasable_var.get():
             if self.purchase_price_type_var.get() == 'fixed':
-                self.commodity_object.set_purchase_price(self.purchase_fixed_price_entry.get())
+                self.commodity_object.set_purchase_price(float(self.purchase_fixed_price_entry.get()))
 
         if self.saleable_var.get():
             if self.sale_price_type_var.get() == 'fixed':
-                self.commodity_object.set_sale_price(self.sale_fixed_price_entry.get())
+                self.commodity_object.set_sale_price(float(self.sale_fixed_price_entry.get()))
 
-        self.commodity_object.set_energy_content(self.energy_content_var.get())
+        self.commodity_object.set_energy_content(float(self.energy_content_var.get()))
 
         self.pm_object.check_commodity_data_needed()
 

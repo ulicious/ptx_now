@@ -200,7 +200,7 @@ class GeneralAssumptionsFrame:
 
         if self.pm_object.get_uses_representative_periods():
 
-            ttk.Label(self.frame, text='Representative Periods Weightings used').grid(columnspan=2, row=i, sticky='w')
+            ttk.Label(self.frame, text='Representative Periods used').grid(columnspan=2, row=i, sticky='w')
             ttk.Label(self.frame, text='Representative Periods Length [h]').grid(column=0, row=i+1, sticky='w')
             ttk.Label(self.frame, text=int(self.pm_object.get_representative_periods_length())).grid(column=1,
                                                                                                      row=i+1,

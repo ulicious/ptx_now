@@ -540,42 +540,45 @@ class ResultAnalysis:
                                                           self.pm_object.get_nice_name(commodity))] = list_values
 
         # Create potential generation time series
-        path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
-        if path.split('.')[-1] == 'xlsx':
-            generation_profile = pd.read_excel(path, index_col=0)
-        else:
-            generation_profile = pd.read_csv(path, index_col=0)
+        if len(self.model.GENERATORS) > 0:
+            path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
+            if path.split('.')[-1] == 'xlsx':
+                generation_profile = pd.read_excel(path, index_col=0)
+            else:
+                generation_profile = pd.read_csv(path, index_col=0)
 
-        for commodity in self.pm_object.get_final_commodities_objects():
-            total_profile = []
+            for commodity in self.pm_object.get_final_commodities_objects():
+                total_profile = []
 
-            for generator in self.model.GENERATORS:
-                generator_object = self.pm_object.get_component(generator)
-                generated_commodity = self.pm_object.get_commodity(
-                    generator_object.get_generated_commodity()).get_nice_name()
+                for generator in self.model.GENERATORS:
+                    generator_object = self.pm_object.get_component(generator)
+                    generated_commodity = self.pm_object.get_commodity(
+                        generator_object.get_generated_commodity()).get_nice_name()
 
-                if commodity.get_nice_name() == generated_commodity:
-                    capacity = self.all_variables_dict['nominal_cap'][generator_object.get_name()]
+                    if commodity.get_nice_name() == generated_commodity:
+                        capacity = self.all_variables_dict['nominal_cap'][generator_object.get_name()]
 
-                    if capacity > 0:
-                        profile = capacity * generation_profile.loc[:, generator_object.get_nice_name()]
-                        total_profile.append(profile)
-                        time_depending_variables[
-                            'Potential Generation', generator_object.get_nice_name(), commodity.get_nice_name()] \
-                            = profile.loc[0:self.pm_object.get_covered_period()]
+                        if capacity > 0:
+                            profile = capacity * generation_profile.loc[:, generator_object.get_nice_name()]
+                            covered_index = profile.index[0:self.pm_object.get_covered_period()]
+                            time_depending_variables[
+                                'Potential Generation', generator_object.get_nice_name(), commodity.get_nice_name()] \
+                                = profile.loc[covered_index]
 
-            if total_profile:
+                            total_profile.append(profile)
 
-                first = True
-                potential_profile = None
-                for pr in total_profile:
-                    if first:
-                        potential_profile = pr
-                        first = False
-                    else:
-                        potential_profile += pr
+                if total_profile:
 
-                time_depending_variables['Total Potential Generation', '', commodity.get_nice_name()] = potential_profile.tolist()[0:self.pm_object.get_covered_period()]
+                    first = True
+                    potential_profile = None
+                    for pr in total_profile:
+                        if first:
+                            potential_profile = pr
+                            first = False
+                        else:
+                            potential_profile += pr
+
+                    time_depending_variables['Total Potential Generation', '', commodity.get_nice_name()] = potential_profile.tolist()[0:self.pm_object.get_covered_period()]
 
         ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component', 'Commodity'))
         self.time_depending_variables_df = pd.DataFrame(index=ind)
@@ -1152,7 +1155,7 @@ class ResultAnalysis:
         columns = ['Capacity [input]', 'Capacity Unit [input]', 'Investment [per input]',
                    'Capacity [output]', 'Capacity Unit [output]', 'Investment [per output]', 'Full-load Hours',
                    'Total Investment', 'Annuity', 'Maintenance', 'Taxes and Insurance',
-                   'Personnel', 'Overhead', 'Working Capital', 'Start-up Costs']
+                   'Personnel', 'Overhead', 'Working Capital', 'Start-Up Costs']
 
         capacity_df = pd.DataFrame(columns=columns)
         for key in self.all_variables_dict['nominal_cap']:
@@ -1396,6 +1399,7 @@ class ResultAnalysis:
                                                                               / generation)
 
                 else:
+
                     potential_generation = sum(generator_profile.loc[generator_profile.index[t]] * self.model.weightings[t] for t in self.model.TIME)
                     generation_df.loc[generator_nice_name, 'Potential Generation'] = 0
                     generation_df.loc[generator_nice_name, 'Potential Full-load Hours'] = potential_generation
@@ -1799,10 +1803,18 @@ class ResultAnalysis:
 
         now = datetime.now()
         dt_string = now.strftime("%Y%m%d_%H%M%S")
+
+        profile_name = ''
+        if self.pm_object.get_profile_data():
+            if self.pm_object.get_single_or_multiple_profiles() == 'multiple':
+                profile_name = self.pm_object.get_profile_data().split('/')[1].split('.')[0]
+            else:
+                profile_name = self.pm_object.get_profile_data().split('.')[0]
+
         if self.file_name is None:
-            self.new_result_folder = path_result + dt_string
+            self.new_result_folder = path_result + dt_string + profile_name
         else:
-            self.new_result_folder = path_result + dt_string + '_' + self.file_name
+            self.new_result_folder = path_result + dt_string + '_' + self.file_name + '_' + profile_name
         os.makedirs(self.new_result_folder)
 
         self.capacity_df = pd.DataFrame()

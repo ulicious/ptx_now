@@ -980,7 +980,7 @@ class ParameterObject:
     def get_generation_time_series(self):
         generation_profiles_dict = {}
 
-        if self.get_profile_data() is not None:
+        if len(self.get_final_generator_components_objects()) > 0:
 
             path = self.get_path_data() + self.get_profile_data()
 
@@ -1181,7 +1181,7 @@ class ParameterObject:
     def __init__(self, name=None, integer_steps=5,
                  general_parameters=None, general_parameter_values=None,
                  nice_names=None, abbreviations_dict=None, commodities=None, components=None,
-                 profile_data='', single_or_multiple_profiles='single',
+                 profile_data=False, single_or_multiple_profiles='single',
                  uses_representative_periods=False, representative_periods_length=0,
                  covered_period=8760, monetary_unit='€',
                  project_name=None, path_data=None,

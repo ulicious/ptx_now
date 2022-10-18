@@ -462,7 +462,7 @@ class OptimizationProblem:
                 if t > 0:
                     return (m.mass_energy_component_in_commodities[c, me_in, t]
                             - m.mass_energy_component_in_commodities[c, me_in, t - 1]) <= \
-                           m.nominal_cap[c] * m.ramp_up[c] + (m.status_off_switch_off[c, t] + m.status_standby_switch_off[c, t]) * 1000
+                           m.nominal_cap[c] * m.ramp_up[c] + (m.status_off_switch_off[c, t] + m.status_standby_switch_off[c, t]) * 1000000
                 else:
                     return Constraint.Skip
             else:
@@ -476,7 +476,7 @@ class OptimizationProblem:
                     return (m.mass_energy_component_in_commodities[c, me_in, t]
                             - m.mass_energy_component_in_commodities[c, me_in, t - 1]) >= \
                            - (m.nominal_cap[c] * m.ramp_down[c] +
-                              (m.status_off_switch_on[c, t] + m.status_standby_switch_on[c, t]) * 1000)
+                              (m.status_off_switch_on[c, t] + m.status_standby_switch_on[c, t]) * 1000000)
                 else:
                     return Constraint.Skip
             else:
@@ -843,7 +843,7 @@ class OptimizationProblem:
         if not self.pm_object.get_uses_representative_periods():
 
             def set_start_up_costs_component_rule(m, c, t):
-                return m.start_up_costs_component[c, t] >= m.start_up_costs[c] * m.nominal_cap[c] \
+                return m.start_up_costs_component[c, t] >= m.start_up_costs[c] * m.nominal_cap[c] * m.weightings[t] \
                        + (m.status_off_switch_off[c, t] - 1) * 1000000
             model.set_start_up_costs_component_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.TIME,
                                                                 rule=set_start_up_costs_component_rule)
@@ -852,7 +852,7 @@ class OptimizationProblem:
             def set_start_up_costs_component_using_representative_periods_rule(m, c, t):
                 period_length = self.pm_object.get_representative_periods_length()
                 if t % period_length != 0:
-                    return m.start_up_costs_component[c, t] >= m.start_up_costs[c] * m.nominal_cap[c] \
+                    return m.start_up_costs_component[c, t] >= m.start_up_costs[c] * m.nominal_cap[c] * m.weightings[t] \
                            + (m.status_off_switch_off[c, t] - 1) * 1000000
                 else:
                     return Constraint.Skip

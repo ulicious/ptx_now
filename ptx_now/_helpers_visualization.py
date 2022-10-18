@@ -46,11 +46,11 @@ def create_visualization(path):
 
             else:
                 visualization_type_str = 'multiple_results_with_single_scenario'
-                for sc in os.listdir(path=path):
-                    scenarios.append(sc)
-                    results_per_scenario[sc] = []
-                    for res in os.listdir(path=path + '/' + sc):
-                        results_per_scenario[sc].append(res)
+                sc = path.split('/')[-2]
+                results_per_scenario[sc] = []
+                scenarios.append(sc)
+                for res in os.listdir(path=path):
+                    results_per_scenario[sc].append(res)
 
         return visualization_type_str, scenarios, results_per_scenario
 
@@ -1467,8 +1467,6 @@ def create_visualization(path):
 
             sub_df = results_dataframe.copy()
 
-            colors = ['darkgreen', 'mediumblue', 'maroon', 'goldenrod', 'purple', 'darkgrey', 'orangered',
-                      'lawngreen', 'royalblue']
             color_discrete_map = {}
             i = 0
             for sc in sub_df['Scenario'].unique():
@@ -1529,8 +1527,6 @@ def create_visualization(path):
                     yaxis_title=y_axis + ' [' + units_dict[y_axis] + ']')
 
             else:
-                colors = ['darkgreen', 'mediumblue', 'maroon', 'goldenrod', 'purple', 'darkgrey', 'orangered',
-                          'lawngreen', 'royalblue']
                 color_discrete_map = {}
                 i = 0
                 for sc in sub_df['Scenario'].unique():
@@ -1580,9 +1576,6 @@ def create_visualization(path):
                     sub_df.drop(ind, inplace=True)
 
             sub_df[parameter] = sub_df[parameter].astype(float)
-
-            colors = ['darkgreen', 'mediumblue', 'maroon', 'goldenrod', 'purple', 'darkgrey', 'orangered', 'lawngreen',
-                      'royalblue']
 
             if 'Scenario' in sub_df.columns:
 
@@ -1639,9 +1632,13 @@ def create_visualization(path):
         Timer(1.0, open_page()).start(),
         app.run_server(debug=False, use_reloader=False)
 
+    colors = ['darkgreen', 'mediumblue', 'maroon', 'goldenrod', 'purple', 'darkgrey', 'orangered',
+              'lawngreen', 'royalblue', 'slategrey', 'sienna', 'springgreen', 'teal', 'indigo', 'khaki', 'brown',
+              'dodgerblue', 'lightgreen', 'crimson']
+
     visualization_type, scenarios, results_per_scenario = check_visualization_type()
 
-    if visualization_type == 'single_results':
+    if visualization_type == 'single_result':
 
         name_scenario = path.split('/')[-1]
 
@@ -1665,7 +1662,14 @@ def create_visualization(path):
         for scenario in scenarios:
             results_dict[scenario] = {}
             for result in results_per_scenario[scenario]:
-                results_path = path + '/' + scenario + '/' + result + '/'
+
+                if result == 'results.csv':
+                    continue
+
+                if visualization_type == 'multiple_results_with_single_scenario':
+                    results_path = path + result + '/'
+                else:
+                    results_path = path + '/' + scenario + '/' + result + '/'
 
                 monetary_unit_str, assumptions_table, assumptions_table_columns, \
                     annual_production_value, annual_production_unit_str, \
@@ -1788,10 +1792,15 @@ def create_visualization(path):
 
                     for c in commodity_dataframe.index:
                         if c not in covered_commodities:
-                            folder_df.loc[result, c + ' Production Costs'] = commodity_dataframe.loc[
+                            folder_df.loc[result, c + ' Production Costs per Unit'] = commodity_dataframe.loc[
                                 c, 'Production Costs per Unit']
                             unit = commodity_dataframe.loc[c, 'unit']
-                            units_dict[c + ' Production Costs'] = monetary_unit_str + '/' + unit + ' ' + c
+                            units_dict[c + ' Production Costs per Unit'] = monetary_unit_str + '/' + unit + ' ' + c
+
+                            folder_df.loc[result, c + ' Total Production Costs'] = \
+                                (commodity_dataframe.loc[c, 'Production Costs per Unit']
+                                 * commodity_dataframe.loc[c, 'Total Commodity'])
+                            units_dict[c + ' Total Production Costs'] = monetary_unit_str
 
                     for c in components_dataframe.index:
 

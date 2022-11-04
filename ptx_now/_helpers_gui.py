@@ -13,6 +13,8 @@ from generators_classes_and_methods import GeneratorFrame
 
 from components import GenerationComponent, StorageComponent
 
+import random
+
 import os
 
 from datetime import datetime
@@ -35,23 +37,12 @@ class AssumptionsInterface(ttk.Frame):
     def set_general_assumptions_to_default(self):
         # Set general assumption parameters to default
 
-        for p in self.pm_object_copy.get_general_parameters():
-            self.pm_object_copy.set_general_parameter_value(p, self.pm_object_original.get_general_parameter_value(p))
-
-            if p == 'wacc':
-                continue
-
-            for c in self.pm_object_copy.get_final_components_objects():
-                self.pm_object_copy.set_applied_parameter_for_component(p,
-                                                                        c.get_name(),
-                                                                        self.pm_object_original
-                                                                        .check_parameter_applied_for_component(p,
-                                                                                                               c.get_name()))
+        self.pm_object_copy.set_wacc(self.pm_object_original.get_wacc())
 
         if self.pm_object_original.get_uses_representative_periods():
             self.pm_object_copy.set_uses_representative_periods(True)
-            representative_periods = self.pm_object_original.get_number_representative_periods()
-            self.pm_object_copy.set_number_representative_periods(representative_periods)
+            representative_periods = self.pm_object_original.get_representative_periods_length()
+            self.pm_object_copy.set_representative_periods_length(representative_periods)
 
         else:
             self.pm_object_copy.set_uses_representative_periods(False)
@@ -90,13 +81,34 @@ class ComponentInterface(ttk.Frame):
         # Updates the Parameter object
         self.pm_object_copy = pm_object
 
+    def show_disclaimer_no_conversion(self):
+        def kill_only():
+            newWindow.destroy()
+
+        newWindow = Toplevel()
+        newWindow.title('')
+        newWindow.grab_set()
+
+        ttk.Label(newWindow, text='No Conversions in System. Without Conversions,').grid(row=0, column=0, sticky='ew')
+        ttk.Label(newWindow, text='other Components and Commodities cannot be adjusted').grid(row=1, column=0, sticky='ew')
+
+        ttk.Button(newWindow, text='OK', command=kill_only).grid(row=2, sticky='ew')
+
     def update_frame(self):
         # If changes in parameters etc. occur, the whole frame is updated so that updates are shown immediately
 
         entries = []
         for c in self.pm_object_copy.get_final_conversion_components_objects():
-            entries.append(c.get_nice_name())
+            entries.append(c.get_name())
         self.components_combo.config(values=entries)
+
+        if self.pm_object_copy.get_final_conversion_components_names():
+            state = NORMAL
+        else:
+            state = DISABLED
+            self.show_disclaimer_no_conversion()
+
+        self.delete_components_button.config(state=state)
 
         if self.parameter_frame is not None:
 
@@ -107,8 +119,8 @@ class ComponentInterface(ttk.Frame):
                     for c in self.pm_object_copy.get_final_conversion_components_objects():
                         if self.component == c.get_name():
                             component = self.pm_object_copy.get_component(self.component)
-                            component_nice_name = component.get_nice_name()
-                            self.components_combo.set(component_nice_name)
+                            component_name = component.get_name()
+                            self.components_combo.set(component_name)
                             self.parameter_frame = ComponentFrame(self, self.component_frame, self.component,
                                                                   self.pm_object_copy, self.pm_object_original)
                             self.parameter_frame.frame.grid(row=1, sticky='ew')
@@ -127,8 +139,8 @@ class ComponentInterface(ttk.Frame):
         if self.parameter_frame is not None:
             self.parameter_frame.frame.destroy()
 
-        nice_name = self.components_combo.get()
-        self.component = self.pm_object_copy.get_abbreviation(nice_name)
+        name = self.components_combo.get()
+        self.component = name
 
         self.parameter_frame = ComponentFrame(self, self.component_frame, self.component,
                                               self.pm_object_copy, self.pm_object_original)
@@ -137,12 +149,16 @@ class ComponentInterface(ttk.Frame):
     def set_components_to_default(self):
         # Set all component parameters and commodities to default
 
-        for component in self.pm_object_copy.get_conversion_components():
+        for component in self.pm_object_copy.get_conversion_components_objects():
             self.pm_object_copy.remove_component_entirely(component.get_name())
 
-        for component in self.pm_object_original.get_conversion_components():
+        for component in self.pm_object_original.get_conversion_components_objects():
             copied_component = component.__copy__()
             self.pm_object_copy.add_component(component.get_name(), copied_component)
+
+        for commodity in self.pm_object_original.get_final_commodities_objects():
+            if commodity not in self.pm_object_copy.get_final_commodities_objects():
+                self.pm_object_copy.add_commodity(commodity.get_name(), commodity)
 
         self.parent.pm_object_copy = self.pm_object_copy
         self.parent.update_widgets()
@@ -168,6 +184,7 @@ class ComponentInterface(ttk.Frame):
                     component.set_final(False)
 
                     # Set commodity to not final if commodity is not used anymore
+                    dummy_commodity = None
                     for commodity in self.pm_object_copy.get_final_commodities_objects():
                         commodity_used_elsewhere = False
                         for other_component in self.pm_object_copy.get_final_conversion_components_objects():
@@ -192,8 +209,10 @@ class ComponentInterface(ttk.Frame):
                             # Check if generator produces this commodity and change to null
                             for generator in self.pm_object_copy.get_generator_components_objects():
                                 if generator.get_generated_commodity() == commodity.get_name():
-                                    generator.set_generated_commodity(dummy_commodity.get_name())
-                                    generator.set_final(False)
+
+                                    if dummy_commodity is not None:
+                                        generator.set_generated_commodity(dummy_commodity.get_name())
+                                        generator.set_final(False)
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
@@ -211,7 +230,7 @@ class ComponentInterface(ttk.Frame):
         for c in self.pm_object_copy.get_final_conversion_components_objects():
             delete_component_dict.update({c: False})
             var_list.append(tk.IntVar())
-            tk.Checkbutton(delete_component_window, text=c.get_nice_name(),
+            tk.Checkbutton(delete_component_window, text=c.get_name(),
                            variable=var_list[i], onvalue=1, offvalue=0,
                            command=lambda c=c, i=i: set_component(c, i)).grid(row=i, column=0, columnspan=2, sticky='w')
             i += 1
@@ -254,21 +273,23 @@ class ComponentInterface(ttk.Frame):
         ttk.Button(button_frame, text='Add component', command=self.create_new_component_window)\
             .grid(row=0, column=0, sticky='ew')
 
-        ttk.Button(button_frame, text='Delete components', command=self.delete_components)\
-            .grid(row=0, column=1, sticky='ew')
+        if self.pm_object_copy.get_final_conversion_components_names():
+            state = NORMAL
+        else:
+            state = DISABLED
 
-        ttk.Button(button_frame, text='Reset all components',
-                   command=self.set_components_to_default).grid(row=0, column=2, sticky='ew')
+        self.delete_components_button = ttk.Button(button_frame, text='Delete components',
+                                                   command=self.delete_components, state=state)
+        self.delete_components_button.grid(row=0, column=1, sticky='ew')
 
         button_frame.grid_columnconfigure(0, weight=1, uniform='a')
         button_frame.grid_columnconfigure(1, weight=1, uniform='a')
-        button_frame.grid_columnconfigure(2, weight=1, uniform='a')
 
         button_frame.grid(row=0, sticky='ew')
 
         entries = []
         for c in self.pm_object_copy.get_final_conversion_components_objects():
-            entries.append(c.get_nice_name())
+            entries.append(c.get_name())
 
         self.components_combo = ttk.Combobox(widget_frame, values=entries, state='readonly')
         self.components_combo.bind("<<ComboboxSelected>>", self.callbackFuncDecideComponent)
@@ -299,17 +320,17 @@ class CommodityInterface(ttk.Frame):
         else:
             self.delete_commodity_button.config(state=DISABLED)
 
-        self.nice_names = []
+        self.names = []
         for commodity in self.pm_object_copy.get_final_commodities_objects():
-            self.nice_names.append(commodity.get_nice_name())
-        self.combobox_commodity.config(values=self.nice_names)
+            self.names.append(commodity.get_name())
+        self.combobox_commodity.config(values=self.names)
 
         if self.combobox_commodity.get() != 'Choose commodity':
 
-            nice_name = self.combobox_commodity.get()
-            self.commodity = self.pm_object_copy.get_abbreviation(nice_name)
+            name = self.combobox_commodity.get()
+            self.commodity = name
 
-            if nice_name not in self.nice_names:
+            if name not in self.names:
                 self.commodity = ''
                 self.combobox_commodity.set('Choose commodity')
 
@@ -326,10 +347,10 @@ class CommodityInterface(ttk.Frame):
         # Function of commodity combo box
         # Destroy old frame (if exist) and create new frame
 
-        nice_name = self.combobox_commodity.get()
-        self.commodity = self.pm_object_copy.get_abbreviation(nice_name)
+        name = self.combobox_commodity.get()
+        self.commodity = name
 
-        if nice_name not in self.nice_names:
+        if name not in self.names:
             self.commodity = ''
             self.combobox_commodity.set('Choose commodity')
 
@@ -359,12 +380,12 @@ class CommodityInterface(ttk.Frame):
         delete_commodities.title('')
         delete_commodities.grab_set()
 
-        unused_commodities = self.pm_object_copy.get_not_used_commodities()
+        unused_commodities = self.pm_object_copy.get_not_used_commodities_names()
         i = 0
         check_commodity = {}
         for commodity in unused_commodities:
-            check_commodity[commodity.get_name()] = BooleanVar()
-            ttk.Checkbutton(delete_commodities, text=commodity.get_nice_name(), variable=check_commodity[commodity.get_name()])\
+            check_commodity[commodity] = BooleanVar()
+            ttk.Checkbutton(delete_commodities, text=commodity, variable=check_commodity[commodity])\
                 .grid(row=i, columnspan=2, sticky='w')
             i += 1
 
@@ -403,11 +424,11 @@ class CommodityInterface(ttk.Frame):
                                                    command=self.delete_unused_commodities, state=DISABLED)
         self.delete_commodity_button.grid(row=0, sticky='ew')
 
-        self.nice_names = []
+        self.names = []
         for commodity in self.pm_object_copy.get_final_commodities_objects():
-            self.nice_names.append(commodity.get_nice_name())
+            self.names.append(commodity.get_name())
 
-        self.combobox_commodity = ttk.Combobox(widget_frame, values=self.nice_names, state='readonly')
+        self.combobox_commodity = ttk.Combobox(widget_frame, values=self.names, state='readonly')
         self.combobox_commodity.grid(row=1, sticky='ew')
         self.combobox_commodity.bind("<<ComboboxSelected>>", self.callbackFuncDecideCommodity)
         self.combobox_commodity.set('Choose commodity')
@@ -428,35 +449,25 @@ class StorageInterface(ttk.Frame):
     def update_frame(self):
         # If changes in parameters etc. occur, the whole frame is updated so that updates are shown immediately
 
-        # Add storages to collection of existing storages
-        self.storages_nice_names = []
-        for s in self.pm_object_copy.get_final_storage_components_objects():
-            self.storages_nice_names.append(s.get_nice_name())
-
         # Add dummy storages for not yet existing storages
-        for s in self.pm_object_copy.get_final_commodities_objects():
+        self.storages_names = []
+        for s in self.pm_object_copy.get_final_commodities_names():
+            self.storages_names.append(s)
+            if s not in self.pm_object_copy.get_storage_components_names():
+                self.storages_names.append(s)
+                storage = StorageComponent(s, final_unit=False, custom_unit=True)
+                self.pm_object_copy.add_component(s, storage)
 
-            if s.get_nice_name() not in self.storages_nice_names:
-
-                self.storages_nice_names.append(s.get_nice_name())
-
-                storage = StorageComponent(s.get_name(), s.get_nice_name(),
-                                           final_unit=False, custom_unit=True)
-                self.pm_object_copy.add_component(s.get_name(), storage)
-
-                for p in self.pm_object_copy.get_general_parameters():
-                    self.pm_object_copy.set_applied_parameter_for_component(p, s.get_name(), True)
-
-        self.combobox_storage.config(values=self.storages_nice_names)
+        self.combobox_storage.config(values=self.storages_names)
 
         # Check if commodity still in system and set combobox to commodity or to "choose storage"
         if self.parameter_frame is not None:
 
             self.parameter_frame.frame.destroy()
 
-            if self.pm_object_copy.get_nice_name(self.storage) in self.storages_nice_names:
+            if self.storage in self.storages_names:
 
-                self.combobox_storage.set(self.pm_object_copy.get_nice_name(self.storage))
+                self.combobox_storage.set(self.storage)
 
                 self.parameter_frame = StorageFrame(self, self.storage_frame, self.storage,
                                       self.pm_object_copy, self.pm_object_original)
@@ -471,7 +482,7 @@ class StorageInterface(ttk.Frame):
         if self.parameter_frame is not None:
             self.parameter_frame.frame.destroy()
 
-        self.storage = self.pm_object_copy.get_abbreviation(self.combobox_storage.get())
+        self.storage = self.combobox_storage.get()
 
         self.parameter_frame = StorageFrame(self, self.storage_frame, self.storage,
                                           self.pm_object_copy, self.pm_object_original)
@@ -501,25 +512,15 @@ class StorageInterface(ttk.Frame):
         self.parameter_frame = None
 
         # Add storages to collection of existing storages
-        self.storages_nice_names = []
-        for s in self.pm_object_copy.get_final_storage_components_objects():
-            self.storages_nice_names.append(s.get_nice_name())
+        self.storages_names = []
+        for s in self.pm_object_copy.get_final_commodities_names():
+            self.storages_names.append(s)
+            if s not in self.pm_object_copy.get_storage_components_names():
+                self.storages_names.append(s)
+                storage = StorageComponent(s, final_unit=False, custom_unit=True)
+                self.pm_object_copy.add_component(s, storage)
 
-        # Add dummy storages for not yet existing storages
-        for s in self.pm_object_copy.get_final_commodities_objects():
-
-            if s.get_nice_name() not in self.storages_nice_names:
-
-                self.storages_nice_names.append(s.get_nice_name())
-
-                storage = StorageComponent(s.get_name(), s.get_nice_name(),
-                                           final_unit=False, custom_unit=True)
-                self.pm_object_copy.add_component(s.get_name(), storage)
-
-                for p in self.pm_object_copy.get_general_parameters():
-                    self.pm_object_copy.set_applied_parameter_for_component(p, s.get_name(), True)
-
-        self.combobox_storage = ttk.Combobox(widget_frame, values=self.storages_nice_names, state='readonly')
+        self.combobox_storage = ttk.Combobox(widget_frame, values=self.storages_names, state='readonly')
         self.combobox_storage.grid(sticky='ew')
         self.combobox_storage.set('Choose storage')
         self.combobox_storage.bind("<<ComboboxSelected>>", self.callbackFuncStorage)
@@ -541,10 +542,10 @@ class GeneratorInterface(ttk.Frame):
         # Function of generator combo box
         # Destroy old frame (if exist) and create new frame
 
-        self.generator = self.pm_object_copy.get_abbreviation(self.components_generator_combo.get())
-
         if self.parameter_frame is not None:
             self.parameter_frame.frame.destroy()
+
+        self.generator = self.components_generator_combo.get()
 
         self.parameter_frame = GeneratorFrame(self, self.generator_frame, self.generator,
                                               self.pm_object_copy, self.pm_object_original)
@@ -555,11 +556,16 @@ class GeneratorInterface(ttk.Frame):
 
         # Update combobox with new values
         generators = []
-        generators_abbreviations = []
         for generator in self.pm_object_copy.get_generator_components_objects():
-            generators.append(generator.get_nice_name())
-            generators_abbreviations.append(generator.get_name())
+            generators.append(generator.get_name())
         self.components_generator_combo.config(values=generators)
+
+        # Check if commodity exists which can be generated
+        if self.pm_object_copy.get_final_commodities_names():
+            state = NORMAL
+        else:
+            state = DISABLED
+        self.add_generator_button.config(state=state)
 
         # Enable / Disable delete generator button
         if len(generators) == 0:
@@ -574,7 +580,7 @@ class GeneratorInterface(ttk.Frame):
         if self.generator == '':  # Case no generator was chosen
             self.components_generator_combo.set('Choose generator')
         else:
-            if self.generator not in generators_abbreviations:
+            if self.generator not in generators:
                 self.components_generator_combo.set('Choose generator')
             else:  # create new parameter frame if generator was chosen and exists
                 self.parameter_frame = GeneratorFrame(self, self.generator_frame, self.generator,
@@ -585,14 +591,11 @@ class GeneratorInterface(ttk.Frame):
         # Adds dummy generator, which then can be adjusted
 
         def get_generator_and_kill():
-            nice_name = nice_name_entry.get()
-            abbreviation = abbreviation_entry.get()
+            name = name_entry.get()
 
-            generator = GenerationComponent(abbreviation, nice_name, final_unit=True, custom_unit=True)
-            self.pm_object_copy.add_component(abbreviation, generator)
-
-            for p in self.pm_object_copy.get_general_parameters():
-                self.pm_object_copy.set_applied_parameter_for_component(p, abbreviation, True)
+            generator = GenerationComponent(name, final_unit=True, custom_unit=True)
+            generator.set_generated_commodity(random.choice(self.pm_object_copy.get_final_commodities_names()))
+            self.pm_object_copy.add_component(name, generator)
 
             self.parent.pm_object_copy = self.pm_object_copy
             self.parent.update_widgets()
@@ -606,13 +609,9 @@ class GeneratorInterface(ttk.Frame):
         newWindow.title('Add Generator')
         newWindow.grab_set()
 
-        ttk.Label(newWindow, text='Nice name').grid(row=0, column=0, sticky='ew')
-        nice_name_entry = ttk.Entry(newWindow)
-        nice_name_entry.grid(row=0, column=1, sticky='ew')
-
-        ttk.Label(newWindow, text='Abbreviation').grid(row=1, column=0, sticky='ew')
-        abbreviation_entry = ttk.Entry(newWindow)
-        abbreviation_entry.grid(row=1, column=1, sticky='ew')
+        ttk.Label(newWindow, text='Name').grid(row=0, column=0, sticky='ew')
+        name_entry = ttk.Entry(newWindow)
+        name_entry.grid(row=0, column=1, sticky='ew')
 
         newWindow.grid_columnconfigure(0, weight=1, uniform='a')
         newWindow.grid_columnconfigure(1, weight=1, uniform='a')
@@ -654,7 +653,7 @@ class GeneratorInterface(ttk.Frame):
         i = 0
         for gen in generators:
             checked_generators[gen] = BooleanVar()
-            ttk.Checkbutton(delete_generators_window, text=self.pm_object_copy.get_nice_name(gen),
+            ttk.Checkbutton(delete_generators_window, text=gen,
                             variable=checked_generators[gen]).grid(row=i, columnspan=2, sticky='w')
             i += 1
 
@@ -686,7 +685,13 @@ class GeneratorInterface(ttk.Frame):
         widget_frame = ttk.Frame(self.generator_frame)
         self.parameter_frame = None
 
-        self.add_generator_button = ttk.Button(widget_frame, text='Add Generator', command=self.add_generator)
+        if self.pm_object_copy.get_final_commodities_names():
+            state = NORMAL
+        else:
+            state = DISABLED
+
+        self.add_generator_button = ttk.Button(widget_frame, text='Add Generator', command=self.add_generator,
+                                               state=state)
         self.add_generator_button.grid(row=0, column=0, sticky='ew')
 
         self.delete_generator_button = ttk.Button(widget_frame, text='Delete Generator',
@@ -696,7 +701,7 @@ class GeneratorInterface(ttk.Frame):
         # Create Combobox, which contains all generators and can be selected
         generators = []
         for generator in self.pm_object_copy.get_generator_components_objects():
-            generators.append(generator.get_nice_name())
+            generators.append(generator.get_name())
 
         if len(generators) == 0:
             self.delete_generator_button.config(state=DISABLED)
@@ -765,19 +770,19 @@ class DataInterface(ttk.Frame):
 
         columns = []
         for g in self.pm_object_copy.get_final_generator_components_objects():
-            columns.append((g.get_nice_name()))
+            columns.append((g.get_name()))
 
         for s in self.pm_object_copy.get_all_commodities():
             commodity_object = self.pm_object_copy.get_commodity(s)
             if commodity_object.is_purchasable():
                 if commodity_object.get_purchase_price_type() == 'variable':
-                    columns.append(commodity_object.get_nice_name() + '_Purchase_Price')
+                    columns.append(commodity_object.get_name() + '_Purchase_Price')
             if commodity_object.is_saleable():
                 if commodity_object.get_sale_price_type() == 'variable':
-                    columns.append(commodity_object.get_nice_name() + '_Selling_Price')
+                    columns.append(commodity_object.get_name() + '_Selling_Price')
             if commodity_object.is_demanded():
                 if commodity_object.get_demand_type() == 'variable':
-                    columns.append(commodity_object.get_nice_name() + '_Demand')
+                    columns.append(commodity_object.get_name() + '_Demand')
 
         if self.pm_object_copy.get_uses_representative_periods():
             columns.append('Weighting')
@@ -1167,14 +1172,10 @@ class SettingWindow:
 
 def save_current_parameters_and_options(pm_object, path_name):
 
-    case_data = {'version': '0.0.9', 'general_parameter': {}}
+    case_data = {}
+    case_data['version'] = '0.1.0'
 
-    for parameter in pm_object.get_general_parameters():
-        case_data['general_parameter'][parameter] = {}
-        value = pm_object.get_general_parameter_value(parameter)
-        nice_name = pm_object.get_nice_name(parameter)
-        case_data['general_parameter'][parameter]['value'] = value
-        case_data['general_parameter'][parameter]['nice_name'] = nice_name
+    case_data['wacc'] = pm_object.get_wacc()
 
     case_data['representative_periods'] = {}
     case_data['representative_periods']['uses_representative_periods'] = pm_object.get_uses_representative_periods()
@@ -1196,10 +1197,10 @@ def save_current_parameters_and_options(pm_object, path_name):
         case_data['component'][component.get_name()]['component_type'] = component.get_component_type()
         case_data['component'][component.get_name()]['final'] = component.is_final()
         case_data['component'][component.get_name()]['name'] = component.get_name()
-        case_data['component'][component.get_name()]['nice_name'] = component.get_nice_name()
         case_data['component'][component.get_name()]['capex'] = component.get_capex()
         case_data['component'][component.get_name()]['lifetime'] = component.get_lifetime()
-        case_data['component'][component.get_name()]['maintenance'] = component.get_maintenance()
+        case_data['component'][component.get_name()]['fixed_om'] = component.get_fixed_OM()
+        case_data['component'][component.get_name()]['variable_om'] = component.get_variable_OM()
 
         if component.get_component_type() == 'conversion':
 
@@ -1254,15 +1255,6 @@ def save_current_parameters_and_options(pm_object, path_name):
             case_data['component'][component.get_name()]['leakage'] = component.get_leakage()
             case_data['component'][component.get_name()]['ratio_capacity_p'] = component.get_ratio_capacity_p()
 
-        case_data['component'][component.get_name()]['taxes_and_insurance'] = pm_object\
-            .check_parameter_applied_for_component('taxes_and_insurance', component.get_name())
-        case_data['component'][component.get_name()]['personnel_costs'] = pm_object\
-            .check_parameter_applied_for_component('personnel_costs', component.get_name())
-        case_data['component'][component.get_name()]['overhead'] = pm_object\
-            .check_parameter_applied_for_component('overhead', component.get_name())
-        case_data['component'][component.get_name()]['working_capital'] = pm_object\
-            .check_parameter_applied_for_component('working_capital', component.get_name())
-
     case_data['conversions'] = {}
     for component in pm_object.get_final_conversion_components_objects():
 
@@ -1297,7 +1289,6 @@ def save_current_parameters_and_options(pm_object, path_name):
         case_data['commodity'][commodity.get_name()] = {}
 
         case_data['commodity'][commodity.get_name()]['name'] = commodity.get_name()
-        case_data['commodity'][commodity.get_name()]['nice_name'] = commodity.get_nice_name()
         case_data['commodity'][commodity.get_name()]['unit'] = commodity.get_unit()
 
         case_data['commodity'][commodity.get_name()]['available'] = commodity.is_available()
@@ -1321,11 +1312,6 @@ def save_current_parameters_and_options(pm_object, path_name):
         case_data['commodity'][commodity.get_name()]['demand_type'] = commodity.get_demand_type()
 
         case_data['commodity'][commodity.get_name()]['energy_content'] = commodity.get_energy_content()
-
-    case_data['names'] = {}
-    for abbreviation in pm_object.get_all_abbreviations():
-        case_data['names']['name'] = abbreviation
-        case_data['names']['nice_name'] = pm_object.get_nice_name(abbreviation)
 
     file = open(path_name, "w")
     yaml.dump(case_data, file)

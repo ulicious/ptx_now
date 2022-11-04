@@ -19,9 +19,7 @@ class GeneralAssumptionsFrame:
                 tk.Label(wrong_format_window, text='Please only use numbers and use dots as separators').pack()
                 tk.Button(wrong_format_window, text='Ok', command=wrong_format_window.destroy).pack()
 
-            for gp in self.pm_object.get_general_parameters():
-                self.pm_object.set_general_parameter_value(gp, float(self.label_dict[gp].get()) / 100)
-                self.label_dict[gp].set(round(float(self.label_dict[gp].get()), 2))
+            self.pm_object.set_wacc(wacc.get() / 100)
 
             self.pm_object.set_uses_representative_periods(representative_periods.get())
 
@@ -65,10 +63,9 @@ class GeneralAssumptionsFrame:
         newWindow.grab_set()
 
         i = 0
-        for c in self.pm_object.get_general_parameters():
-            tk.Label(newWindow, text=self.pm_object.get_nice_name(c) + ' [%]').grid(row=i, column=0, sticky='w')
-            ttk.Entry(newWindow, text=self.label_dict[c]).grid(row=i, column=1, sticky='ew')
-            i += 1
+
+        wacc = DoubleVar()
+        wacc.set(round(self.pm_object.get_wacc()*100, 2))
 
         representative_periods = BooleanVar()
         representative_periods.set(self.pm_object.get_uses_representative_periods())
@@ -87,15 +84,22 @@ class GeneralAssumptionsFrame:
             state_covered_period = NORMAL
             rb_variable.set('covered_period')
 
+        label_period_length = ttk.Label(newWindow, text='WACC [%]')
+        label_period_length.grid(column=0, row=i, sticky='w')
+        entry_period_length = ttk.Entry(newWindow, text=wacc)
+        entry_period_length.grid(column=1, row=i, sticky='w')
+
+        i += 1
+
         ttk.Radiobutton(newWindow, text='Use Representative Periods?', variable=rb_variable,
                         value='representative_periods', command=change_rb).grid(column=0, row=i, sticky='w')
 
         label_period_length = ttk.Label(newWindow, text='Representative Periods Length [h]', state=state_repr_weeks)
-        label_period_length.grid(column=0, row=i + 2, sticky='w')
+        label_period_length.grid(column=0, row=i + 1, sticky='w')
         entry_period_length = ttk.Entry(newWindow, text=period_length, state=state_repr_weeks)
-        entry_period_length.grid(column=1, row=i + 2, sticky='w')
+        entry_period_length.grid(column=1, row=i + 1, sticky='w')
 
-        i += 4
+        i += 2
 
         covered_period = IntVar()
         covered_period.set(int(self.pm_object.get_covered_period()))
@@ -124,79 +128,13 @@ class GeneralAssumptionsFrame:
 
         newWindow.mainloop()
 
-    def set_applied_general_parameters(self):
-        newWindow = Toplevel(self.frame)
-        newWindow.title('Choose Applied Parameters')
-        newWindow.grab_set()
-
-        def get_values_and_kill_window():
-            for comp in self.pm_object.get_final_components_objects():
-                for g in self.pm_object.get_general_parameters():
-                    if g in exclude:
-                        continue
-                    self.pm_object.set_applied_parameter_for_component(g, comp.get_name(),
-                                                                       general_parameter_var[(g,
-                                                                                              comp.get_name())].get())
-
-            newWindow.destroy()
-
-        def kill_window():
-            newWindow.destroy()
-
-        general_parameter_var = {}
-
-        exclude = ['wacc', 'covered_period', 'representative_periods']
-
-        i = 0
-        for c in self.pm_object.get_final_components_objects():
-            c_name = c.get_name()
-
-            ttk.Label(newWindow, text=c.get_nice_name()).grid(row=i, column=0, sticky='w')
-
-            k = 0
-            for gp in self.pm_object.get_general_parameters():
-                if gp in exclude:
-                    continue
-
-                general_parameter_var[(gp, c_name)] = BooleanVar()
-                general_parameter_var[(gp, c_name)].set(bool(self.pm_object.check_parameter_applied_for_component(gp,
-                                                                                                                  c_name)))
-                tk.Checkbutton(newWindow, text=self.pm_object.get_nice_name(gp),
-                               variable=general_parameter_var[(gp, c_name)]).grid(row=i, column=k+1, sticky='w')
-
-                k += 1
-
-            i += 1
-
-            ttk.Separator(newWindow).grid(row=i, columnspan=5, sticky='ew')
-
-            i += 1
-
-        buttons = ttk.Frame(newWindow)
-        buttons.grid_columnconfigure(0, weight=1, uniform='a')
-        buttons.grid_columnconfigure(1, weight=1, uniform='a')
-
-        ttk.Button(buttons, text='Ok', command=get_values_and_kill_window).grid(row=0, column=0, sticky='ew')
-        ttk.Button(buttons, text='Cancel', command=kill_window).grid(row=0, column=1, sticky='ew')
-
-        buttons.grid(row=i, columnspan=5, sticky='ew')
-
     def initiate_frame(self):
 
-        self.ga_label_parameter = ttk.Label(self.frame, text='Parameter', font='Helvetica 10 bold').grid(column=0,
-                                                                                                         row=0,
-                                                                                                         sticky='w')
-        self.ga_label_value = ttk.Label(self.frame, text='Value', font='Helvetica 10 bold').grid(column=1, row=0,
-                                                                                                 sticky='w')
+        i = 0
+        ttk.Label(self.frame, text='WACC [%]').grid(column=0, row=i, sticky='w')
+        ttk.Label(self.frame, text=round(self.pm_object.get_wacc() * 100, 2)).grid(column=1, row=i, sticky='w')
 
-        i = 1
-        for c in self.pm_object.get_general_parameters():
-            self.label_dict.update({c: StringVar()})
-            self.label_dict[c].set(round(float(self.pm_object.get_general_parameter_value(c)) * 100, 2))
-            ttk.Label(self.frame, text=self.pm_object.get_nice_name(c) + ' [%]').grid(column=0, row=i, sticky='w')
-            ttk.Label(self.frame, text=self.label_dict[c].get()).grid(column=1, row=i, sticky='w')
-
-            i += 1
+        i += 1
 
         if self.pm_object.get_uses_representative_periods():
 
@@ -222,20 +160,10 @@ class GeneralAssumptionsFrame:
         button_frame = ttk.Frame(self.frame)
 
         button_frame.grid_columnconfigure(0, weight=1, uniform="a")
-        button_frame.grid_columnconfigure(1, weight=1, uniform="a")
-        button_frame.grid_columnconfigure(2, weight=1, uniform="a")
 
-        self.adjust_values_button = ttk.Button(button_frame, text='Adjust parameters',
+        self.adjust_values_button = ttk.Button(button_frame, text='Adjust Parameters',
                                                command=self.adjust_component_value)
         self.adjust_values_button.grid(row=0, column=0, sticky='ew')
-
-        self.adjust_values_button = ttk.Button(button_frame, text='Choose applied components',
-                                               command=self.set_applied_general_parameters)
-        self.adjust_values_button.grid(row=0, column=1, sticky='ew')
-
-        self.default_values_ga_button = ttk.Button(button_frame, text='Reset parameters',
-                                                   command=self.interface.set_general_assumptions_to_default)
-        self.default_values_ga_button.grid(row=0, column=2, sticky='ew')
 
         button_frame.grid(row=i, column=0, columnspan=2, sticky='ew')
 
@@ -247,10 +175,6 @@ class GeneralAssumptionsFrame:
         self.pm_object = pm_object
 
         self.label_dict = {}
-
-        self.ga_label_parameter = ttk.Label()
-        self.ga_label_value = ttk.Label()
-        self.ga_button = ttk.Label()
 
         self.adjust_values_button = ttk.Button()
         self.default_values_ga_button = ttk.Button()

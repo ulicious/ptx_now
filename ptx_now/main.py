@@ -1,8 +1,6 @@
 import pandas as pd
 
 from _helpers_gui import SettingWindow
-from optimization_classes_and_methods import OptimizationProblem
-from ResultAnalysis import ResultAnalysis
 from _helpers_visualization import create_visualization
 
 import tkinter as tk
@@ -58,7 +56,7 @@ def run_main():
                     path = path_to_settings + '/' + file
                     file_without_ending = file.split('.')[0]
 
-                    pm_object = ParameterObject('parameter', integer_steps=10)
+                    pm_object = ParameterObject('parameter', integer_steps=10, path_data=path_data)
                     if 'xlsx' in path:
                         case_data = pd.read_excel(path, index_col=0)
                     else:
@@ -240,8 +238,8 @@ class GUI:
                     generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
 
                 for generator in self.pm_object_copy.get_final_generator_components_objects():
-                    if generator.get_nice_name() not in generation_profile.columns:
-                        profile_not_exist.append(generator.get_nice_name())
+                    if generator.get_name() not in generation_profile.columns:
+                        profile_not_exist.append(generator.get_name())
             else:
                 path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                 _, _, filenames = next(walk(path_to_generation_files))
@@ -254,8 +252,8 @@ class GUI:
                         generation_profile = pd.read_csv(path, index_col=0)
 
                     for generator in self.pm_object_copy.get_final_generator_components_objects():
-                        if generator.get_nice_name() not in generation_profile.columns:
-                            profile_not_exist.append(generator.get_nice_name())
+                        if generator.get_name() not in generation_profile.columns:
+                            profile_not_exist.append(generator.get_name())
 
                     break
 
@@ -264,7 +262,7 @@ class GUI:
             if commodity.is_saleable():
                 if commodity.get_sale_price_type() == 'variable':
 
-                    column_name = commodity.get_nice_name() + '_Selling_Price'
+                    column_name = commodity.get_name() + '_Selling_Price'
 
                     if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
@@ -275,7 +273,7 @@ class GUI:
                                                             index_col=0)
 
                         if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_nice_name() + ' Selling Price')
+                            profile_not_exist.append(commodity.get_name() + ' Selling Price')
                     else:
                         path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                         _, _, filenames = next(walk(path_to_commodity_files))
@@ -288,13 +286,13 @@ class GUI:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
                             if column_name not in commodity_profile.columns:
-                                profile_not_exist.append(commodity.get_nice_name() + ' Selling Price')
+                                profile_not_exist.append(commodity.get_name() + ' Selling Price')
 
                             break
 
             if commodity.is_purchasable():
                 if commodity.get_purchase_price_type() == 'variable':
-                    column_name = commodity.get_nice_name() + '_Purchase_Price'
+                    column_name = commodity.get_name() + '_Purchase_Price'
 
                     if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
@@ -305,7 +303,7 @@ class GUI:
                                                             index_col=0)
 
                         if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_nice_name() + ' Purchase Price')
+                            profile_not_exist.append(commodity.get_name() + ' Purchase Price')
                     else:
                         path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                         _, _, filenames = next(walk(path_to_commodity_files))
@@ -318,13 +316,13 @@ class GUI:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
                             if column_name not in commodity_profile.columns:
-                                profile_not_exist.append(commodity.get_nice_name() + ' Purchase Price')
+                                profile_not_exist.append(commodity.get_name() + ' Purchase Price')
 
                             break
 
             if commodity.is_demanded():
                 if commodity.get_purchase_price_type() == 'variable':
-                    column_name = commodity.get_nice_name() + '_Demand'
+                    column_name = commodity.get_name() + '_Demand'
 
                     if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
@@ -335,7 +333,7 @@ class GUI:
                                                             index_col=0)
 
                         if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_nice_name() + ' Demand')
+                            profile_not_exist.append(commodity.get_name() + ' Demand')
                     else:
                         path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                         _, _, filenames = next(walk(path_to_commodity_files))
@@ -348,7 +346,7 @@ class GUI:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
                             if column_name not in commodity_profile.columns:
-                                profile_not_exist.append(commodity.get_nice_name() + ' Demand')
+                                profile_not_exist.append(commodity.get_name() + ' Demand')
 
                             break
 
@@ -376,9 +374,9 @@ class GUI:
 
                     for commodity in commodities_without_well:
                         if commodities_without_well.index(commodity) != len(commodities_without_well) - 1:
-                            no_well_text += self.pm_object_copy.get_nice_name(commodity) + ', '
+                            no_well_text += commodity + ', '
                         else:
-                            no_well_text += self.pm_object_copy.get_nice_name(commodity)
+                            no_well_text += commodity
 
                 if len(commodities_without_sink) > 0:
 
@@ -389,9 +387,9 @@ class GUI:
 
                     for commodity in commodities_without_sink:
                         if commodities_without_sink.index(commodity) != len(commodities_without_sink) - 1:
-                            no_sink_text += self.pm_object_copy.get_nice_name(commodity) + ', '
+                            no_sink_text += commodity + ', '
                         else:
-                            no_sink_text += self.pm_object_copy.get_nice_name(commodity)
+                            no_sink_text += commodity
 
                 if no_well_text != '':
 
@@ -455,6 +453,7 @@ class GUI:
             newWindow.destroy()
 
         newWindow = Toplevel(self.root)
+        newWindow.grab_set()
 
         Label(newWindow, text='Enter name of settings file').grid(row=0, column=0, sticky='ew')
 

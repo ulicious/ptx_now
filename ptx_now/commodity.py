@@ -1,11 +1,5 @@
 class Commodity:
 
-    def set_nice_name(self, nice_name):
-        self.nice_name = nice_name
-
-    def get_nice_name(self):
-        return self.nice_name
-
     def set_name(self, name):
         self.name = name
 
@@ -116,7 +110,7 @@ class Commodity:
 
     def __copy__(self):
         return Commodity(
-            name=self.name, nice_name=self.nice_name, commodity_unit=self.commodity_unit,
+            name=self.name, commodity_unit=self.commodity_unit,
             energy_content=self.energy_content, final_commodity=self.final_commodity,
             custom_commodity=self.custom_commodity, emittable=self.emittable, available=self.available,
             purchasable=self.purchasable, purchase_price=self.purchase_price,
@@ -124,7 +118,7 @@ class Commodity:
             sale_price=self.sale_price, sale_price_type=self.sale_price_type, demanded=self.demanded,
             demand=self.demand, total_demand=self.total_demand, demand_type=self.demand_type)
 
-    def __init__(self, name, nice_name, commodity_unit, energy_content=None, final_commodity=False,
+    def __init__(self, name, commodity_unit, energy_content=None, final_commodity=False,
                  custom_commodity=False, emittable=False, available=False,
                  purchasable=False, purchase_price=0, purchase_price_type='fixed',
                  saleable=False, sale_price=0, sale_price_type='fixed',
@@ -133,7 +127,6 @@ class Commodity:
         """
 
         :param name: [string] - Abbreviation of commodity
-        :param nice_name: [string] - Nice name of commodity
         :param commodity_unit: [string] - Unit of commodity
         :param energy_content: [float] - Energy content per unit
         :param final_commodity: [boolean] - Is used in the final optimization?
@@ -152,7 +145,6 @@ class Commodity:
         """
 
         self.name = name
-        self.nice_name = nice_name
         self.commodity_unit = commodity_unit
         if energy_content is not None:
             self.energy_content = float(energy_content)

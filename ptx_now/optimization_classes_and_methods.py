@@ -22,30 +22,16 @@ class OptimizationProblem:
             if component_object.get_number_parallel_units() > 1:
                 # Simply rename first component
                 component_name = component_object.get_name()
-                component_nice_name = component_object.get_nice_name()
                 component_object.set_name(component_name + '_0')
-                component_object.set_nice_name(component_nice_name + ' Parallel Unit 0')
                 pm_object_copy.remove_component_entirely(component_name)
                 pm_object_copy.add_component(component_name + '_0', component_object)
 
                 for i in range(1, int(component_object.get_number_parallel_units())):
                     # Add other components as copy
                     parallel_unit_component_name = component_name + '_' + str(i)
-                    parallel_unit_component_nice_name = component_nice_name + ' Parallel Unit ' + str(i)
                     component_copy = component_object.__copy__()
                     component_copy.set_name(parallel_unit_component_name)
-                    component_copy.set_nice_name(parallel_unit_component_nice_name)
                     pm_object_copy.add_component(parallel_unit_component_name, component_copy)
-
-                for i in range(0, int(component_object.get_number_parallel_units())):
-                    exclude = ['wacc', 'covered_period']
-                    parallel_unit_component_name = component_name + '_' + str(i)
-                    for p in self.pm_object.get_general_parameters():
-                        if p in exclude:
-                            continue
-                        pm_object_copy.set_applied_parameter_for_component(p,
-                                                                           parallel_unit_component_name,
-                                                                           self.pm_object.check_parameter_applied_for_component(p, component_name))
 
         return pm_object_copy
 
@@ -74,21 +60,13 @@ class OptimizationProblem:
         self.model.TOTAL_DEMANDED_STREAMS = Set(initialize=self.total_demand_commodities)
         self.model.GENERATED_STREAMS = Set(initialize=self.generated_commodities)
 
-    def attach_general_parameters_to_optimization_problem(self):
-        general_parameters = self.pm_object.get_general_parameter_value_dictionary()
-
-        self.model.wacc = Param(initialize=general_parameters['wacc'])
-        self.model.taxes_and_insurance = Param(initialize=general_parameters['taxes_and_insurance'])
-        self.model.overhead = Param(initialize=general_parameters['overhead'])
-        self.model.working_capital = Param(initialize=general_parameters['working_capital'])
-        self.model.personnel_cost = Param(initialize=general_parameters['personnel_costs'])
-
     def attach_annuity_to_optimization_problem(self):
         self.model.ANF = Param(self.model.COMPONENTS, initialize=self.annuity_factor_dict)
 
     def attach_component_parameters_to_optimization_problem(self):
         self.model.lifetime = Param(self.model.COMPONENTS, initialize=self.lifetime_dict)
-        self.model.maintenance = Param(self.model.COMPONENTS, initialize=self.maintenance_dict)
+        self.model.fixed_om = Param(self.model.COMPONENTS, initialize=self.fixed_om_dict)
+        self.model.variable_om = Param(self.model.COMPONENTS, initialize=self.variable_om_dict)
 
         self.model.capex_var = Param(self.model.COMPONENTS, initialize=self.capex_var_dict)
         self.model.capex_fix = Param(self.model.COMPONENTS, initialize=self.capex_fix_dict)
@@ -150,16 +128,10 @@ class OptimizationProblem:
         self.model.investment = Var(self.model.COMPONENTS, bounds=(0, None))
         self.model.annuity = Var(self.model.COMPONENTS, bounds=(0, None))
         self.model.total_annuity = Var(bounds=(0, None))
-        self.model.maintenance_costs = Var(self.model.COMPONENTS, bounds=(0, None))
-        self.model.total_maintenance_costs = Var(bounds=(0, None))
-        self.model.taxes_and_insurance_costs = Var(self.model.COMPONENTS, bounds=(0, None))
-        self.model.total_taxes_and_insurance_costs = Var(bounds=(0, None))
-        self.model.overhead_costs = Var(self.model.COMPONENTS, bounds=(0, None))
-        self.model.total_overhead_costs = Var(bounds=(0, None))
-        self.model.personnel_costs = Var(self.model.COMPONENTS, bounds=(0, None))
-        self.model.total_personnel_costs = Var(bounds=(0, None))
-        self.model.working_capital_costs = Var(self.model.COMPONENTS, bounds=(0, None))
-        self.model.total_working_capital_costs = Var(bounds=(0, None))
+        self.model.fixed_om_costs = Var(self.model.COMPONENTS, bounds=(0, None))
+        self.model.total_fixed_om_costs = Var(bounds=(0, None))
+        self.model.variable_om_costs = Var(self.model.COMPONENTS, bounds=(0, None))
+        self.model.total_variable_om_costs = Var(bounds=(0, None))
         self.model.purchase_costs = Var(self.model.PURCHASABLE_STREAMS, bounds=(0, None))
         self.model.total_purchase_costs = Var(bounds=(0, None))
         self.model.revenue = Var(self.model.SALEABLE_STREAMS, bounds=(None, None))
@@ -762,63 +734,36 @@ class OptimizationProblem:
             return m.total_annuity == sum(m.annuity[c] for c in m.COMPONENTS)
         model.calculate_total_annuity_con = Constraint(rule=calculate_total_annuity_rule)
 
-        def calculate_maintenance_costs_of_component_rule(m, c):
-            return m.maintenance_costs[c] == m.investment[c] * m.maintenance[c]
-        model.calculate_maintenance_costs_of_component_con = Constraint(model.COMPONENTS,
-                                                                        rule=calculate_maintenance_costs_of_component_rule)
+        def calculate_fixed_om_costs_of_component_rule(m, c):
+            return m.fixed_om_costs[c] == m.investment[c] * m.fixed_om[c]
+        model.calculate_fixed_om_costs_of_component_con = Constraint(model.COMPONENTS,
+                                                                     rule=calculate_fixed_om_costs_of_component_rule)
 
-        def calculate_total_maintenance_cost_rule(m):
-            return m.total_maintenance_costs == sum(m.maintenance_costs[c] for c in m.COMPONENTS)
-        model.calculate_total_maintenance_cost_con = Constraint(rule=calculate_total_maintenance_cost_rule)
+        def calculate_total_fixed_om_cost_rule(m):
+            return m.total_fixed_om_costs == sum(m.fixed_om_costs[c] for c in m.COMPONENTS)
+        model.calculate_total_fixed_om_cost_con = Constraint(rule=calculate_total_fixed_om_cost_rule)
 
-        def calculate_taxes_and_insurance_costs_of_component_rule(m, c):
-            if pm_object.check_parameter_applied_for_component('taxes_and_insurance', c):
-                return m.taxes_and_insurance_costs[c] == m.investment[c] * m.taxes_and_insurance
+        def calculate_variable_om_costs_of_component_rule(m, c):
+            # todo: Check how it is implemented for storages
+            component = self.pm_object.get_component(c)
+            if component.get_component_type() == 'storage':
+                return m.variable_om_costs[c] == sum(
+                    m.mass_energy_storage_in_commodities[c, t] * m.variable_om[c] for t in m.TIME)
+            elif component.get_component_type() == 'conversion':
+                commodity = component.get_main_output()
+                return m.variable_om_costs[c] == sum(
+                    m.mass_energy_component_out_commodities[c, commodity, t] * m.variable_om[c] for t in m.TIME)
             else:
-                return m.taxes_and_insurance_costs[c] == 0
-        model.calculate_taxes_and_insurance_costs_of_component_con = Constraint(model.COMPONENTS,
-                                                                                rule=calculate_taxes_and_insurance_costs_of_component_rule)
+                commodity = component.get_generated_commodity()
+                return m.variable_om_costs[c] == sum(
+                    m.mass_energy_generation[c, commodity, t] * m.variable_om[c] for t in m.TIME)
 
-        def calculate_total_taxes_and_insurance_cost_rule(m):
-            return m.total_taxes_and_insurance_costs == sum(m.taxes_and_insurance_costs[c] for c in m.COMPONENTS)
-        model.calculate_total_taxes_and_insurance_cost_con = Constraint(rule=calculate_total_taxes_and_insurance_cost_rule)
+        model.calculate_variable_om_costs_of_component_con = Constraint(model.COMPONENTS,
+                                                                     rule=calculate_variable_om_costs_of_component_rule)
 
-        def calculate_overhead_costs_of_component_rule(m, c):
-            if pm_object.check_parameter_applied_for_component('overhead', c):
-                return m.overhead_costs[c] == m.investment[c] * m.overhead
-            else:
-                return m.overhead_costs[c] == 0
-        model.calculate_overhead_costs_of_component_con = Constraint(model.COMPONENTS,
-                                                                     rule=calculate_overhead_costs_of_component_rule)
-
-        def calculate_total_overhead_costs_rule(m):
-            return m.total_overhead_costs == sum(m.overhead_costs[c] for c in m.COMPONENTS)
-        model.calculate_total_overhead_costs_con = Constraint(rule=calculate_total_overhead_costs_rule)
-
-        def calculate_personnel_costs_of_component_rule(m, c):
-            if pm_object.check_parameter_applied_for_component('personnel_costs', c):
-                return m.personnel_costs[c] == m.investment[c] * m.personnel_cost
-            else:
-                return m.personnel_costs[c] == 0
-        model.calculate_personnel_costs_of_component_con = Constraint(model.COMPONENTS,
-                                                                      rule=calculate_personnel_costs_of_component_rule)
-
-        def calculate_total_personnel_costs_rule(m):
-            return m.total_personnel_costs == sum(m.personnel_costs[c] for c in m.COMPONENTS)
-        model.calculate_total_personnel_costs_con = Constraint(rule=calculate_total_personnel_costs_rule)
-
-        def calculate_working_capital_of_component_rule(m, c):
-            if pm_object.check_parameter_applied_for_component('working_capital', c):
-                return m.working_capital_costs[c] == (m.investment[c] / (1 - m.working_capital)
-                                                      * m.working_capital) * m.wacc
-            else:
-                return m.working_capital_costs[c] == 0
-        model.calculate_working_capital_of_component_con = Constraint(model.COMPONENTS,
-                                                                      rule=calculate_working_capital_of_component_rule)
-
-        def calculate_total_working_capital_rule(m):
-            return m.total_working_capital_costs == sum(m.working_capital_costs[c] for c in m.COMPONENTS)
-        model.calculate_total_working_capital_con = Constraint(rule=calculate_total_working_capital_rule)
+        def calculate_total_variable_om_cost_rule(m):
+            return m.total_variable_om_costs == sum(m.variable_om_costs[c] for c in m.COMPONENTS)
+        model.calculate_total_variable_om_cost_con = Constraint(rule=calculate_total_variable_om_cost_rule)
 
         def calculate_purchase_costs_of_commodity_rule(m, me):
             return m.purchase_costs[me] == sum(m.mass_energy_purchase_commodity[me, t] * m.weightings[t]
@@ -871,11 +816,8 @@ class OptimizationProblem:
 
         def objective_function(m):
             return (m.total_annuity
-                    + m.total_maintenance_costs
-                    + m.total_taxes_and_insurance_costs
-                    + m.total_overhead_costs
-                    + m.total_personnel_costs
-                    + m.total_working_capital_costs
+                    + m.total_fixed_om_costs
+                    + m.total_variable_om_costs
                     + m.total_purchase_costs
                     - m.total_revenue
                     + m.total_start_up_costs)
@@ -906,12 +848,10 @@ class OptimizationProblem:
             self.output_tuples, self.output_conversion_tuples, self.output_conversion_tuples_dict \
             = self.pm_object.get_all_conversion()
 
-    def __init__(self, pm_object, path_data, solver, path_to_generation_folder=None):
+    def __init__(self, pm_object, solver):
 
         # ----------------------------------
         # Set up problem
-        self.path_data = path_data
-        self.path_to_generation_folder = path_to_generation_folder
         self.solver = solver
         self.instance = None
         self.pm_object = pm_object
@@ -920,11 +860,12 @@ class OptimizationProblem:
 
         self.annuity_factor_dict = self.pm_object.get_annuity_factor()
 
-        self.lifetime_dict, self.maintenance_dict, self.capex_var_dict, self.capex_fix_dict, self.minimal_power_dict,\
-            self.maximal_power_dict,  self.ramp_up_dict, self.ramp_down_dict, self.scaling_capex_var_dict, \
-            self.scaling_capex_fix_dict, self.scaling_capex_upper_bound_dict, self.scaling_capex_lower_bound_dict,\
-            self.shut_down_down_time_dict, self.shut_down_start_up_costs, self.standby_down_time_dict,\
-            self.charging_efficiency_dict, self.discharging_efficiency_dict,\
+        self.lifetime_dict, self.fixed_om_dict, self.variable_om_dict, self.capex_var_dict, self.capex_fix_dict,\
+            self.minimal_power_dict, \
+            self.maximal_power_dict, self.ramp_up_dict, self.ramp_down_dict, self.scaling_capex_var_dict, \
+            self.scaling_capex_fix_dict, self.scaling_capex_upper_bound_dict, self.scaling_capex_lower_bound_dict, \
+            self.shut_down_down_time_dict, self.shut_down_start_up_costs, self.standby_down_time_dict, \
+            self.charging_efficiency_dict, self.discharging_efficiency_dict, \
             self.minimal_soc_dict, self.maximal_soc_dict, \
             self.ratio_capacity_power_dict, self.fixed_capacity_dict = self.pm_object.get_all_component_parameters()
 
@@ -973,7 +914,6 @@ class OptimizationProblem:
         self.attach_standby_component_sets_to_optimization_problem()
 
         # Attach Parameters
-        self.attach_general_parameters_to_optimization_problem()
         self.attach_component_parameters_to_optimization_problem()
         self.attach_annuity_to_optimization_problem()
 

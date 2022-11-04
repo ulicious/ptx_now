@@ -23,7 +23,7 @@ def optimize(pm_object, path_data, path_results, solver):
 
         if pm_object.get_single_or_multiple_profiles() == 'single':  # Case single file generation
 
-            optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+            optimization_problem = OptimizationProblem(pm_object, solver)
             analyze_results(pm_object, optimization_problem, path_results)
 
         else:  # Case with several profiles
@@ -31,7 +31,7 @@ def optimize(pm_object, path_data, path_results, solver):
             def multi_processing_optimization(input_data):
                 input_data[0].set_profile_data(path_data_before + '/' + input_data[1])
 
-                optimization_problem_mp = OptimizationProblem(input_data[0], path_data, solver)
+                optimization_problem_mp = OptimizationProblem(input_data[0], solver)
                 analyze_results(input_data[0], optimization_problem_mp, path_results)
 
             num_cores = min(32, multiprocessing.cpu_count()-1)
@@ -68,7 +68,7 @@ def optimize(pm_object, path_data, path_results, solver):
             pm_object.set_path_data(path_data_before)
 
     else:
-        optimization_problem = OptimizationProblem(pm_object, path_data, solver)
+        optimization_problem = OptimizationProblem(pm_object, solver)
         analyze_results(pm_object, optimization_problem, path_results)
 
 

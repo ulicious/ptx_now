@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import *
-
+from copy import deepcopy
 
 class CommodityFrame:
 
@@ -10,7 +10,7 @@ class CommodityFrame:
 
     def set_commodity_settings_to_default(self):
 
-        self.pm_object.remove_commodity_entirely(self.commodity_object.get_name())
+        self.pm_object.remove_commodity_entirely(self.commodity)
 
         commodity_original = self.pm_object_original.get_commodity(self.commodity)
         self.pm_object.add_commodity(self.commodity, commodity_original.__copy__())
@@ -138,15 +138,8 @@ class CommodityFrame:
             i += 1
 
         button_frame = ttk.Frame(self.frame)
-        ttk.Button(button_frame, text='Adjust setting', command=self.adjust_values)\
-            .grid(row=0, column=0, sticky='ew')
-
-        if not self.commodity_object.is_custom():
-            ttk.Button(button_frame, text='Reset setting', command=self.set_commodity_settings_to_default)\
-                .grid(row=0, column=1, sticky='ew')
-        else:
-            ttk.Button(button_frame, text='Reset setting',
-                       command=self.set_commodity_settings_to_default, state=DISABLED).grid(row=0, column=1, sticky='ew')
+        ttk.Button(button_frame, text='Adjust Commodity', command=self.adjust_values)\
+            .grid(row=0, columnspan=2, sticky='ew')
 
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
@@ -217,8 +210,6 @@ class CommodityFrame:
         self.commodity = commodity
         self.commodity_object = self.pm_object.get_commodity(self.commodity)
         self.monetary_unit = self.pm_object.get_monetary_unit()
-
-        self.commodities_nice_names = []
 
         self.available_var = tk.BooleanVar()
 
@@ -346,13 +337,21 @@ class AdjustCommodityWindow:
         self.demand_type_variable_radiobutton.grid(row=12, column=1, sticky='w')
 
         i = 0
-        energy_units = ['kWh', 'MWh', 'GWh', 'kJ', 'MJ', 'GJ']
-        if not self.commodity_object.get_unit() in energy_units:
-            ttk.Separator(self.newWindow).grid(row=13, columnspan=3, sticky='ew')
-            ttk.Label(self.newWindow, text='Energy content').grid(row=14, column=0, sticky='w')
-            ttk.Entry(self.newWindow, textvariable=self.energy_content_var).grid(row=14, column=1, sticky='w')
-            ttk.Label(self.newWindow, text='MWh/' + self.commodity_object.get_unit()).grid(row=14, column=2, sticky='w')
-            i = 2
+        ttk.Separator(self.newWindow).grid(row=13, columnspan=3, sticky='ew')
+        ttk.Label(self.newWindow, text='Energy content').grid(row=14, column=0, sticky='w')
+        ttk.Entry(self.newWindow, textvariable=self.energy_content_var).grid(row=14, column=1, sticky='w')
+        ttk.Label(self.newWindow, text='MWh/' + self.commodity_object.get_unit()).grid(row=14, column=2, sticky='w')
+        i = 2
+
+        ttk.Label(self.newWindow, text='Commodity Name').grid(row=14+i, column=0, sticky='w')
+        name_entry = ttk.Entry(self.newWindow, textvariable=self.name_var)
+        name_entry.grid(row=14+i, column=1, sticky='w')
+
+        ttk.Label(self.newWindow, text='Commodity Unit').grid(row=15+i, column=0, sticky='w')
+        unit_entry = ttk.Entry(self.newWindow, textvariable=self.unit_var)
+        unit_entry.grid(row=15 + i, column=1, sticky='w')
+
+        i += 2
 
         button_frame = ttk.Frame(self.newWindow)
         button_frame.grid_columnconfigure(0, weight=1)
@@ -419,6 +418,9 @@ class AdjustCommodityWindow:
         self.demand_text_var.set(self.commodity_object.get_demand())
 
         self.energy_content_var.set(self.commodity_object.get_energy_content())
+
+        self.name_var.set(self.commodity_object.get_name())
+        self.unit_var.set(self.commodity_object.get_unit())
 
     def configure_purchase(self):
         if self.purchasable_var.get():
@@ -529,6 +531,14 @@ class AdjustCommodityWindow:
 
         self.commodity_object.set_energy_content(float(self.energy_content_var.get()))
 
+        self.commodity_object.set_unit(self.unit_var.get())
+
+        if self.commodity != self.name_var.get():
+            new_commodity = deepcopy(self.commodity_object)
+            new_commodity.set_name(self.name_var.get())
+            self.commodity_object.set_final(False)
+            self.pm_object.adjust_commodity(self.commodity, new_commodity)
+
         self.pm_object.check_commodity_data_needed()
 
         self.parent.parent.parent.pm_object_copy = self.pm_object
@@ -567,6 +577,9 @@ class AdjustCommodityWindow:
         self.demand_text_var = StringVar()
 
         self.energy_content_var = StringVar()
+
+        self.name_var = StringVar()
+        self.unit_var = StringVar()
 
         # widgets
         self.purchase_fixed_price_radiobutton = ttk.Radiobutton(self.newWindow)

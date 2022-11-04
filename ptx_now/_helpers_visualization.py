@@ -125,11 +125,8 @@ def create_visualization(path):
             CAPEX = []
             total_investment = []
             annuity = []
-            maintenance = []
-            taxes_and_insurance = []
-            personnel_costs = []
-            overhead = []
-            working_capital = []
+            fixed_om = []
+            variable_om = []
             full_load_hours = []
 
             for component in components_df.index:
@@ -152,11 +149,8 @@ def create_visualization(path):
 
                 total_investment.append("%.2f" % components_df.loc[component, 'Total Investment'])
                 annuity.append("%.2f" % components_df.loc[component, 'Annuity'])
-                maintenance.append("%.2f" % components_df.loc[component, 'Maintenance'])
-                taxes_and_insurance.append("%.2f" % components_df.loc[component, 'Taxes and Insurance'])
-                personnel_costs.append("%.2f" % components_df.loc[component, 'Personnel'])
-                overhead.append("%.2f" % components_df.loc[component, 'Overhead'])
-                working_capital.append("%.2f" % components_df.loc[component, 'Working Capital'])
+                fixed_om.append("%.2f" % components_df.loc[component, 'Fixed Operation and Maintenance'])
+                variable_om.append("%.2f" % components_df.loc[component, 'Variable Operation and Maintenance'])
                 full_load_hours.append("%.2f" % components_df.loc[component, 'Full-load Hours'])
 
             local_conversion_components_tab = pd.DataFrame({'': component_list,
@@ -165,10 +159,8 @@ def create_visualization(path):
                                                       'Capex': CAPEX,
                                                       'Total Investment': total_investment,
                                                       'Annuity': annuity,
-                                                      'Maintenance': maintenance,
-                                                      'Personnel': personnel_costs,
-                                                      'Overhead': overhead,
-                                                      'Working Capital': working_capital,
+                                                      'Fixed OM': fixed_om,
+                                                      'Variable OM': variable_om,
                                                       'Full-load Hours': full_load_hours})
 
             return local_conversion_components_tab
@@ -222,7 +214,7 @@ def create_visualization(path):
             return cost_fig, cost_share_fig, cost_structure_df_with_unit
 
         def create_assumptions_table():
-            columns = ['Maintenance', 'Taxes and Insurance', 'Personnel', 'Overhead', 'Working Capital']
+            columns = ['Fixed Operation and Maintenance', 'Fixed Operation and Maintenance']
             local_assumptions_tab = pd.DataFrame(index=assumptions_df.index)
             local_assumptions_tab[''] = assumptions_df.index
             local_assumptions_tab['Capex Unit'] = assumptions_df['Capex Unit']
@@ -231,8 +223,8 @@ def create_visualization(path):
 
                 local_assumptions_tab.loc[i, 'Capex'] = "%.2f" % assumptions_df.loc[i, 'Capex']
 
-                for c in columns:
-                    local_assumptions_tab.loc[i, c] = "%.2f" % (assumptions_df.loc[i, c] * 100) + ' %'
+                for col in columns:
+                    local_assumptions_tab.loc[i, col] = "%.2f" % (assumptions_df.loc[i, col] * 100) + ' %'
 
             local_assumptions_tab['Lifetime'] = assumptions_df['Lifetime']
 
@@ -248,10 +240,8 @@ def create_visualization(path):
                     local_generation_tab.loc[i, 'Capacity'] = "%.2f" % generation_df.loc[i, 'Capacity']
                     local_generation_tab.loc[i, 'Investment'] = "%.2f" % generation_df.loc[i, 'Investment']
                     local_generation_tab.loc[i, 'Annuity'] = "%.2f" % generation_df.loc[i, 'Annuity']
-                    local_generation_tab.loc[i, 'Maintenance'] = "%.2f" % generation_df.loc[i, 'Maintenance']
-                    local_generation_tab.loc[i, 'T&I'] = "%.2f" % generation_df.loc[i, 'Taxes and Insurance']
-                    local_generation_tab.loc[i, 'Overhead'] = "%.2f" % generation_df.loc[i, 'Overhead']
-                    local_generation_tab.loc[i, 'Personnel'] = "%.2f" % generation_df.loc[i, 'Personnel']
+                    local_generation_tab.loc[i, 'Fixed OM'] = "%.2f" % generation_df.loc[i, 'Fixed Operation and Maintenance']
+                    local_generation_tab.loc[i, 'Variable OM'] = "%.2f" % generation_df.loc[i, 'Variable Operation and Maintenance']
                     local_generation_tab.loc[i, 'Potential Generation'] = "%.0f" % generation_df.loc[
                         i, 'Potential Generation']
                     local_generation_tab.loc[i, 'Potential FLH'] = "%.2f" % generation_df.loc[i, 'Potential Full-load Hours']
@@ -274,11 +264,8 @@ def create_visualization(path):
             CAPEX = []
             total_investment = []
             annuity = []
-            maintenance = []
-            taxes_and_insurance = []
-            personnel_costs = []
-            overhead = []
-            working_capital = []
+            fixed_om = []
+            variable_om = []
             for component in components_df.index:
 
                 if generation_df is not None:
@@ -297,11 +284,8 @@ def create_visualization(path):
 
                     total_investment.append("%.2f" % components_df.loc[component, 'Total Investment'])
                     annuity.append("%.2f" % components_df.loc[component, 'Annuity'])
-                    maintenance.append("%.2f" % components_df.loc[component, 'Maintenance'])
-                    taxes_and_insurance.append("%.2f" % components_df.loc[component, 'Taxes and Insurance'])
-                    personnel_costs.append("%.2f" % components_df.loc[component, 'Personnel'])
-                    overhead.append("%.2f" % components_df.loc[component, 'Overhead'])
-                    working_capital.append("%.2f" % components_df.loc[component, 'Working Capital'])
+                    fixed_om.append("%.2f" % components_df.loc[component, 'Fixed Operation and Maintenance'])
+                    variable_om.append("%.2f" % components_df.loc[component, 'Variable Operation and Maintenance'])
 
             local_storage_components_tab = pd.DataFrame({'': component_list,
                                                    'Capacity': capacity,
@@ -309,10 +293,8 @@ def create_visualization(path):
                                                    'Capex': CAPEX,
                                                    'Total Investment': total_investment,
                                                    'Annuity': annuity,
-                                                   'Maintenance': maintenance,
-                                                   'Personnel': personnel_costs,
-                                                   'Overhead': overhead,
-                                                   'Working Capital': working_capital})
+                                                   'Fixed Operation and Maintenance': fixed_om,
+                                                   'Variable Operation and Maintenance': variable_om})
 
             return local_storage_components_tab
 

@@ -10,7 +10,8 @@ class StorageFrame:
         def safe_adjustments():
 
             self.storage_object.set_capex(self.capex_entry_var.get())
-            self.storage_object.set_maintenance(str(float(self.maintenance_entry_var.get()) / 100))
+            self.storage_object.set_fixed_OM(str(float(self.fixed_om_entry_var.get()) / 100))
+            self.storage_object.set_variable_OM(str(float(self.variable_om_entry_var.get())))
             self.storage_object.set_lifetime(self.lifetime_entry_var.get())
             self.storage_object.set_charging_efficiency(str(float(self.charging_entry_var.get()) / 100))
             self.storage_object.set_discharging_efficiency(str(float(self.discharging_entry_var.get()) / 100))
@@ -34,40 +35,45 @@ class StorageFrame:
         newWindow.grid_columnconfigure(1, weight=1)
         newWindow.grid_columnconfigure(2, weight=1)
 
-        commodity_unit = self.commodity_object.get_unit()
+        commodity = self.pm_object.get_commodity(self.commodity)
+        commodity_unit = commodity.get_unit()
 
         tk.Label(newWindow, text='CAPEX [' + self.monetary_unit + '/' + commodity_unit + ']').grid(row=0, column=0,
                                                                                                 sticky='w')
         capex_entry = tk.Entry(newWindow, text=self.capex_entry_var)
-        capex_entry.grid(row=0, column=1, columnspan=2, sticky='ew')
+        capex_entry.grid(row=0, column=1, sticky='ew')
 
-        tk.Label(newWindow, text='Maintenance [%]').grid(row=1, column=0, sticky='w')
-        maintenance_entry = tk.Entry(newWindow, text=self.maintenance_entry_var)
-        maintenance_entry.grid(row=1, column=1, columnspan=2, sticky='ew')
+        tk.Label(newWindow, text='Fixed O&M [%]').grid(row=1, column=0, sticky='w')
+        fixed_om_entry = tk.Entry(newWindow, text=self.fixed_om_entry_var)
+        fixed_om_entry.grid(row=1, column=1, sticky='ew')
+
+        tk.Label(newWindow, text='Variable O&M [' + self.pm_object.get_monetary_unit() + ' / ' + commodity_unit + ']').grid(row=2, column=0, sticky='w')
+        variable_om_entry = tk.Entry(newWindow, text=self.variable_om_entry_var)
+        variable_om_entry.grid(row=2, column=1, sticky='ew')
 
         tk.Label(newWindow, text='Lifetime [Years]').grid(row=3, column=0, sticky='w')
         lifetime_entry = tk.Entry(newWindow, text=self.lifetime_entry_var)
-        lifetime_entry.grid(row=3, column=1, columnspan=2, sticky='ew')
+        lifetime_entry.grid(row=3, column=1, sticky='ew')
 
         tk.Label(newWindow, text='Charging efficiency [%]').grid(row=4, column=0, sticky='w')
         charging_entry = tk.Entry(newWindow, text=self.charging_entry_var)
-        charging_entry.grid(row=4, column=1, columnspan=2, sticky='ew')
+        charging_entry.grid(row=4, column=1, sticky='ew')
 
         tk.Label(newWindow, text='Discharging efficiency [%]').grid(row=5, column=0, sticky='w')
         discharging_entry = tk.Entry(newWindow, text=self.discharging_entry_var)
-        discharging_entry.grid(row=5, column=1, columnspan=2, sticky='ew')
+        discharging_entry.grid(row=5, column=1, sticky='ew')
 
         tk.Label(newWindow, text='Minimal SOC [%]').grid(row=6, column=0, sticky='w')
         min_soc_entry = tk.Entry(newWindow, text=self.min_soc_entry_var)
-        min_soc_entry.grid(row=6, column=1, columnspan=2, sticky='ew')
+        min_soc_entry.grid(row=6, column=1, sticky='ew')
 
         tk.Label(newWindow, text='Maximal SOC [%]').grid(row=7, column=0, sticky='w')
         max_soc_entry = tk.Entry(newWindow, text=self.max_soc_entry_var)
-        max_soc_entry.grid(row=7, column=1, columnspan=2, sticky='ew')
+        max_soc_entry.grid(row=7, column=1, sticky='ew')
 
-        ttk.Label(newWindow, text='Ratio between storage capacity and power [hours]').grid(row=9, column=0, sticky='w')
+        ttk.Label(newWindow, text='Ratio between storage capacity and power [hours]').grid(row=8, column=0, sticky='w')
         ratio_capacity_p_entry = tk.Entry(newWindow, text=self.ratio_capacity_p_entry_var)
-        ratio_capacity_p_entry.grid(row=9, column=1, columnspan=2, sticky='ew')
+        ratio_capacity_p_entry.grid(row=8, column=1, sticky='ew')
 
         button_frame = ttk.Frame(newWindow)
         button_frame.grid_columnconfigure(0, weight=1)
@@ -76,7 +82,7 @@ class StorageFrame:
         ttk.Button(button_frame, text='Ok', command=safe_adjustments).grid(row=0, column=0, sticky='ew')
         ttk.Button(button_frame, text='Cancel', command=kill_only).grid(row=0, column=1, sticky='ew')
 
-        button_frame.grid(row=12, columnspan=2, sticky='ew')
+        button_frame.grid(row=9, columnspan=2, sticky='ew')
 
     def set_storage_settings_to_default(self):
 
@@ -94,8 +100,11 @@ class StorageFrame:
 
         if self.storable_var.get():
             self.storage_object.set_final(True)
+            self.state = NORMAL
+
         else:
             self.storage_object.set_final(False)
+            self.state = DISABLED
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
@@ -105,80 +114,77 @@ class StorageFrame:
         self.storable_checkbox.config(text='Storage available?')
         self.storable_checkbox.grid(row=0, column=0, sticky='w')
 
-        if self.storable_var.get():
+        storage = self.pm_object.get_component(self.commodity)
 
-            storage = self.pm_object.get_component(self.commodity)
+        self.capex = storage.get_capex()
+        self.fixed_om = round(100 * storage.get_fixed_OM(), 2)
+        self.variable_om = storage.get_variable_OM()
+        self.lifetime = storage.get_lifetime()
+        self.charging_efficiency = 100 * float(storage.get_charging_efficiency())
+        self.discharging_efficiency = 100 * float(storage.get_discharging_efficiency())
+        self.min_soc = 100 * float(storage.get_min_soc())
+        self.max_soc = 100 * float(storage.get_max_soc())
+        self.ratio_capacity_p = storage.get_ratio_capacity_p()
 
-            self.capex = storage.get_capex()
-            self.maintenance = round(100 * storage.get_maintenance(), 2)
-            self.lifetime = storage.get_lifetime()
-            self.charging_efficiency = 100 * float(storage.get_charging_efficiency())
-            self.discharging_efficiency = 100 * float(storage.get_discharging_efficiency())
-            self.min_soc = 100 * float(storage.get_min_soc())
-            self.max_soc = 100 * float(storage.get_max_soc())
-            self.ratio_capacity_p = storage.get_ratio_capacity_p()
+        self.capex_entry_var.set(self.capex)
+        self.fixed_om_entry_var.set(self.fixed_om)
+        self.variable_om_entry_var.set(self.variable_om)
+        self.lifetime_entry_var.set(self.lifetime)
+        self.charging_entry_var.set(self.charging_efficiency)
+        self.discharging_entry_var.set(self.discharging_efficiency)
+        self.min_soc_entry_var.set(self.min_soc)
+        self.max_soc_entry_var.set(self.max_soc)
+        self.ratio_capacity_p_entry_var.set(self.ratio_capacity_p)
 
-            self.capex_entry_var.set(self.capex)
-            self.maintenance_entry_var.set(self.maintenance)
-            self.lifetime_entry_var.set(self.lifetime)
-            self.charging_entry_var.set(self.charging_efficiency)
-            self.discharging_entry_var.set(self.discharging_efficiency)
-            self.min_soc_entry_var.set(self.min_soc)
-            self.max_soc_entry_var.set(self.max_soc)
-            self.ratio_capacity_p_entry_var.set(self.ratio_capacity_p)
+        commodity = self.pm_object.get_commodity(self.commodity)
+        commodity_unit = commodity.get_unit()
 
-            commodity_unit = self.pm_object.get_commodity(self.commodity).get_unit()
+        ttk.Label(self.frame, text='CAPEX [' + self.monetary_unit + '/' + commodity_unit + ']',
+                  state=self.state).grid(row=1, column=0, sticky='w')
+        self.capex_label.config(text=self.capex_entry_var.get(), state=self.state)
+        self.capex_label.grid(row=1, column=1, sticky='w')
 
-            tk.Label(self.frame, text='CAPEX [' + self.monetary_unit + '/' + commodity_unit + ']').grid(row=1, column=0,
-                                                                                                     sticky='w')
-            self.capex_label.config(text=self.capex_entry_var.get())
-            self.capex_label.grid(row=1, column=1, sticky='w')
+        ttk.Label(self.frame, text='Fixed O&M [%]', state=self.state).grid(row=2, column=0, sticky='w')
+        self.fixed_om_label.config(text=self.fixed_om_entry_var.get(), state=self.state)
+        self.fixed_om_label.grid(row=2, column=1, sticky='w')
 
-            tk.Label(self.frame, text='Maintenance [%]').grid(row=2, column=0, sticky='w')
-            self.maintenance_label.config(text=self.maintenance_entry_var.get())
-            self.maintenance_label.grid(row=2, column=1, sticky='w')
+        ttk.Label(self.frame, text='Variable O&M [' + self.pm_object.get_monetary_unit() + ' / ' + commodity_unit + ']',
+                 state=self.state).grid(row=3, column=0, sticky='w')
+        self.variable_om_label.config(text=self.variable_om_entry_var.get(), state=self.state)
+        self.variable_om_label.grid(row=3, column=1, sticky='w')
 
-            tk.Label(self.frame, text='Lifetime [years]').grid(row=3, column=0, sticky='w')
-            self.lifetime_label.config(text=self.lifetime_entry_var.get())
-            self.lifetime_label.grid(row=3, column=1, sticky='w')
+        ttk.Label(self.frame, text='Lifetime [years]', state=self.state).grid(row=4, column=0, sticky='w')
+        self.lifetime_label.config(text=self.lifetime_entry_var.get(), state=self.state)
+        self.lifetime_label.grid(row=4, column=1, sticky='w')
 
-            tk.Label(self.frame, text='Charging efficiency [%]').grid(row=4, column=0, sticky='w')
-            self.charge_label.config(text=self.charging_entry_var.get())
-            self.charge_label.grid(row=4, column=1, sticky='w')
+        ttk.Label(self.frame, text='Charging efficiency [%]', state=self.state).grid(row=5, column=0, sticky='w')
+        self.charge_label.config(text=self.charging_entry_var.get(), state=self.state)
+        self.charge_label.grid(row=5, column=1, sticky='w')
 
-            tk.Label(self.frame, text='Discharging efficiency [%]').grid(row=5, column=0, sticky='w')
-            self.discharge_label.config(text=self.discharging_entry_var.get())
-            self.discharge_label.grid(row=5, column=1, sticky='w')
+        ttk.Label(self.frame, text='Discharging efficiency [%]', state=self.state).grid(row=6, column=0, sticky='w')
+        self.discharge_label.config(text=self.discharging_entry_var.get(), state=self.state)
+        self.discharge_label.grid(row=6, column=1, sticky='w')
 
-            tk.Label(self.frame, text='Minimal SOC [%]').grid(row=6, column=0, sticky='w')
-            self.min_soc_entry.config(text=self.min_soc_entry_var.get())
-            self.min_soc_entry.grid(row=6, column=1, sticky='w')
+        ttk.Label(self.frame, text='Minimal SOC [%]', state=self.state).grid(row=7, column=0, sticky='w')
+        self.min_soc_entry.config(text=self.min_soc_entry_var.get(), state=self.state)
+        self.min_soc_entry.grid(row=7, column=1, sticky='w')
 
-            tk.Label(self.frame, text='Maximal SOC [%]').grid(row=7, column=0, sticky='w')
-            self.max_soc_entry.config(text=self.max_soc_entry_var.get())
-            self.max_soc_entry.grid(row=7, column=1, sticky='w')
+        ttk.Label(self.frame, text='Maximal SOC [%]', state=self.state).grid(row=8, column=0, sticky='w')
+        self.max_soc_entry.config(text=self.max_soc_entry_var.get(), state=self.state)
+        self.max_soc_entry.grid(row=8, column=1, sticky='w')
 
-            tk.Label(self.frame, text='Ratio between capacity and power [hours]').grid(row=9, column=0, sticky='w')
-            self.ratio_capacity_p_entry.config(text=self.ratio_capacity_p_entry_var.get())
-            self.ratio_capacity_p_entry.grid(row=9, column=1, sticky='w')
+        ttk.Label(self.frame, text='Ratio between capacity and power [hours]', state=self.state).grid(row=9, column=0, sticky='w')
+        self.ratio_capacity_p_entry.config(text=self.ratio_capacity_p_entry_var.get(), state=self.state)
+        self.ratio_capacity_p_entry.grid(row=9, column=1, sticky='w')
 
-            row = 11
+        row = 10
 
-            button_frame = ttk.Frame(self.frame)
-            button_frame.grid_columnconfigure(0, weight=1)
-            button_frame.grid_columnconfigure(1, weight=1)
+        self.button_frame.grid_columnconfigure(0, weight=1)
 
-            ttk.Button(button_frame, text='Adjust values', command=self.adjust_values)\
-                .grid(row=0, column=0, sticky='ew')
+        self.adjust_value_button.config(text='Adjust Storage', command=self.adjust_values, state=self.state)
+        self.adjust_value_button.grid(row=0, column=0, sticky='ew')
 
-            if self.storage_object.is_custom():
-                ttk.Button(button_frame, text='Reset values', command=self.set_storage_settings_to_default,
-                           state=DISABLED).grid(row=0, column=1, sticky='ew')
-            else:
-                ttk.Button(button_frame, text='Reset values',
-                           command=self.set_storage_settings_to_default).grid(row=0, column=1, sticky='ew')
-
-            button_frame.grid(row=row, columnspan=2, sticky='ew')
+        self.button_frame.grid(row=row, columnspan=2, sticky='ew')
 
     def __init__(self, parent, frame, storage, pm_object, pm_object_original):
 
@@ -204,7 +210,8 @@ class StorageFrame:
         self.commodity_object = self.pm_object.get_commodity(self.commodity)
 
         self.capex = None
-        self.maintenance = None
+        self.fixed_om = None
+        self.variable_om = None
         self.lifetime = None
         self.charging_efficiency = None
         self.discharging_efficiency = None
@@ -213,18 +220,20 @@ class StorageFrame:
         self.max_soc = None
         self.ratio_capacity_p = None
 
-        self.capex_entry_var = StringVar()
-        self.maintenance_entry_var = StringVar()
-        self.lifetime_entry_var = StringVar()
-        self.charging_entry_var = StringVar()
-        self.discharging_entry_var = StringVar()
-        self.ratio_capacity_p_entry_var = StringVar()
-        self.min_soc_entry_var = StringVar()
-        self.max_soc_entry_var = StringVar()
+        self.capex_entry_var = DoubleVar()
+        self.fixed_om_entry_var = DoubleVar()
+        self.variable_om_entry_var = DoubleVar()
+        self.lifetime_entry_var = IntVar()
+        self.charging_entry_var = DoubleVar()
+        self.discharging_entry_var = DoubleVar()
+        self.ratio_capacity_p_entry_var = DoubleVar()
+        self.min_soc_entry_var = DoubleVar()
+        self.max_soc_entry_var = DoubleVar()
 
         self.storable_checkbox = ttk.Checkbutton(self.frame, command=self.create_storage, variable=self.storable_var)
         self.capex_label = ttk.Label(self.frame)
-        self.maintenance_label = ttk.Label(self.frame)
+        self.fixed_om_label = ttk.Label(self.frame)
+        self.variable_om_label = ttk.Label(self.frame)
         self.lifetime_label = ttk.Label(self.frame)
         self.charge_label = ttk.Label(self.frame)
         self.discharge_label = ttk.Label(self.frame)
@@ -232,5 +241,13 @@ class StorageFrame:
         self.max_soc_entry = ttk.Label(self.frame)
         self.ratio_capacity_p_entry = ttk.Label(self.frame)
         self.ratio_capacity_p_label = ttk.Label(self.frame)
+        self.button_frame = ttk.Frame(self.frame)
+        self.adjust_value_button = ttk.Button(self.button_frame)
+        self.reset_button = ttk.Button(self.button_frame)
+
+        if self.storable_var.get():
+            self.state = NORMAL
+        else:
+            self.state = DISABLED
 
         self.initialize_storage_frame()

@@ -3,12 +3,6 @@ import copy
 
 class Component:
 
-    def set_nice_name(self, nice_name):
-        self.nice_name = nice_name
-
-    def get_nice_name(self):
-        return self.nice_name
-
     def set_name(self, name):
         self.name = name
 
@@ -28,11 +22,17 @@ class Component:
     def get_lifetime(self):
         return self.lifetime
 
-    def set_maintenance(self, maintenance):
-        self.maintenance = float(maintenance)
+    def set_variable_OM(self, variable_om):
+        self.variable_om = float(variable_om)
 
-    def get_maintenance(self):
-        return self.maintenance
+    def get_variable_OM(self):
+        return self.variable_om
+
+    def set_fixed_OM(self, maintenance):
+        self.fixed_om = float(maintenance)
+
+    def get_fixed_OM(self):
+        return self.fixed_om
 
     def set_final(self, status):
         self.final_unit = status
@@ -50,26 +50,25 @@ class Component:
         return self.component_type
 
     def __copy__(self):
-        return Component(name=self.name, nice_name=self.nice_name, final_unit=self.final_unit,
+        return Component(name=self.name, final_unit=self.final_unit,
                          custom_unit=self.custom_unit, capex=self.capex, lifetime=self.lifetime,
-                         maintenance=self.maintenance)
+                         fixed_om=self.fixed_om, variable_om=self.variable_om)
 
-    def __init__(self, name, nice_name, lifetime, maintenance, capex=None,
+    def __init__(self, name, lifetime, fixed_om, variable_om, capex=None,
                  final_unit=False, custom_unit=False):
 
         """
         Defines basic component class
 
         :param name: [string] - abbreviation of component
-        :param nice_name: [string] - Nice name of component
         :param lifetime: [int] - lifetime of component
-        :param maintenance: [float] - Maintenance of component
+        :param fixed_om: [float] - fixed operation and maintenance
+        :param variable_om: [float] - variable operation and maintenance
         :param capex: [float] - Capex
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
         self.name = str(name)
-        self.nice_name = str(nice_name)
         self.component_type = None
 
         self.final_unit = bool(final_unit)
@@ -77,8 +76,9 @@ class Component:
 
         self.capex = float(capex)
 
-        self.lifetime = float(lifetime)
-        self.maintenance = float(maintenance)
+        self.lifetime = int(lifetime)
+        self.fixed_om = float(fixed_om)
+        self.variable_om = float(variable_om)
 
 
 class ConversionComponent(Component):
@@ -176,6 +176,9 @@ class ConversionComponent(Component):
     def get_hot_standby_startup_time(self):
         return self.hot_standby_startup_time
 
+    def set_inputs(self, inputs):
+        self.inputs = inputs
+
     def get_inputs(self):
         return self.inputs
 
@@ -192,6 +195,9 @@ class ConversionComponent(Component):
 
     def get_main_input(self):
         return self.main_input
+
+    def set_outputs(self, outputs):
+        self.outputs = outputs
 
     def get_outputs(self):
         return self.outputs
@@ -239,12 +245,10 @@ class ConversionComponent(Component):
     def get_max_p(self):
         return self.max_p
 
-    def __copy__(self, name=None, nice_name=None):
+    def __copy__(self, name=None):
 
         if name is None:
             name = self.name
-        if nice_name is None:
-            nice_name = self.nice_name
 
         # deepcopy mutable objects
         inputs = copy.deepcopy(self.inputs)
@@ -252,8 +256,8 @@ class ConversionComponent(Component):
         commodities = copy.deepcopy(self.commodities)
         hot_standby_demand = copy.deepcopy(self.hot_standby_demand)
 
-        return ConversionComponent(name=name, nice_name=nice_name, lifetime=self.lifetime,
-                                   maintenance=self.maintenance, capex=self.capex,
+        return ConversionComponent(name=name, lifetime=self.lifetime,
+                                   fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
                                    capex_basis=self.capex_basis, scalable=self.scalable,
                                    base_investment=self.base_investment, base_capacity=self.base_capacity,
                                    economies_of_scale=self.economies_of_scale,
@@ -268,7 +272,7 @@ class ConversionComponent(Component):
                                    main_input=self.main_input, main_output=self.main_output, commodities=commodities,
                                    final_unit=self.final_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
+    def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
                  capex_basis='input', scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
                  max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1.,
                  shut_down_ability=False, start_up_time=0., start_up_costs=0,
@@ -280,9 +284,9 @@ class ConversionComponent(Component):
         """
         Class of conversion units
         :param name: [string] - Abbreviation of unit
-        :param nice_name: [string] - Nice name of unit
         :param lifetime: [int] - lifetime of unit
-        :param maintenance: [float] - maintenance of unit in % of investment
+        :param fixed_om: [float] - fixed operation and maintenance
+        :param variable_om: [float] - variable operation and maintenance
         :param capex: [float] - CAPEX of component
         :param capex_basis: [str] - Decide if input or output sets basis of capex
         :param scalable: [boolean] - Boolean if scalable unit
@@ -306,7 +310,7 @@ class ConversionComponent(Component):
         :param custom_unit: [boolean] - if unit is custom
         """
 
-        super().__init__(name, nice_name, lifetime, maintenance, capex, final_unit, custom_unit)
+        super().__init__(name, lifetime, fixed_om, variable_om, capex, final_unit, custom_unit)
 
         self.component_type = 'conversion'
         self.scalable = bool(scalable)
@@ -397,26 +401,27 @@ class StorageComponent(Component):
         return self.initial_soc
 
     def __copy__(self):
-        return StorageComponent(name=self.name, nice_name=self.nice_name, lifetime=self.lifetime,
-                                maintenance=self.maintenance, capex=self.capex,
+        return StorageComponent(name=self.name, lifetime=self.lifetime,
+                                fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
                                 charging_efficiency=self.charging_efficiency,
                                 discharging_efficiency=self.discharging_efficiency,
                                 min_soc=self.min_soc, max_soc=self.max_soc, initial_soc=self.initial_soc,
                                 leakage=self.leakage, ratio_capacity_p=self.ratio_capacity_p,
                                 final_unit=self.final_unit, custom_unit=self.custom_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0.,
+    def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
                  charging_efficiency=1., discharging_efficiency=1., min_soc=0., max_soc=1.,
-                 initial_soc=0.5, leakage=0., ratio_capacity_p=1.,
+                 initial_soc=0.5,
+                 leakage=0., ratio_capacity_p=1.,
                  final_unit=False, custom_unit=False):
 
         """
         Class of Storage component
 
         :param name: [string] - Abbreviation of unit
-        :param nice_name: [string] - Nice name of unit
         :param lifetime: [int] - lifetime of unit
-        :param maintenance: [float] - maintenance of unit in % of investment
+        :param fixed_om: [float] - fixed operation and maintenance
+        :param variable_om: [float] - variable operation and maintenance
         :param capex: [float] - CAPEX of component
         :param charging_efficiency: [float] - Charging efficiency when charging storage
         :param discharging_efficiency: [float] - Charging efficiency when discharging storage
@@ -429,7 +434,7 @@ class StorageComponent(Component):
         :param custom_unit: [boolean] - if not default component
         """
 
-        super().__init__(name, nice_name, lifetime, maintenance, capex,
+        super().__init__(name, lifetime, fixed_om, variable_om, capex,
                          final_unit, custom_unit)
 
         self.component_type = 'storage'
@@ -471,14 +476,14 @@ class GenerationComponent(Component):
         return self.fixed_capacity
 
     def __copy__(self):
-        return GenerationComponent(name=self.name, nice_name=self.nice_name, lifetime=self.lifetime,
-                                   maintenance=self.maintenance, capex=self.capex,
+        return GenerationComponent(name=self.name, lifetime=self.lifetime,
+                                   fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
                                    generated_commodity=self.generated_commodity,
                                    curtailment_possible=self.curtailment_possible,
                                    has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
                                    final_unit=self.final_unit, custom_unit=self.custom_unit)
 
-    def __init__(self, name, nice_name, lifetime=0., maintenance=0., capex=0., generated_commodity='electricity',
+    def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0., generated_commodity='Electricity',
                  curtailment_possible=True, has_fixed_capacity=False, fixed_capacity=0.,
                  final_unit=False, custom_unit=False):
 
@@ -486,15 +491,15 @@ class GenerationComponent(Component):
         Class of Generator component
 
         :param name: [string] - Abbreviation of unit
-        :param nice_name: [string] -  Nice name of unit
         :param lifetime: [int] - lifetime of unit
-        :param maintenance: [float] - maintenance of unit in % of investment
+        :param fixed_om: [float] - fixed operation and maintenance
+        :param variable_om: [float] - variable operation and maintenance
         :param capex: [float] - CAPEX of unit
         :param generated_commodity: [string] - Stream, which is generated by generator
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
-        super().__init__(name, nice_name, lifetime, maintenance, capex,
+        super().__init__(name, lifetime, fixed_om, variable_om, capex,
                          final_unit, custom_unit)
 
         self.component_type = 'generator'

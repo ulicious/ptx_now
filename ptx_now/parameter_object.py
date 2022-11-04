@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.linear_model import LinearRegression
+from copy import deepcopy
 
 import math
 
@@ -16,58 +17,17 @@ idx = pd.IndexSlice
 
 class ParameterObject:
 
-    def set_nice_name(self, abbreviation, nice_name):
-        self.nice_names.update({abbreviation: nice_name})
+    def set_wacc(self, wacc):
+        self.wacc = float(wacc)
 
-    def get_nice_name(self, abbreviation):
-        return self.nice_names[abbreviation]
-
-    def set_abbreviation(self, nice_name, abbreviation):
-        self.abbreviations_dict.update({nice_name: abbreviation})
-
-    def get_abbreviation(self, nice_name):
-        return self.abbreviations_dict[nice_name]
-
-    def get_all_abbreviations(self):
-        return [*self.nice_names.keys()]
-
-    def set_general_parameter_value(self, parameter, value):
-        self.general_parameter_values.update({parameter: float(value)})
-
-    def get_general_parameter_value(self, parameter):
-        return self.general_parameter_values[parameter]
-
-    def get_general_parameter_value_dictionary(self):
-        return self.general_parameter_values
-
-    def set_general_parameter(self, parameter):
-        if parameter not in self.general_parameters:
-            self.general_parameters.append(parameter)
-
-            if parameter not in ['wacc', 'covered_period', 'representative_weeks']:
-                self.applied_parameter_for_component[parameter] = {}
-
-    def get_general_parameters(self):
-        return self.general_parameters
-
-    def set_applied_parameter_for_component(self, general_parameter, component, status):
-        if general_parameter not in ['wacc', 'covered_period', 'representative_weeks']:
-            self.applied_parameter_for_component[general_parameter][component] = status
-
-    def set_all_applied_parameters(self, applied_parameters):
-        self.applied_parameter_for_component = applied_parameters
-
-    def check_parameter_applied_for_component(self, general_parameter, component):
-        return self.applied_parameter_for_component[general_parameter][component]
-
-    def get_all_applied_parameters(self):
-        return self.applied_parameter_for_component
+    def get_wacc(self):
+        return self.wacc
 
     def get_annuity_factor(self):
         """ Setting time-dependent parameters"""
 
         # Calculate annuity factor of each component
-        wacc = self.get_general_parameter_value_dictionary()['wacc']
+        wacc = self.get_wacc()
         annuity_factor_dict = {}
         for c in self.get_final_components_objects():
             lifetime = c.get_lifetime()
@@ -80,15 +40,8 @@ class ParameterObject:
 
         return annuity_factor_dict
 
-    def add_component(self, abbreviation, component):
-        self.components.update({abbreviation: component})
-        self.set_nice_name(abbreviation, component.get_nice_name())
-        self.set_abbreviation(component.get_nice_name(), abbreviation)
-
-        self.applied_parameter_for_component[abbreviation] = {'taxes_and_insurance': True,
-                                                              'personnel_costs': True,
-                                                              'overhead': True,
-                                                              'working_capital': True}
+    def add_component(self, name, component):
+        self.components.update({name: component})
 
     def get_all_component_names(self):
         return [*self.components.keys()]
@@ -104,10 +57,6 @@ class ParameterObject:
 
     def remove_component_entirely(self, name):
         self.components.pop(name)
-
-    def get_component_by_nice_name(self, nice_name):
-        abbreviation = self.get_abbreviation(nice_name)
-        return self.get_component(abbreviation)
 
     def get_final_components_names(self):
         final_components_names = []
@@ -285,7 +234,7 @@ class ParameterObject:
         final_commodities = []
         for commodity in self.get_all_commodities():
             if self.get_commodity(commodity).is_final():
-                final_commodities.append(self.get_commodity(commodity).get_nice_name())
+                final_commodities.append(self.get_commodity(commodity).get_name())
 
         return final_commodities
 
@@ -301,7 +250,7 @@ class ParameterObject:
         not_used_commodities = []
         for commodity in self.get_all_commodities():
             if not self.get_commodity(commodity).is_final():
-                not_used_commodities.append(self.get_commodity(commodity).get_nice_name())
+                not_used_commodities.append(self.get_commodity(commodity).get_name())
 
         return not_used_commodities
 
@@ -317,7 +266,7 @@ class ParameterObject:
         custom_commodities = []
         for commodity in self.get_all_commodities():
             if self.get_commodity(commodity).is_custom():
-                custom_commodities.append(self.get_commodity(commodity).get_nice_name())
+                custom_commodities.append(self.get_commodity(commodity).get_name())
 
         return custom_commodities
 
@@ -329,10 +278,8 @@ class ParameterObject:
 
         return custom_commodities
 
-    def add_commodity(self, abbreviation, commodity):
-        self.commodities.update({abbreviation: commodity})
-        self.set_nice_name(abbreviation, commodity.get_nice_name())
-        self.set_abbreviation(commodity.get_nice_name(), abbreviation)
+    def add_commodity(self, name, commodity):
+        self.commodities.update({name: commodity})
 
     def remove_commodity_entirely(self, name):
         self.commodities.pop(name)
@@ -350,10 +297,6 @@ class ParameterObject:
     def get_commodity(self, name):  # checked
         return self.commodities[name]
 
-    def get_commodity_by_nice_name(self, nice_name):
-        abbreviation = self.get_abbreviation(nice_name)
-        return self.get_commodity(abbreviation)
-
     def get_commodity_by_component(self, component):  # checked
         return self.components[component].get_commodities()
 
@@ -361,8 +304,9 @@ class ParameterObject:
         components = []
 
         for c in self.components:
-            if commodity in self.get_commodity_by_component(c):
-                components.append(c)
+            if self.get_component(c).get_component_type() == 'conversion':
+                if commodity in self.get_commodity_by_component(c):
+                    components.append(c)
 
         return components
 
@@ -371,6 +315,36 @@ class ParameterObject:
 
     def activate_commodity(self, commodity):
         self.get_commodity(commodity).set_final(True)
+
+    def adjust_commodity(self, name, commodity_object):
+        components = self.get_component_by_commodity(name)
+        for c in components:
+            inputs = self.get_component(c).get_inputs()
+            inputs[commodity_object.get_name()] = inputs.pop(name)
+            self.get_component(c).set_inputs(inputs)
+
+            if name == self.get_component(c).get_main_input():
+                self.get_component(c).set_main_input(commodity_object.get_name())
+
+            outputs = self.get_component(c).get_outputs()
+            outputs[commodity_object.get_name()] = outputs.pop(name)
+            self.get_component(c).set_outputs(outputs)
+
+            if name == self.get_component(c).get_main_output():
+                self.get_component(c).set_main_output(commodity_object.get_name())
+
+        for g in self.get_final_generator_components_objects():
+            if g.get_generated_commodity() == name:
+                g.set_generated_commodity(commodity_object.get_name())
+
+        for s in self.get_storage_components_objects():
+            if s.get_name() == name:
+                new_storage = deepcopy(s)
+                new_storage.set_name(commodity_object.get_name())
+                self.remove_component_entirely(name)
+                self.add_component(commodity_object.get_name(), new_storage)
+
+        self.add_commodity(commodity_object.get_name(), commodity_object)
 
     def set_integer_steps(self, integer_steps):
         self.integer_steps = integer_steps
@@ -466,14 +440,23 @@ class ParameterObject:
 
         return lifetime_dict
 
-    def get_component_maintenance_parameters(self):
-        maintenance_dict = {}
+    def get_component_fixed_om_parameters(self):
+        fixed_om_dict = {}
 
         for component_object in self.get_final_components_objects():
             component_name = component_object.get_name()
-            maintenance_dict[component_name] = component_object.get_maintenance()
+            fixed_om_dict[component_name] = component_object.get_fixed_OM()
 
-        return maintenance_dict
+        return fixed_om_dict
+
+    def get_component_variable_om_parameters(self):
+        variable_om = {}
+
+        for component_object in self.get_final_components_objects():
+            component_name = component_object.get_name()
+            variable_om[component_name] = component_object.get_variable_OM()
+
+        return variable_om
 
     def get_component_variable_capex_parameters(self):
         capex_var_dict = {}
@@ -813,7 +796,7 @@ class ParameterObject:
             plt.plot(x, y, marker='', color='red', linewidth=2)
             plt.plot(x_value_absolut, y_value_absolut, marker='', color='olive', linewidth=2)
 
-            plt.title(component_object.get_nice_name())
+            plt.title(component_object.get_name())
             plt.xlabel('Capacity')
             plt.ylabel('Total investment in €')
 
@@ -824,7 +807,8 @@ class ParameterObject:
     def get_all_component_parameters(self):
 
         lifetime_dict = self.get_component_lifetime_parameters()
-        maintenance_dict = self.get_component_maintenance_parameters()
+        fixed_om_dict = self.get_component_fixed_om_parameters()
+        variable_om_dict = self.get_component_variable_om_parameters()
         capex_var_dict = self.get_component_variable_capex_parameters()
         capex_fix_dict = self.get_component_fixed_capex_parameters()
 
@@ -853,7 +837,7 @@ class ParameterObject:
 
         fixed_capacity_dict = self.get_fixed_capacities()
 
-        return lifetime_dict, maintenance_dict, capex_var_dict, capex_fix_dict, minimal_power_dict, maximal_power_dict,\
+        return lifetime_dict, fixed_om_dict, variable_om_dict, capex_var_dict, capex_fix_dict, minimal_power_dict, maximal_power_dict,\
             ramp_up_dict, ramp_down_dict, scaling_capex_var_dict, scaling_capex_fix_dict,\
             scaling_capex_upper_bound_dict, scaling_capex_lower_bound_dict,\
             shut_down_down_time_dict, shut_down_start_up_costs, standby_down_time_dict,\
@@ -995,7 +979,7 @@ class ParameterObject:
                 for t in range(self.get_time_steps()):
                     ind = profile.index[t]
                     generation_profiles_dict.update({(generator_name, t):
-                                                     float(profile.loc[ind, generator.get_nice_name()])})
+                                                     float(profile.loc[ind, generator.get_name()])})
 
         return generation_profiles_dict
 
@@ -1004,7 +988,6 @@ class ParameterObject:
 
         for commodity in self.get_final_commodities_objects():
             commodity_name = commodity.get_name()
-            commodity_nice_name = commodity.get_nice_name()
 
             if commodity.is_demanded():
                 if commodity.get_demand_type() == 'fixed':
@@ -1021,7 +1004,7 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    demand_curve = profile.loc[:, commodity_nice_name + '_Demand']
+                    demand_curve = profile.loc[:, commodity_name + '_Demand']
 
                     for t in range(self.get_time_steps()):
                         demand_dict.update({(commodity_name, t): float(demand_curve.loc[t])})
@@ -1033,7 +1016,6 @@ class ParameterObject:
 
         for commodity in self.get_final_commodities_objects():
             commodity_name = commodity.get_name()
-            commodity_nice_name = commodity.get_nice_name()
             if commodity.is_purchasable():
                 if commodity.get_purchase_price_type() == 'fixed':
                     for t in range(self.get_time_steps()):
@@ -1049,7 +1031,7 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    purchase_price_curve = profile.loc[:, commodity_nice_name + '_Purchase_Price']
+                    purchase_price_curve = profile.loc[:, commodity_name + '_Purchase_Price']
 
                     for t in range(self.get_time_steps()):
                         purchase_price_dict.update({(commodity_name, t): float(purchase_price_curve.loc[t])})
@@ -1060,7 +1042,6 @@ class ParameterObject:
         sell_price_dict = {}
         for commodity in self.get_final_commodities_objects():
             commodity_name = commodity.get_name()
-            commodity_nice_name = commodity.get_nice_name()
             if commodity.is_saleable():
                 if commodity.get_sale_price_type() == 'fixed':
                     for t in range(self.get_time_steps()):
@@ -1075,7 +1056,7 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    sale_price_curve = profile.loc[:, commodity_nice_name + '_Selling_Price']
+                    sale_price_curve = profile.loc[:, commodity_name + '_Selling_Price']
 
                     for t in range(self.get_time_steps()):
                         sell_price_dict.update({(commodity_name, t): float(sale_price_curve.loc[t])})
@@ -1106,41 +1087,15 @@ class ParameterObject:
     def create_new_project(self):
         """ Create new project """
 
-        nice_names = {'WACC': 'wacc',
-                      'Personnel Cost': 'personnel_costs',
-                      'Taxes and insurance': 'taxes_and_insurance',
-                      'Overhead': 'overhead',
-                      'Working Capital': 'working_capital'}
-
-        for c in [*nice_names.keys()]:
-            self.set_nice_name(nice_names[c], c)
-            self.set_abbreviation(c, nice_names[c])
-
         # Set general parameters
-        self.set_general_parameter_value('wacc', 0.07)
-        self.set_general_parameter('wacc')
-
-        self.set_general_parameter_value('taxes_and_insurance', 0.015)
-        self.set_general_parameter('taxes_and_insurance')
-
-        self.set_general_parameter_value('personnel_costs', 0.01)
-        self.set_general_parameter('personnel_costs')
-
-        self.set_general_parameter_value('overhead', 0.015)
-        self.set_general_parameter('overhead')
-
-        self.set_general_parameter_value('working_capital', 0.1)
-        self.set_general_parameter('working_capital')
-
-        conversion_component = ConversionComponent(name='dummy', nice_name='Dummy', final_unit=True)
-        self.add_component('dummy', conversion_component)
-
-        for g in self.get_general_parameters():
-            self.set_applied_parameter_for_component(g, 'dummy', True)
+        self.set_wacc(0.07)
 
         c = 'dummy'
-        input_commodity = 'electricity'
-        output_commodity = 'electricity'
+        conversion_component = ConversionComponent(name=c, final_unit=True)
+        self.add_component(c, conversion_component)
+
+        input_commodity = 'Electricity'
+        output_commodity = 'Electricity'
 
         self.get_component(c).add_input(input_commodity, 1)
         self.get_component(c).add_output(output_commodity, 1)
@@ -1148,27 +1103,18 @@ class ParameterObject:
         self.get_component(c).set_main_input(input_commodity)
         self.get_component(c).set_main_output(output_commodity)
 
-        s = Commodity('electricity', 'Electricity', 'MWh', final_commodity=True)
-        self.add_commodity('electricity', s)
-
-        self.set_nice_name('electricity', 'Electricity')
-        self.set_abbreviation('Electricity', 'electricity')
+        s = Commodity('Electricity', 'MWh', final_commodity=True)
+        self.add_commodity('Electricity', s)
 
     def __copy__(self):
 
         # deepcopy mutable objects
-        general_parameters = copy.deepcopy(self.general_parameters)
-        general_parameter_values = copy.deepcopy(self.general_parameter_values)
-        nice_names = copy.deepcopy(self.nice_names)
-        abbreviations_dict = copy.deepcopy(self.abbreviations_dict)
+        names_dict = copy.deepcopy(self.names_dict)
         commodities = copy.deepcopy(self.commodities)
 
         return ParameterObject(name=self.name,
-                               integer_steps=self.integer_steps,
-                               general_parameters=general_parameters,
-                               general_parameter_values=general_parameter_values,
-                               nice_names=nice_names,
-                               abbreviations_dict=abbreviations_dict,
+                               integer_steps=self.integer_steps, wacc=self.wacc,
+                               names_dict=names_dict,
                                commodities=commodities,
                                components=self.components, profile_data=self.profile_data,
                                single_or_multiple_profiles=self.single_or_multiple_profiles,
@@ -1179,8 +1125,7 @@ class ParameterObject:
                                copy_object=True)
 
     def __init__(self, name=None, integer_steps=5,
-                 general_parameters=None, general_parameter_values=None,
-                 nice_names=None, abbreviations_dict=None, commodities=None, components=None,
+                 wacc=0.07, names_dict=None, commodities=None, components=None,
                  profile_data=False, single_or_multiple_profiles='single',
                  uses_representative_periods=False, representative_periods_length=0,
                  covered_period=8760, monetary_unit='€',
@@ -1191,10 +1136,8 @@ class ParameterObject:
         Object, which stores all components, commodities, settings etc.
         :param name: [string] - name of parameter object
         :param integer_steps: [int] - number of integer steps (used to split capacity)
-        :param general_parameters: [list] - List of general parameters
-        :param general_parameter_values: [dict] - Dictionary with general parameter values
-        :param nice_names: [list] - List of nice names of components, commodities etc.
-        :param abbreviations_dict: [dict] - List of abbreviations of components, commodities etc.
+        :param wacc: [float] - Weighted Average Cost of Capital
+        :param names_dict: [dict] - List of abbreviations of components, commodities etc.
         :param commodities: [dict] - Dictionary with abbreviations as keys and commodity objects as values
         :param components: [dict] - Dictionary with abbreviations as keys and component objects as values
         :param copy_object: [boolean] - Boolean if object is copy
@@ -1204,19 +1147,9 @@ class ParameterObject:
         if not copy_object:
 
             # Initiate as default values
-            self.general_parameters = ['wacc', 'taxes_and_insurance', 'personnel_costs', 'overhead', 'working_capital']
-            self.general_parameter_values = {'wacc': 0.07,
-                                             'taxes_and_insurance': 0.015,
-                                             'personnel_costs': 0.01,
-                                             'overhead': 0.015,
-                                             'working_capital': 0.1}
-            self.applied_parameter_for_component = {'taxes_and_insurance': {},
-                                                    'personnel_costs': {},
-                                                    'overhead': {},
-                                                    'working_capital': {}}
+            self.wacc = wacc
 
-            self.nice_names = {}
-            self.abbreviations_dict = {}
+            self.names_dict = {}
 
             self.commodities = {}
             self.components = {}
@@ -1224,16 +1157,7 @@ class ParameterObject:
         else:
             # Object is copied if components have parallel units.
             # It is copied so that the original pm_object is not changed
-
-            self.general_parameters = general_parameters
-            self.general_parameter_values = general_parameter_values
-            self.applied_parameter_for_component = {'taxes_and_insurance': {},
-                                                    'personnel_costs': {},
-                                                    'overhead': {},
-                                                    'working_capital': {}}
-
-            self.nice_names = nice_names
-            self.abbreviations_dict = abbreviations_dict
+            self.names_dict = names_dict
 
             self.commodities = commodities
             self.components = components

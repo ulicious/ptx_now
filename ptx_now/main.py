@@ -229,33 +229,55 @@ class GUI:
             if not valid_me_for_commodity[commodity.get_name()]:
                 all_commodities_valid = False
 
+        no_data = False
+        data_length_not_matching = False
         # Check if a profile for the generation unit exists, if generation unit is enabled
         if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
             if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
-                if self.pm_object_copy.get_profile_data().split('.')[-1] == 'csv':
-                    generation_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
+
+                if not self.pm_object_copy.get_profile_data():
+                    no_data = True
+
                 else:
-                    generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
 
-                for generator in self.pm_object_copy.get_final_generator_components_objects():
-                    if generator.get_name() not in generation_profile.columns:
-                        profile_not_exist.append(generator.get_name())
-            else:
-                path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
-                _, _, filenames = next(walk(path_to_generation_files))
-
-                for f in filenames:
-                    path = path_to_generation_files + '/' + f
-                    if path.split('.')[-1] == 'xlsx':
-                        generation_profile = pd.read_excel(path, index_col=0)
+                    if self.pm_object_copy.get_profile_data().split('.')[-1] == 'csv':
+                        generation_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
                     else:
-                        generation_profile = pd.read_csv(path, index_col=0)
+                        generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
+
+                    if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
+                            & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                        data_length_not_matching = True
 
                     for generator in self.pm_object_copy.get_final_generator_components_objects():
                         if generator.get_name() not in generation_profile.columns:
                             profile_not_exist.append(generator.get_name())
+            else:
 
-                    break
+                if not self.pm_object_copy.get_profile_data():
+                    no_data = True
+
+                else:
+                    path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
+                    _, _, filenames = next(walk(path_to_generation_files))
+
+                    for f in filenames:
+                        path = path_to_generation_files + '/' + f
+                        if path.split('.')[-1] == 'xlsx':
+                            generation_profile = pd.read_excel(path, index_col=0)
+                        else:
+                            generation_profile = pd.read_csv(path, index_col=0)
+
+                        if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
+                                & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                            data_length_not_matching = True
+                            break
+
+                        for generator in self.pm_object_copy.get_final_generator_components_objects():
+                            if generator.get_name() not in generation_profile.columns:
+                                profile_not_exist.append(generator.get_name())
+
+                        break
 
         # Check if a profile for the commodity unit exists
         for commodity in self.pm_object_copy.get_final_commodities_objects():
@@ -264,13 +286,23 @@ class GUI:
 
                     column_name = commodity.get_name() + '_Selling_Price'
 
-                    if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                    if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
+
+                        if not self.pm_object_copy.get_profile_data():
+                            no_data = True
+                            break
+
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
                             commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
                                                               index_col=0)
                         else:
                             commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
                                                             index_col=0)
+
+                        if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
+                                & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                            data_length_not_matching = True
+                            break
 
                         if column_name not in commodity_profile.columns:
                             profile_not_exist.append(commodity.get_name() + ' Selling Price')
@@ -285,6 +317,11 @@ class GUI:
                             else:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
+                            if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
+                                    & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                                data_length_not_matching = True
+                                break
+
                             if column_name not in commodity_profile.columns:
                                 profile_not_exist.append(commodity.get_name() + ' Selling Price')
 
@@ -294,13 +331,23 @@ class GUI:
                 if commodity.get_purchase_price_type() == 'variable':
                     column_name = commodity.get_name() + '_Purchase_Price'
 
-                    if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                    if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
+
+                        if not self.pm_object_copy.get_profile_data():
+                            no_data = True
+                            break
+
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
                             commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
                                                               index_col=0)
                         else:
                             commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
                                                             index_col=0)
+
+                        if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
+                                & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                            data_length_not_matching = True
+                            break
 
                         if column_name not in commodity_profile.columns:
                             profile_not_exist.append(commodity.get_name() + ' Purchase Price')
@@ -315,22 +362,37 @@ class GUI:
                             else:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
+                            if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
+                                    & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                                data_length_not_matching = True
+                                break
+
                             if column_name not in commodity_profile.columns:
                                 profile_not_exist.append(commodity.get_name() + ' Purchase Price')
 
                             break
 
             if commodity.is_demanded():
-                if commodity.get_purchase_price_type() == 'variable':
+                if commodity.get_demand_type() == 'variable':
                     column_name = commodity.get_name() + '_Demand'
 
-                    if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                    if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
+
+                        if not self.pm_object_copy.get_profile_data():
+                            no_data = True
+                            break
+
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
                             commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
                                                               index_col=0)
                         else:
                             commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
                                                             index_col=0)
+
+                        if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
+                                & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                            data_length_not_matching = True
+                            break
 
                         if column_name not in commodity_profile.columns:
                             profile_not_exist.append(commodity.get_name() + ' Demand')
@@ -345,6 +407,11 @@ class GUI:
                             else:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
+                            if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
+                                    & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                                data_length_not_matching = True
+                                break
+
                             if column_name not in commodity_profile.columns:
                                 profile_not_exist.append(commodity.get_name() + ' Demand')
 
@@ -352,7 +419,7 @@ class GUI:
 
         # Create alert if sink, well or profile is missing
         error_in_setting = False
-        if (len(profile_not_exist) > 0) | (not all_commodities_valid):
+        if (len(profile_not_exist) > 0) | (not all_commodities_valid) | no_data | data_length_not_matching:
             error_in_setting = True
 
         if error_in_setting:
@@ -426,7 +493,16 @@ class GUI:
                               ' Please adjust your generators/commodities').pack()
                 tk.Label(alert_window, text='').pack()
 
+            if no_data:
+                tk.Label(alert_window,
+                         text='No profiles are selected - Please choose profile or set fixed values').pack()
+
+            if data_length_not_matching:
+                tk.Label(alert_window,
+                         text='Covered period does not match data - Please change covered period or select different data').pack()
+
             ttk.Button(alert_window, text='OK', command=kill_window).pack(fill='both', expand=True)
+
         else:
             self.optimize_button.config(state=NORMAL)
 

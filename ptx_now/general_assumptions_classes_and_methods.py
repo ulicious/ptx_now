@@ -25,10 +25,10 @@ class GeneralAssumptionsFrame:
 
             if rb_variable.get() == 'representative_periods':
                 self.pm_object.set_uses_representative_periods(True)
-                self.pm_object.set_representative_periods_length(int(period_length.get()))
             else:
                 self.pm_object.set_uses_representative_periods(False)
-                self.pm_object.set_covered_period(int(covered_period.get()))
+
+            self.pm_object.set_covered_period(int(covered_period.get()))
 
             self.pm_object.set_monetary_unit(monetary_unit.get())
 
@@ -39,20 +39,6 @@ class GeneralAssumptionsFrame:
 
         def kill_window():
             newWindow.destroy()
-
-        def change_rb():
-            if rb_variable.get() == 'covered_period':
-                label_covered_period.config(state=NORMAL)
-                entry_covered_period.config(state=NORMAL)
-
-                label_period_length.config(state=DISABLED)
-                entry_period_length.config(state=DISABLED)
-            else:
-                label_covered_period.config(state=DISABLED)
-                entry_covered_period.config(state=DISABLED)
-
-                label_period_length.config(state=NORMAL)
-                entry_period_length.config(state=NORMAL)
 
         # Toplevel object which will
         # be treated as a new window
@@ -70,46 +56,34 @@ class GeneralAssumptionsFrame:
         representative_periods = BooleanVar()
         representative_periods.set(self.pm_object.get_uses_representative_periods())
 
-        period_length = IntVar()
-        period_length.set(int(self.pm_object.get_representative_periods_length()))
-
         rb_variable = StringVar()
 
         if representative_periods.get():
-            state_repr_weeks = NORMAL
-            state_covered_period = DISABLED
             rb_variable.set('representative_periods')
         else:
-            state_repr_weeks = DISABLED
-            state_covered_period = NORMAL
             rb_variable.set('covered_period')
 
         label_period_length = ttk.Label(newWindow, text='WACC [%]')
         label_period_length.grid(column=0, row=i, sticky='w')
-        entry_period_length = ttk.Entry(newWindow, text=wacc)
+        entry_period_length = ttk.Entry(newWindow, textvariable=wacc)
         entry_period_length.grid(column=1, row=i, sticky='w')
 
         i += 1
 
         ttk.Radiobutton(newWindow, text='Use Representative Periods?', variable=rb_variable,
-                        value='representative_periods', command=change_rb).grid(column=0, row=i, sticky='w')
+                        value='representative_periods').grid(column=0, row=i, sticky='w')
 
-        label_period_length = ttk.Label(newWindow, text='Representative Periods Length [h]', state=state_repr_weeks)
-        label_period_length.grid(column=0, row=i + 1, sticky='w')
-        entry_period_length = ttk.Entry(newWindow, text=period_length, state=state_repr_weeks)
-        entry_period_length.grid(column=1, row=i + 1, sticky='w')
-
-        i += 2
+        i += 1
 
         covered_period = IntVar()
         covered_period.set(int(self.pm_object.get_covered_period()))
 
         ttk.Radiobutton(newWindow, text='Use Full Time Series?', variable=rb_variable,
-                        value='covered_period', command=change_rb).grid(column=0, row=i, sticky='w')
+                        value='covered_period').grid(column=0, row=i, sticky='w')
 
-        label_covered_period = ttk.Label(newWindow, text=' Covered Period [h]', state=state_covered_period)
+        label_covered_period = ttk.Label(newWindow, text=' Covered Period [h]')
         label_covered_period.grid(column=0, row=i+1, sticky='w')
-        entry_covered_period = ttk.Entry(newWindow, text=covered_period, state=state_covered_period)
+        entry_covered_period = ttk.Entry(newWindow, textvariable=covered_period)
         entry_covered_period.grid(column=1, row=i+1, sticky='w')
 
         i += 2
@@ -117,7 +91,7 @@ class GeneralAssumptionsFrame:
         monetary_unit = StringVar()
         monetary_unit.set(self.pm_object.get_monetary_unit())
         ttk.Label(newWindow, text='Monetary Unit').grid(column=0, row=i, sticky='w')
-        ttk.Entry(newWindow, text=monetary_unit).grid(column=1, row=i, sticky='w')
+        ttk.Entry(newWindow, textvariable=monetary_unit).grid(column=1, row=i, sticky='w')
 
         i += 1
 
@@ -137,20 +111,16 @@ class GeneralAssumptionsFrame:
         i += 1
 
         if self.pm_object.get_uses_representative_periods():
-
             ttk.Label(self.frame, text='Representative Periods used').grid(columnspan=2, row=i, sticky='w')
-            ttk.Label(self.frame, text='Representative Periods Length [h]').grid(column=0, row=i+1, sticky='w')
-            ttk.Label(self.frame, text=int(self.pm_object.get_representative_periods_length())).grid(column=1,
-                                                                                                     row=i+1,
-                                                                                                     sticky='w')
-
-            i += 2
         else:
             ttk.Label(self.frame, text='Continuous Time Series used').grid(columnspan=2, row=i, sticky='w')
-            ttk.Label(self.frame, text='Covered Period [h]').grid(column=0, row=i+1, sticky='w')
-            ttk.Label(self.frame, text=int(self.pm_object.get_covered_period())).grid(column=1, row=i+1, sticky='w')
 
-            i += 2
+        i += 1
+
+        ttk.Label(self.frame, text='Covered Period [h]').grid(column=0, row=i, sticky='w')
+        ttk.Label(self.frame, text=int(self.pm_object.get_covered_period())).grid(column=1, row=i, sticky='w')
+
+        i += 1
 
         ttk.Label(self.frame, text='Monetary Unit').grid(column=0, row=i, sticky='w')
         ttk.Label(self.frame, text=self.pm_object.get_monetary_unit()).grid(column=1, row=i, sticky='w')

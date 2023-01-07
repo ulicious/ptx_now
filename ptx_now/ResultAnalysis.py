@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+from _helpers_analysis import create_linear_system_of_equations
+
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -18,282 +20,130 @@ class ResultAnalysis:
             if not bool(variable_dict):
                 continue
 
-            list_value = []
-
-            if [*variable_dict.keys()][0] is None:
-                number_keys = 0
-            elif isinstance([*variable_dict.keys()][0], tuple):
-                number_keys = len([*variable_dict.keys()][0])
-            else:
-                number_keys = 1
-
-            if number_keys == 0:
-                value_list = list(variable_dict.values())
-                for item in range(len(value_list)):
-                    list_value = value_list[item]
-                self.all_variables_dict.update({str(v): list_value})
-                self.variable_zero_index.append(str(v))
-
-            elif number_keys == 1:
-                self.all_variables_dict.update({str(v): variable_dict})
-                self.variable_one_index.append(str(v))
-            elif number_keys == 2:
-
-                variable_list = []
-                commodity_dict = {}
-                commodity = ''
-                first = True
-                for key in [*variable_dict]:
-
-                    if first:
-                        commodity = key[0]
-                        first = False
-
-                    if commodity != key[0]:
-                        commodity_dict.update({commodity: variable_list})
-                        commodity = key[0]
-                        variable_list = []
-
-                    variable_list.append(variable_dict[key])
-
-                commodity_dict.update({commodity: variable_list})
-
-                self.all_variables_dict.update({str(v): commodity_dict})
-                self.variable_two_index.append(str(v))
-
-            elif number_keys == 3:
-
-                variable_list = []
-                component_dict = {}
-                commodity_dict = {}
-                commodity = ''
-                c = ''
-                first = True
-                for key in [*variable_dict]:
-
-                    if first:
-                        commodity = key[1]
-                        c = key[0]
-                        first = False
-
-                    if (commodity != key[1]) & (c == key[0]):
-                        commodity_dict.update({commodity: variable_list})
-                        commodity = key[1]
-                        c = key[0]
-                        variable_list = []
-                    elif c != key[0]:
-                        commodity_dict.update({commodity: variable_list})
-                        component_dict.update({c: commodity_dict})
-                        commodity_dict = {}
-                        commodity = key[1]
-                        c = key[0]
-                        variable_list = []
-
-                    variable_list.append(variable_dict[key])
-
-                commodity_dict.update({commodity: variable_list})
-                component_dict.update({c: commodity_dict})
-
-                self.all_variables_dict.update({str(v): component_dict})
-                self.variable_three_index.append(str(v))
+            self.all_variables_dict.update({str(v): variable_dict})
 
     def process_variables(self):
 
         """ Allocates costs to commodities """
 
         # Calculate the total availability of each commodity (purchase, from conversion, available)
-        variable_names = ['mass_energy_purchase_commodity', 'mass_energy_available',
-                          'mass_energy_component_out_commodities', 'mass_energy_total_generation',
-                          'mass_energy_storage_in_commodities', 'mass_energy_sell_commodity', 'mass_energy_emitted',
-                          'nominal_cap', 'mass_energy_generation', 'mass_energy_hot_standby_demand']
-
-        for commodity in self.model.ME_STREAMS:
+        for commodity in self.model.COMMODITIES:
             self.purchased_commodity.update({commodity: 0})
             self.purchase_costs.update({commodity: 0})
             self.sold_commodity.update({commodity: 0})
             self.selling_costs.update({commodity: 0})
-            self.generated_commodity.update({commodity: 0})
             self.available_commodity.update({commodity: 0})
             self.emitted_commodity.update({commodity: 0})
             self.stored_commodity.update({commodity: 0})
             self.conversed_commodity.update({commodity: 0})
+            self.used_commodity.update({commodity: 0})
             self.total_generated_commodity.update({commodity: 0})
 
-        for variable_name in [*self.all_variables_dict]:
+        for variable in self.commodity_three_index:
+            if variable not in [*self.all_variables_dict.keys()]:
+                continue
 
-            if variable_name in self.variable_two_index:
+            variable_dict = self.all_variables_dict[variable]
 
-                if variable_name in variable_names:
-                    for commodity in [*self.all_variables_dict[variable_name]]:
+            for k in [*variable_dict.keys()]:
+                commodity = k[0]
+                cluster = k[1]
 
-                        list_values = self.all_variables_dict[variable_name][commodity]
-                        sum_values = sum(self.all_variables_dict[variable_name][commodity])
+                if variable == 'mass_energy_available':
+                    self.available_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
 
-                        if not self.pm_object.get_uses_representative_periods():
+                if variable == 'mass_energy_emitted':
+                    self.emitted_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
 
-                            if variable_name == "mass_energy_available":
-                                self.available_commodity[commodity] = (self.available_commodity[commodity] + sum_values)
+                if variable == 'mass_energy_purchase_commodity':
+                    self.purchased_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
+                    self.purchase_costs[commodity] += variable_dict[k] * self.model.weightings[cluster] * self.model.purchase_price[k]
 
-                            if variable_name == 'mass_energy_emitted':
-                                if commodity in self.model.EMITTED_STREAMS:
-                                    self.emitted_commodity[commodity] = (self.emitted_commodity[commodity] + sum_values)
+                if variable == 'mass_energy_sell_commodity':
+                    self.sold_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
+                    self.selling_costs += variable_dict[k] * self.model.weightings[cluster] * self.model.selling_price[k]
 
-                            if variable_name == 'mass_energy_purchase_commodity':  # Calculate costs of purchase
-                                if commodity in self.model.PURCHASABLE_STREAMS:
-                                    self.purchased_commodity[commodity] = (
-                                            self.purchased_commodity[commodity] + sum_values)
-                                    self.purchase_costs[commodity] = (self.purchase_costs[commodity] +
-                                                                      sum(list_values[t]
-                                                                          * self.model.purchase_price[commodity, t]
-                                                                          for t in self.model.TIME))
+                if variable == 'mass_energy_storage_in_commodities':
+                    self.stored_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
 
-                            if variable_name == 'mass_energy_sell_commodity':  # Calculate costs of purchase
-                                if commodity in self.model.SALEABLE_STREAMS:
-                                    self.sold_commodity[commodity] = (self.sold_commodity[commodity] + sum_values)
-                                    self.selling_costs[commodity] = (self.selling_costs[commodity]
-                                                                     + sum(list_values[t]
-                                                                           * self.model.selling_price[commodity, t] * (
-                                                                               -1)
-                                                                           for t in self.model.TIME))
+                if variable == 'mass_energy_hot_standby_demand':
+                    self.hot_standby_demand[commodity] += variable_dict[k] * self.model.weightings[cluster]
 
-                            if variable_name == 'mass_energy_total_generation':
-                                if commodity in self.model.GENERATED_STREAMS:
-                                    self.total_generated_commodity[commodity] = (
-                                            self.total_generated_commodity[commodity]
-                                            + sum_values)
+        self.conversed_commodity_per_component = {}
+        self.generated_commodity_per_component = {}
+        for variable in self.commodity_four_index:
+            if variable not in [*self.all_variables_dict.keys()]:
+                continue
 
-                            if variable_name == 'mass_energy_storage_in_commodities':
-                                if commodity in self.model.STORAGES:
-                                    self.stored_commodity[commodity] = (self.stored_commodity[commodity] + sum_values)
+            variable_dict = self.all_variables_dict[variable]
 
-                        else:
+            for k in [*variable_dict.keys()]:
+                component = k[0]
+                commodity = k[1]
+                cluster = k[2]
 
-                            if variable_name == "mass_energy_available":
-                                self.available_commodity[commodity] = (self.available_commodity[commodity]
-                                                                       + sum(list_values[t] * self.model.weightings[t]
-                                                                             for t in self.model.TIME))
+                ratio = 1
+                if component in self.model.CONVERSION_COMPONENTS:
+                    if component not in [*self.conversed_commodity_per_component.keys()]:
+                        self.conversed_commodity_per_component[component] = {}
+                        self.used_commodity_per_component[component] = {}
+                    if commodity not in [*self.conversed_commodity_per_component[component].keys()]:
+                        self.conversed_commodity_per_component[component][commodity] = 0
+                        self.used_commodity_per_component[component][commodity] = 0
 
-                            if variable_name == 'mass_energy_emitted':
-                                if commodity in self.model.EMITTED_STREAMS:
-                                    self.emitted_commodity[commodity] = (self.emitted_commodity[commodity] +
-                                                                         sum(list_values[t] * self.model.weightings[t]
-                                                                             for t in self.model.TIME))
+                    # Check if commodity is fully conversed or parts of it remain
+                    inputs = self.pm_object.get_component(component).get_inputs()
+                    outputs = self.pm_object.get_component(component).get_outputs()
+                    if (commodity in [*inputs.keys()]) & (commodity in [*outputs.keys()]):
+                        ratio = outputs[commodity] / inputs[commodity]
 
-                            if variable_name == 'mass_energy_purchase_commodity':  # Calculate costs of purchase
-                                if commodity in self.model.PURCHASABLE_STREAMS:
-                                    self.purchased_commodity[commodity] = (self.purchased_commodity[commodity]
-                                                                           + sum(
-                                                list_values[t] * self.model.weightings[t]
-                                                for t in self.model.TIME))
-                                    self.purchase_costs[commodity] = (self.purchase_costs[commodity]
-                                                                      + sum(list_values[t] * self.model.weightings[t]
-                                                                            * self.model.purchase_price[commodity, t]
-                                                                            for t in self.model.TIME))
+                if component in self.model.GENERATORS:
+                    if component not in [*self.generated_commodity_per_component.keys()]:
+                        self.generated_commodity_per_component[component] = 0
 
-                            if variable_name == 'mass_energy_sell_commodity':  # Calculate costs of purchase
-                                if commodity in self.model.SALEABLE_STREAMS:
-                                    self.sold_commodity[commodity] = (self.sold_commodity[commodity]
-                                                                      + sum(list_values[t] * self.model.weightings[t]
-                                                                            for t in self.model.TIME))
-                                    self.selling_costs[commodity] = (self.selling_costs[commodity]
-                                                                     + sum(list_values[t] * self.model.weightings[t]
-                                                                           * self.model.selling_price[commodity, t] * (
-                                                                               -1)
-                                                                           for t in self.model.TIME))
+                if variable == 'mass_energy_component_out_commodities':
+                    self.conversed_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster] * ratio
+                    self.conversed_commodity_per_component[component][commodity] += variable_dict[k] * self.model.weightings[cluster] * ratio
 
-                            if variable_name == 'mass_energy_total_generation':
-                                if commodity in self.model.GENERATED_STREAMS:
-                                    self.total_generated_commodity[commodity] = (
-                                            self.total_generated_commodity[commodity]
-                                            + sum(list_values[t]
-                                                  * self.model.weightings[t]
-                                                  for t in self.model.TIME))
+                if variable == 'mass_energy_component_in_commodities':
+                    self.used_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster] * ratio
+                    self.used_commodity_per_component[component][commodity] += variable_dict[k] * self.model.weightings[cluster] * ratio
 
-                            if variable_name == 'mass_energy_storage_in_commodities':
-                                if commodity in self.model.STORAGES:
-                                    self.stored_commodity[commodity] = (self.stored_commodity[commodity]
-                                                                        + sum(list_values[t] * self.model.weightings[t]
-                                                                              for t in self.model.TIME))
+                if variable == 'mass_energy_generation':
+                    self.generated_commodity_per_component[component] += variable_dict[k] * self.model.weightings[cluster]
+                    self.total_generated_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
 
-            elif variable_name in self.variable_three_index:
+        for component in self.pm_object.get_final_components_objects():
+            c = component.get_name()
 
-                if variable_name in variable_names:
+            self.annualized_investment[c] = self.all_variables_dict['investment'][c] * self.model.ANF[c]
+            self.fixed_costs[c] = self.all_variables_dict['investment'][c] * self.model.fixed_om[c]
 
-                    for c in [*self.all_variables_dict[variable_name]]:
-                        component_object = self.pm_object.get_component(c)
+            if component.get_component_type() == 'conversion':
 
-                        conversion = False
-                        for i in self.pm_object.get_final_conversion_components_objects():
-                            if c == i.get_name():
-                                conversion = True
-                                if variable_name == 'mass_energy_component_out_commodities':
-                                    self.conversed_commodity_per_component[c] = {}
-                                elif variable_name == 'mass_energy_hot_standby_demand':
-                                    self.hot_standby_demand[c] = {}
+                main_output = self.pm_object.get_component(c).get_main_output()
+                self.variable_costs[c] = sum(self.all_variables_dict['mass_energy_component_out_commodities'][(c, main_output, cl, t)]
+                                             * self.model.variable_om[c] * self.model.weightings[cl]
+                                             for cl in self.model.CLUSTERS for t in self.model.TIME)
 
-                        for commodity in [*self.all_variables_dict[variable_name][c]]:
+                if component.get_shut_down_ability():
+                    self.start_up_costs[c] = sum(self.all_variables_dict['status_off_switch_off'][(c, cl, t)]
+                                                 * self.model.weightings[cl] * self.model.start_up_costs[c]
+                                                 for cl in self.model.CLUSTERS for t in self.model.TIME)
+                else:
+                    self.start_up_costs[c] = 0
 
-                            list_values = self.all_variables_dict[variable_name][c][commodity]
-                            sum_values = sum(self.all_variables_dict[variable_name][c][commodity])
+            elif component.get_component_type() == 'storage':
+                self.variable_costs[c] = sum(self.all_variables_dict['mass_energy_storage_in_commodities'][(c, cl, t)]
+                                             * self.model.variable_om[c] * self.model.weightings[cl]
+                                             for cl in self.model.CLUSTERS for t in self.model.TIME)
 
-                            ratio = 1
-                            if conversion:
-                                inputs = component_object.get_inputs()
-                                outputs = component_object.get_outputs()
+            else:
 
-                                # Case commodity is conversed but not fully
-                                if (commodity in [*inputs.keys()]) & (commodity in [*outputs.keys()]):
-                                    sum_values = sum_values * outputs[commodity] / inputs[commodity]
-                                    ratio = sum_values * outputs[commodity] / inputs[commodity]
-
-                            if not self.pm_object.get_uses_representative_periods():
-
-                                if variable_name == 'mass_energy_component_out_commodities':
-                                    if commodity == component_object.get_main_output():
-                                        self.conversed_commodity[commodity] = self.conversed_commodity[
-                                                                                  commodity] + sum_values
-                                        self.conversed_commodity_per_component[c][commodity] = sum_values
-                                    else:
-                                        self.conversed_commodity[commodity] = self.conversed_commodity[commodity] + 0
-                                        self.conversed_commodity_per_component[c][commodity] = 0
-
-                                if variable_name == 'mass_energy_hot_standby_demand':
-                                    if commodity in [*component_object.get_hot_standby_demand().keys()]:
-                                        self.hot_standby_demand[c][commodity] = sum_values
-
-                                if variable_name == 'mass_energy_generation':
-                                    if commodity in self.model.GENERATED_STREAMS:
-                                        self.generated_commodity[c] = sum_values
-
-                            else:
-                                if variable_name == 'mass_energy_component_out_commodities':
-                                    if commodity == component_object.get_main_output():
-                                        self.conversed_commodity[commodity] = (self.conversed_commodity[commodity]
-                                                                               + sum(
-                                                    list_values[t] * self.model.weightings[t]
-                                                    * ratio for t in self.model.TIME))
-                                        self.conversed_commodity_per_component[c][commodity] = sum(list_values[t]
-                                                                                                   *
-                                                                                                   self.model.weightings[
-                                                                                                       t]
-                                                                                                   * ratio
-                                                                                                   for t in
-                                                                                                   self.model.TIME)
-                                    else:
-                                        self.conversed_commodity[commodity] = self.conversed_commodity[commodity] + 0
-                                        self.conversed_commodity_per_component[c][commodity] = 0
-
-                                if variable_name == 'mass_energy_hot_standby_demand':
-                                    if commodity in [*component_object.get_hot_standby_demand().keys()]:
-                                        self.hot_standby_demand[c][commodity] = sum(list_values[t]
-                                                                                    * self.model.weightings[t] * ratio
-                                                                                    for t in self.model.TIME)
-
-                                if variable_name == 'mass_energy_generation':
-                                    if commodity in self.model.GENERATED_STREAMS:
-                                        self.generated_commodity[c] = sum(
-                                            list_values[t] * self.model.weightings[t] * ratio
-                                            for t in self.model.TIME)
+                generated_commodity = self.pm_object.get_component(c).get_generated_commodity()
+                self.variable_costs[c] = sum(self.all_variables_dict['mass_energy_generation'][(c, generated_commodity, cl, t)]
+                                     * self.model.variable_om[c] * self.model.weightings[cl]
+                                     for cl in self.model.CLUSTERS for t in self.model.TIME)
 
     def create_assumptions_file(self):
 
@@ -408,7 +258,7 @@ class ResultAnalysis:
 
         assumptions_df.to_excel(self.new_result_folder + '/0_assumptions.xlsx')
 
-    def create_and_print_vector(self, plots=False):
+    def create_and_print_vector(self):
 
         """ Uses the created dataframes to plot the commodity vectors over time """
 
@@ -433,91 +283,68 @@ class ResultAnalysis:
         for commodity in self.pm_object.get_final_commodities_objects():
             all_commodities.append(commodity.get_name())
 
+        list_values = {}
         for variable_name in [*self.all_variables_dict]:
+            if variable_name in self.commodity_three_index:
 
-            if variable_name in self.variable_two_index:
+                variable_dict = self.all_variables_dict[variable_name]
 
-                for commodity in [*self.all_variables_dict[variable_name]]:
+                for k in [*variable_dict.keys()]:
+                    commodity = k[0]
 
                     if commodity not in all_commodities:
                         continue
 
-                    if (variable_name == 'storage_charge_binary') | (variable_name == 'storage_discharge_binary'):
-                        if self.all_variables_dict['nominal_cap'][commodity] == 0:
-                            continue
-
-                    list_values = self.all_variables_dict[variable_name][commodity]
-                    unit = self.pm_object.get_commodity(commodity).get_unit()
-                    if unit == 'MWh':
-                        unit = 'MW'
-                    elif unit == 'kWh':
-                        unit = 'kW'
-                    else:
-                        unit = unit + ' / h'
-
-                    if list_values[0] is None:
+                    if variable_dict[k] is None:
                         continue
 
-                    if sum(list_values) > 0:
+                    # create vector from data
+                    if variable_name not in [*list_values.keys()]:
+                        list_values[variable_name] = {}
 
-                        if plots:
-                            plt.figure()
-                            plt.plot(list_values)
-                            plt.xlabel('Hours')
-                            plt.ylabel(unit)
-                            plt.title(variable_nice_names[variable_name] + ' ' + commodity)
+                    if commodity not in [*list_values[variable_name].keys()]:
+                        list_values[variable_name][commodity] = []
 
-                            plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
-                                        + commodity + '.png')
-                            plt.close()
+                    list_values[variable_name][commodity].append(variable_dict[k])
 
+        for variable_name in [*list_values.keys()]:
+            for commodity in [*list_values[variable_name].keys()]:
+                if sum(list_values[variable_name][commodity]) > 0:
+                    if variable_name in [*variable_nice_names.keys()]:
+                        time_depending_variables[(variable_nice_names[variable_name], '', commodity)] = list_values[variable_name][commodity]
+
+        list_values = {}
+        for variable_name in [*self.all_variables_dict]:
+            if variable_name in self.commodity_four_index:
+                variable_dict = self.all_variables_dict[variable_name]
+                for k in [*variable_dict.keys()]:
+                    component = k[0]
+                    commodity = k[1]
+
+                    if commodity not in all_commodities:
+                        continue
+
+                    if variable_dict[k] is None:
+                        continue
+
+                    # create vector from data
+                    if variable_name not in [*list_values.keys()]:
+                        list_values[variable_name] = {}
+
+                    if component not in [*list_values[variable_name].keys()]:
+                        list_values[variable_name][component] = {}
+
+                    if commodity not in [*list_values[variable_name][component].keys()]:
+                        list_values[variable_name][component][commodity] = []
+
+                    list_values[variable_name][component][commodity].append(variable_dict[k])
+
+        for variable_name in [*list_values.keys()]:
+            for component in [*list_values[variable_name].keys()]:
+                for commodity in [*list_values[variable_name][component].keys()]:
+                    if sum(list_values[variable_name][component][commodity]) > 0:
                         if variable_name in [*variable_nice_names.keys()]:
-                            time_depending_variables[(variable_nice_names[variable_name], '', commodity)] = list_values
-
-            elif variable_name in self.variable_three_index:
-
-                for c in [*self.all_variables_dict[variable_name]]:
-
-                    if self.all_variables_dict['nominal_cap'][c] == 0:
-                        continue
-
-                    for commodity in [*self.all_variables_dict[variable_name][c]]:
-
-                        if commodity not in all_commodities:
-                            continue
-
-                        list_values = self.all_variables_dict[variable_name][c][commodity]
-                        unit = self.pm_object.get_commodity(commodity).get_unit()
-                        if unit == 'MWh':
-                            unit = 'MW'
-                        elif unit == 'kWh':
-                            unit = 'kW'
-                        else:
-                            unit = unit + ' / h'
-
-                        if list_values[0] is None:
-                            continue
-
-                        if sum(list_values) > 0:
-
-                            if plots:
-                                plt.figure()
-                                plt.plot(list_values)
-                                plt.xlabel('Hours')
-                                plt.ylabel(unit)
-                                plt.title(variable_nice_names[variable_name] + ' '
-                                          + commodity + ' '
-                                          + c)
-
-                                plt.savefig(self.new_result_folder + '/' + variable_nice_names[variable_name] + ' '
-                                            + commodity + ' '
-                                            + c + '.png')
-                                plt.close()
-
-                            if variable_name in [*variable_nice_names.keys()]:
-                                time_depending_variables[(variable_nice_names[variable_name],
-                                                          c,
-                                                          commodity)] = list_values
+                            time_depending_variables[(variable_nice_names[variable_name], component, commodity)] = list_values[variable_name][component][commodity]
 
         # Create potential generation time series
         if len(self.model.GENERATORS) > 0:
@@ -539,7 +366,7 @@ class ResultAnalysis:
 
                         if capacity > 0:
                             profile = capacity * generation_profile.loc[:, generator_object.get_name()]
-                            covered_index = profile.index[0:self.pm_object.get_covered_period()]
+                            covered_index = profile.index[0:self.pm_object.get_covered_period()*self.pm_object.get_number_clusters()]
                             time_depending_variables[
                                 'Potential Generation', generator_object.get_name(), commodity] \
                                 = profile.loc[covered_index]
@@ -558,8 +385,7 @@ class ResultAnalysis:
                             potential_profile += pr
 
                     time_depending_variables[
-                        'Total Potential Generation', '', commodity] = potential_profile.tolist()[
-                                                                                       0:self.pm_object.get_covered_period()]
+                        'Total Potential Generation', '', commodity] = potential_profile.tolist()
 
         ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()],
                                         names=('Variable', 'Component', 'Commodity'))
@@ -575,11 +401,18 @@ class ResultAnalysis:
             else:
                 unit = unit + ' / h'
             self.time_depending_variables_df.loc[key, 'unit'] = unit
-            for i, elem in enumerate(time_depending_variables[key]):
-                self.time_depending_variables_df.loc[key, i] = elem
+            t_range = range(self.pm_object.get_covered_period() * self.pm_object.get_number_clusters())
+            self.time_depending_variables_df.loc[key, t_range] = time_depending_variables[key]
 
-        for t in self.model.TIME:
-            self.time_depending_variables_df.loc[('Weighting', '', ''), t] = self.model.weightings[t]
+        i = 0
+        weighting_list = []
+        t_list = []
+        for cl in self.model.CLUSTERS:
+            for t in self.model.TIME:
+                weighting_list.append(self.model.weightings[cl])
+                t_list.append(i)
+                i += 1
+        self.time_depending_variables_df.loc[('Weighting', '', ''), t_list] = weighting_list
 
         # Sort index for better readability
         ordered_list = ['Weighting', 'Freely Available', 'Purchase', 'Emitting', 'Selling', 'Demand', 'Charging',
@@ -597,533 +430,6 @@ class ResultAnalysis:
         self.time_depending_variables_df = self.time_depending_variables_df.reindex(index_order).round(3)
         self.time_depending_variables_df.to_excel(self.new_result_folder + '/5_time_series_commodities.xlsx')
 
-    def analyze_commodities(self):
-
-        # Calculate total commodity availability
-        for commodity in self.model.ME_STREAMS:
-            is_input = False
-            for input_tuples in self.optimization_problem.input_tuples:
-                if input_tuples[1] == commodity:
-                    is_input = True
-
-            difference = 0
-            if commodity in self.model.STORAGES:
-                # Due to charging and discharging efficiency, some mass or energy gets 'lost'. This has to be considered
-                total_in = sum(self.all_variables_dict['mass_energy_storage_in_commodities'][commodity][t]
-                               * self.model.weightings[t] for t in self.model.TIME)
-                total_out = sum(self.all_variables_dict['mass_energy_storage_out_commodities'][commodity][t]
-                                * self.model.weightings[t] for t in self.model.TIME)
-                difference = total_in - total_out
-
-            if is_input:
-                self.total_availability[commodity] = (
-                        self.purchased_commodity[commodity] + self.total_generated_commodity[commodity]
-                        + self.conversed_commodity[commodity] - self.emitted_commodity[commodity]
-                        - self.sold_commodity[commodity] - difference)
-            else:
-                self.total_availability[commodity] = self.conversed_commodity[commodity]
-
-        not_used_commodities = []
-        for key in [*self.total_availability]:
-            if self.total_availability[key] == 0:
-                not_used_commodities.append(key)
-
-        # Calculate the total cost of conversion. Important: conversion costs only occur for commodity, where
-        # output is main commodity (E.g., electrolysis produces hydrogen and oxygen -> oxygen will not have conversion cost
-
-        for commodity in self.model.ME_STREAMS:
-            self.storage_costs.update({commodity: 0})
-            self.storage_costs_per_unit.update({commodity: 0})
-            self.generation_costs.update({commodity: 0})
-            self.generation_costs_per_unit.update({commodity: 0})
-            self.maintenance.update({commodity: 0})
-
-            self.total_conversion_costs.update({commodity: 0})
-            self.total_generation_costs.update({commodity: 0})
-
-        # Get fix costs for each commodity
-        for component in self.pm_object.get_final_conversion_components_objects():
-            c = component.get_name()
-
-            if component.get_shut_down_ability():
-                start_up_costs = self.all_variables_dict['total_start_up_costs_component'][c]
-            else:
-                start_up_costs = 0
-
-            out_commodity = component.get_main_output()
-            self.total_conversion_costs[out_commodity] = (self.total_conversion_costs[out_commodity]
-                                                          + self.all_variables_dict['annuity'][c]
-                                                          + self.all_variables_dict['fixed_om_costs'][c]
-                                                + self.all_variables_dict['variable_om_costs'][c]
-                                                          + start_up_costs)
-            self.conversion_component_costs[c] = (self.all_variables_dict['annuity'][c]
-                                                  + self.all_variables_dict['fixed_om_costs'][c]
-                                                + self.all_variables_dict['variable_om_costs'][c]
-                                                  + start_up_costs)
-
-        # Get annuity of storage units
-        for commodity in self.model.STORAGES:
-            self.storage_costs[commodity] = (self.all_variables_dict['annuity'][commodity]
-                                             + self.all_variables_dict['fixed_om_costs'][commodity]
-                                                + self.all_variables_dict['variable_om_costs'][commodity])
-
-        # Get annuity of generation units
-        for generator in self.model.GENERATORS:
-            generated_commodity = self.pm_object.get_component(generator).get_generated_commodity()
-            self.total_generation_costs[generated_commodity] = (self.total_generation_costs[generated_commodity]
-                                                                + self.all_variables_dict['annuity'][generator]
-                                                                + self.all_variables_dict['fixed_om_costs'][generator]
-                                                + self.all_variables_dict['variable_om_costs'][generator])
-            self.generation_costs[generator] = (self.all_variables_dict['annuity'][generator]
-                                                + self.all_variables_dict['fixed_om_costs'][generator]
-                                                + self.all_variables_dict['variable_om_costs'][generator])
-
-        # COST DISTRIBUTION: Distribute the costs to each commodity
-        # First: The intrinsic costs of each commodity.
-        # Intrinsic costs include generation, storage, purchase and selling costs
-        intrinsic_costs = {}
-        intrinsic_costs_per_available_unit = {}
-        for commodity in self.model.ME_STREAMS:
-            intrinsic_costs[commodity] = round((self.total_generation_costs[commodity]
-                                                + self.purchase_costs[commodity]
-                                                + self.storage_costs[commodity]
-                                                + self.selling_costs[commodity]), 4)
-
-            # If intrinsic costs exist, distribute them on the total commodity available
-            # Available commodity = Generated, Purchased, Conversed minus Sold, Emitted
-            if intrinsic_costs[commodity] >= 0:
-                if self.total_availability[commodity] == 0:
-                    intrinsic_costs_per_available_unit[commodity] = 0
-                else:
-                    intrinsic_costs_per_available_unit[commodity] = (intrinsic_costs[commodity]
-                                                                     / self.total_availability[commodity])
-            elif intrinsic_costs[commodity] < 0:
-                # If intrinsic costs are negative (due to selling of side products),
-                # the total costs are distributed to the total commodity sold
-                intrinsic_costs_per_available_unit[commodity] = (-intrinsic_costs[commodity]
-                                                                 / self.sold_commodity[commodity])
-
-        if False:
-            pd.DataFrame.from_dict(intrinsic_costs, orient='index').to_excel(
-                self.new_result_folder + '/intrinsic_costs.xlsx')
-            pd.DataFrame.from_dict(intrinsic_costs_per_available_unit, orient='index').to_excel(
-                self.new_result_folder + '/intrinsic_costs_per_available_unit.xlsx')
-
-        # Second: Next to intrinsic costs, conversion costs exist.
-        # Each commodity, which is the main output of a conversion unit,
-        # will be matched with the costs this conversion unit produces
-        conversion_costs_per_conversed_unit = {}
-        total_intrinsic_costs_per_available_unit = {}
-        for component in self.pm_object.get_final_conversion_components_objects():
-            component_name = component.get_name()
-            main_output = component.get_main_output()
-
-            # Components without capacity are not considered, as they don't converse anything
-            if self.all_variables_dict['nominal_cap'][component_name] == 0:
-                continue
-
-            # Calculate the conversion costs per conversed unit
-            conversion_costs_per_conversed_unit[component_name] = (self.conversion_component_costs[component_name]
-                                                                   / self.conversed_commodity_per_component[
-                                                                       component_name][main_output])
-
-            # To this conversion costs, the intrinsic costs of the commodity are added
-            total_intrinsic_costs_per_available_unit[component_name] = (intrinsic_costs_per_available_unit[main_output]
-                                                                        + conversion_costs_per_conversed_unit[
-                                                                            component_name])
-
-        if False:
-            pd.DataFrame.from_dict(conversion_costs_per_conversed_unit, orient='index').to_excel(
-                self.new_result_folder + '/conversion_costs_per_conversed_unit.xlsx')
-            pd.DataFrame.from_dict(total_intrinsic_costs_per_available_unit, orient='index').to_excel(
-                self.new_result_folder + '/total_intrinsic_costs_per_available_unit.xlsx')
-
-        commodity_equations_constant = {}
-        columns_index = [*self.pm_object.get_all_commodities().keys()]
-        for s in self.pm_object.get_final_conversion_components_objects():
-            component_name = s.get_name()
-            if self.all_variables_dict['nominal_cap'][component_name] > 0:
-                columns_index.append(component_name)
-
-        coefficients_df = pd.DataFrame(index=columns_index, columns=columns_index)
-        coefficients_df.fillna(value=0, inplace=True)
-
-        main_outputs = []
-        main_output_coefficients = {}
-        for component in self.pm_object.get_final_conversion_components_objects():
-            main_output = component.get_main_output()
-            main_outputs.append(main_output)
-            main_output_coefficients[component.get_main_output()] = component.get_outputs()[main_output]
-
-        all_inputs = []
-        final_commodity = None
-        for component in self.pm_object.get_final_conversion_components_objects():
-            component_name = component.get_name()
-            inputs = component.get_inputs()
-            outputs = component.get_outputs()
-            main_output = component.get_main_output()
-
-            if self.all_variables_dict['nominal_cap'][component_name] == 0:
-                continue
-
-            hot_standby_commodity = ''
-            hot_standby_demand = 0
-            if component.get_hot_standby_ability():
-                hot_standby_commodity = [*component.get_hot_standby_demand().keys()][0]
-                hot_standby_demand = (self.hot_standby_demand[component_name][hot_standby_commodity]
-                                      / self.conversed_commodity_per_component[component_name][main_output])
-
-            # First of all, associate inputs to components
-            # If hot standby possible: input + hot standby demand -> hot standby demand prt conversed unit
-            # If same commodity in input and output: input - output
-            # If neither: just input
-            for i in [*inputs.keys()]:  # commodity in input
-                if i not in [*outputs.keys()]:  # commodity not in output
-                    if component.get_hot_standby_ability():  # component has hot standby ability
-                        if i != hot_standby_commodity:
-                            coefficients_df.loc[i, component_name] = inputs[i]
-                        else:
-                            coefficients_df.loc[i, component_name] = inputs[i] + hot_standby_demand
-                    else:  # component has no hot standby ability
-                        coefficients_df.loc[i, component_name] = inputs[i]
-                else:  # commodity in output
-                    if (i in main_outputs) | (intrinsic_costs_per_available_unit[i] != 0):
-                        if component.get_hot_standby_ability():  # component has hot standby ability
-                            if i != hot_standby_commodity:  # hot standby commodity is not commodity
-                                coefficients_df.loc[i, component_name] = inputs[i] - outputs[i]
-                            else:
-                                coefficients_df.loc[i, component_name] = inputs[i] + hot_standby_demand - outputs[i]
-                        else:  # component has no hot standby ability
-                            coefficients_df.loc[i, component_name] = inputs[i] - outputs[i]
-
-                all_inputs.append(i)
-
-            # If outputs have costs, then they are associated with component (not main output)
-            for o in [*outputs.keys()]:
-                if (o not in [*inputs.keys()]) & (o != main_output):
-                    if intrinsic_costs_per_available_unit[o] != 0:
-                        coefficients_df.loc[o, component_name] = -outputs[o]
-
-                if self.pm_object.get_commodity(o).is_demanded():
-                    final_commodity = o
-
-            coefficients_df.loc[component_name, component_name] = -1
-
-        # Matching of costs, which do not influence demanded commodity directly (via inputs)
-        # Costs of side commodities with no demand (e.g., flares to burn excess gases)
-        # will be added to final commodity
-        for component in self.pm_object.get_final_conversion_components_objects():
-            main_output = self.pm_object.get_commodity(component.get_main_output())
-            main_output_name = main_output.get_name()
-
-            component_name = component.get_name()
-            if self.all_variables_dict['nominal_cap'][component_name] == 0:
-                continue
-
-            if main_output_name not in all_inputs:  # Check if main output is input of other conversion
-                if not main_output.is_demanded():  # Check if main output is demanded
-                    coefficients_df.loc[component_name, final_commodity] = 1
-
-        # Each commodity, if main output, has its intrinsic costs and the costs of the conversion component
-        for commodity in self.model.ME_STREAMS:
-            for component in self.pm_object.get_final_conversion_components_objects():
-                component_name = component.get_name()
-
-                if self.all_variables_dict['nominal_cap'][component_name] == 0:
-                    if commodity in main_outputs:
-                        coefficients_df.loc[commodity, commodity] = -1
-                    continue
-
-                main_output = component.get_main_output()
-                outputs = component.get_outputs()
-                if commodity == main_output:
-                    # ratio is when several components have same output
-                    ratio = (self.conversed_commodity_per_component[component_name][commodity]
-                             / self.conversed_commodity[commodity])
-                    coefficients_df.loc[component_name, commodity] = 1 / outputs[commodity] * ratio
-
-                    coefficients_df.loc[commodity, commodity] = -1
-
-            if commodity not in main_outputs:
-                coefficients_df.loc[commodity, commodity] = -1
-
-        if False:
-            coefficients_df.to_excel(self.new_result_folder + '/equations.xlsx')
-
-        # Right hand side (constants)
-        coefficients_dict = {}
-        for column in coefficients_df.columns:
-            coefficients_dict.update({column: coefficients_df[column].tolist()})
-            if column in self.model.ME_STREAMS:
-                if column in [main_output_coefficients.keys()]:
-                    if False:
-                        commodity_equations_constant.update({column: (-intrinsic_costs_per_available_unit[column]
-                                                                      * main_output_coefficients[column])})
-                    else:
-                        commodity_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
-                else:
-                    commodity_equations_constant.update({column: -intrinsic_costs_per_available_unit[column]})
-            else:
-                if self.all_variables_dict['nominal_cap'][column] == 0:
-                    continue
-
-                component = self.pm_object.get_component(column)
-                main_output = component.get_main_output()
-                commodity_equations_constant.update({column: (-conversion_costs_per_conversed_unit[column]
-                                                              * main_output_coefficients[main_output])})
-
-        if False:
-            pd.DataFrame.from_dict(commodity_equations_constant, orient='index').to_excel(
-                self.new_result_folder + '/commodity_equations_constant.xlsx')
-
-        values_equations = coefficients_dict.values()
-        A = np.array(list(values_equations))
-        values_constant = commodity_equations_constant.values()
-        B = np.array(list(values_constant))
-        X = np.linalg.solve(A, B)
-
-        for i, c in enumerate(columns_index):
-            self.production_cost_commodity_per_unit.update({c: X[i]})
-
-        commodities_and_costs = pd.DataFrame()
-        dataframe_dict = {}
-
-        for column in columns_index:
-
-            if column in self.model.ME_STREAMS:
-                commodity = column
-                commodity_object = self.pm_object.get_commodity(commodity)
-                commodities_and_costs.loc[commodity, 'unit'] = commodity_object.get_unit()
-                commodities_and_costs.loc[commodity, 'MWh per unit'] = commodity_object.get_energy_content()
-
-                commodities_and_costs.loc[commodity, 'Available Commodity'] = self.available_commodity[commodity]
-                commodities_and_costs.loc[commodity, 'Emitted Commodity'] = self.emitted_commodity[commodity]
-                commodities_and_costs.loc[commodity, 'Purchased Commodity'] = self.purchased_commodity[commodity]
-                commodities_and_costs.loc[commodity, 'Sold Commodity'] = self.sold_commodity[commodity]
-                commodities_and_costs.loc[commodity, 'Generated Commodity'] = self.total_generated_commodity[commodity]
-                commodities_and_costs.loc[commodity, 'Stored Commodity'] = self.stored_commodity[commodity]
-                commodities_and_costs.loc[commodity, 'Conversed Commodity'] = self.conversed_commodity[commodity]
-                commodities_and_costs.loc[commodity, 'Total Commodity'] = self.total_availability[commodity]
-
-                commodities_and_costs.loc[commodity, 'Total Purchase Costs'] = self.purchase_costs[commodity]
-                if self.purchased_commodity[commodity] > 0:
-                    purchase_costs = self.purchase_costs[commodity] / self.purchased_commodity[commodity]
-                    commodities_and_costs.loc[commodity, 'Average Purchase Costs per purchased Unit'] = purchase_costs
-                else:
-                    commodities_and_costs.loc[commodity, 'Average Purchase Costs per purchased Unit'] = 0
-
-                commodities_and_costs.loc[commodity, 'Total Selling Revenue/Disposal Costs'] = self.selling_costs[
-                    commodity]
-                if self.sold_commodity[commodity] > 0:
-                    revenue = self.selling_costs[commodity] / self.sold_commodity[commodity]
-                    commodities_and_costs.loc[
-                        commodity, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] \
-                        = revenue
-                else:
-                    commodities_and_costs.loc[
-                        commodity, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] \
-                        = 0
-
-                self.total_variable_costs[commodity] = self.purchase_costs[commodity] + self.selling_costs[commodity]
-                commodities_and_costs.loc[commodity, 'Total Variable Costs'] = self.total_variable_costs[commodity]
-
-                commodities_and_costs.loc[commodity, 'Total Generation Fix Costs'] = self.total_generation_costs[
-                    commodity]
-                if self.total_generated_commodity[commodity] > 0:
-                    commodities_and_costs.loc[commodity, 'Costs per used unit'] \
-                        = self.total_generation_costs[commodity] / (self.total_generated_commodity[commodity]
-                                                                    - self.emitted_commodity[commodity])
-                else:
-                    commodities_and_costs.loc[commodity, 'Costs per used unit'] = 0
-
-                commodities_and_costs.loc[commodity, 'Total Storage Fix Costs'] = self.storage_costs[commodity]
-                if self.stored_commodity[commodity] > 0:
-                    stored_costs = self.storage_costs[commodity] / self.stored_commodity[commodity]
-                    commodities_and_costs.loc[commodity, 'Total Storage Fix Costs per stored Unit'] = stored_costs
-                else:
-                    commodities_and_costs.loc[commodity, 'Total Storage Fix Costs per stored Unit'] = 0
-
-                commodities_and_costs.loc[commodity, 'Total Conversion Fix Costs'] = self.total_conversion_costs[
-                    commodity]
-                if self.conversed_commodity[commodity] > 0:
-                    conversion_costs = self.total_conversion_costs[commodity] / self.conversed_commodity[commodity]
-                    commodities_and_costs.loc[
-                        commodity, 'Total Conversion Fix Costs per conversed Unit'] = conversion_costs
-                else:
-                    commodities_and_costs.loc[commodity, 'Total Conversion Fix Costs per conversed Unit'] = 0
-
-                self.total_fix_costs[commodity] \
-                    = (self.total_conversion_costs[commodity] + self.storage_costs[commodity]
-                       + self.total_generation_costs[commodity])
-                commodities_and_costs.loc[commodity, 'Total Fix Costs'] = self.total_fix_costs[commodity]
-
-                self.total_costs[commodity] = self.total_variable_costs[commodity] + self.total_fix_costs[commodity]
-                commodities_and_costs.loc[commodity, 'Total Costs'] = self.total_costs[commodity]
-
-                if self.total_availability[commodity] > 0:
-                    commodities_and_costs.loc[commodity, 'Total Costs per Unit'] \
-                        = self.total_costs[commodity] / self.total_availability[commodity]
-                else:
-                    commodities_and_costs.loc[commodity, 'Total Costs per Unit'] = 0
-
-                if intrinsic_costs[commodity] >= 0:
-                    commodities_and_costs.loc[commodity, 'Production Costs per Unit'] \
-                        = self.production_cost_commodity_per_unit[commodity]
-                else:
-                    commodities_and_costs.loc[name, 'Production Costs per Unit'] \
-                        = -self.production_cost_commodity_per_unit[commodity]
-
-                commodities_and_costs.to_excel(self.new_result_folder + '/4_commodities.xlsx')
-                self.commodities_and_costs = commodities_and_costs
-
-            else:
-                component_name = column
-                component = self.pm_object.get_component(component_name)
-
-                main_output = component.get_main_output()
-
-                commodity_object = self.pm_object.get_commodity(main_output)
-                unit = commodity_object.get_unit()
-
-                index = component_name + ' [' + unit + ' ' + main_output + ']'
-
-                component_list = [index, index, index]
-                kpis = ['Coefficient', 'Cost per Unit', 'Total Costs']
-
-                arrays = [component_list, kpis]
-                m_index = pd.MultiIndex.from_arrays(arrays, names=('Component', 'KPI'))
-                components_and_costs = pd.DataFrame(index=m_index)
-
-                conv_costs = round(conversion_costs_per_conversed_unit[component_name], 3)
-                total_costs = conv_costs
-
-                components_and_costs.loc[(index, 'Coefficient'), 'Intrinsic'] = 1
-                components_and_costs.loc[(index, 'Cost per Unit'), 'Intrinsic'] = conv_costs
-                components_and_costs.loc[(index, 'Total Costs'), 'Intrinsic'] = conv_costs
-
-                inputs = component.get_inputs()
-                outputs = component.get_outputs()
-                main_output_coefficient = outputs[main_output]
-                processed_outputs = []
-                for i in [*inputs.keys()]:
-                    input_name = i
-
-                    in_coeff = round(inputs[i] / main_output_coefficient, 3)
-                    prod_costs = round(self.production_cost_commodity_per_unit[i], 3)
-                    input_costs = round(self.production_cost_commodity_per_unit[i] * inputs[i]
-                                        / main_output_coefficient, 3)
-
-                    input_name += ' (Input)'
-
-                    components_and_costs.loc[(index, 'Coefficient'), input_name] = in_coeff
-                    components_and_costs.loc[(index, 'Cost per Unit'), input_name] = prod_costs
-                    components_and_costs.loc[(index, 'Total Costs'), input_name] = input_costs
-
-                    total_costs += input_costs
-
-                    if i in [*outputs.keys()]:
-                        # Handle output earlier s.t. its close to input of same commodity in excel file
-                        output_name = i
-                        out_coeff = round(outputs[i] / main_output_coefficient, 3)
-
-                        # Three cases occur
-                        # 1: The output commodity has a positive intrinsic value because it can be used again -> negative
-                        # 2: The output can be sold with revenue -> negative
-                        # 3: The output produces costs because the commodity needs to be disposed, for example -> positive
-
-                        if self.selling_costs[i] > 0:  # Case 3
-                            prod_costs = round(self.production_cost_commodity_per_unit[i], 3)
-                            output_costs = round(self.production_cost_commodity_per_unit[i] * outputs[i]
-                                                 / main_output_coefficient, 3)
-                        else:  # Case 1 & 2
-                            prod_costs = - round(self.production_cost_commodity_per_unit[i], 3)
-                            output_costs = - round(self.production_cost_commodity_per_unit[i] * outputs[i]
-                                                   / main_output_coefficient, 3)
-
-                        output_name += ' (Output)'
-
-                        components_and_costs.loc[(index, 'Coefficient'), output_name] = out_coeff
-                        components_and_costs.loc[(index, 'Cost per Unit'), output_name] = prod_costs
-                        components_and_costs.loc[(index, 'Total Costs'), output_name] = output_costs
-
-                        total_costs += output_costs
-
-                        processed_outputs.append(i)
-
-                for o in [*outputs.keys()]:
-                    if o in processed_outputs:
-                        continue
-
-                    output_name = o
-
-                    if o != component.get_main_output():
-                        out_coeff = round(outputs[o] / main_output_coefficient, 3)
-
-                        # Three cases occur
-                        # 1: The output commodity has a positive intrinsic value because it can be used again -> negative
-                        # 2: The output can be sold with revenue -> negative
-                        # 3: The output produces costs because the commodity needs to be disposed, for example -> positive
-
-                        if self.selling_costs[o] > 0:  # Case 3: Disposal costs exist
-                            prod_costs = round(self.production_cost_commodity_per_unit[o], 3)
-                            output_costs = round(self.production_cost_commodity_per_unit[o] * outputs[o]
-                                                 / main_output_coefficient, 3)
-                        else:  # Case 1 & 2
-                            prod_costs = - round(self.production_cost_commodity_per_unit[o], 3)
-                            output_costs = - round(self.production_cost_commodity_per_unit[o] * outputs[o]
-                                                   / main_output_coefficient, 3)
-
-                        output_name += ' (Output)'
-
-                        components_and_costs.loc[(index, 'Coefficient'), output_name] = out_coeff
-                        components_and_costs.loc[(index, 'Cost per Unit'), output_name] = prod_costs
-                        components_and_costs.loc[(index, 'Total Costs'), output_name] = output_costs
-
-                        total_costs += output_costs
-
-                # Further costs, which are not yet in commodity, need to be associated
-                # In case that several components have same main output, costs are matched regarding share of production
-                ratio = (self.conversed_commodity_per_component[component_name][main_output]
-                         / self.conversed_commodity[main_output])
-
-                if main_output in self.model.STORAGES:
-                    column_name = 'Storage Costs'
-                    components_and_costs.loc[(index, 'Coefficient'), column_name] = ratio
-                    prod_costs = (self.storage_costs[main_output] / self.conversed_commodity[main_output])
-                    components_and_costs.loc[(index, 'Cost per Unit'), column_name] = prod_costs
-                    components_and_costs.loc[(index, 'Total Costs'), column_name] = prod_costs * ratio
-
-                    total_costs += prod_costs * ratio
-
-                if commodity_object.is_demanded():
-                    for commodity in self.model.ME_STREAMS:
-                        if (commodity not in all_inputs) & (commodity in main_outputs) & (commodity != main_output):
-
-                            column_name = commodity + ' (Associated Costs)'
-                            components_and_costs.loc[(index, 'Coefficient'), column_name] = ratio
-                            prod_costs = (self.production_cost_commodity_per_unit[commodity]
-                                          * self.conversed_commodity[commodity]
-                                          / self.conversed_commodity[main_output])
-                            components_and_costs.loc[(index, 'Cost per Unit'), column_name] = prod_costs
-                            components_and_costs.loc[(index, 'Total Costs'), column_name] = prod_costs * ratio
-
-                            total_costs += prod_costs * ratio
-
-                prod_costs = round(total_costs, 3)
-                components_and_costs.loc[(index, 'Coefficient'), 'Final'] = ''
-                components_and_costs.loc[(index, 'Cost per Unit'), 'Final'] = ''
-                components_and_costs.loc[(index, 'Total Costs'), 'Final'] = prod_costs
-
-                dataframe_dict[component_name] = components_and_costs
-
-            # Save dataframes in multi-sheet excel file
-            if False:
-                with pd.ExcelWriter(self.new_result_folder + '/main_output_costs.xlsx', engine="xlsxwriter") as writer:
-                    for df in [*dataframe_dict.keys()]:
-                        sheet_name = df.replace("Parallel Unit", "PU")
-                        dataframe_dict[df].to_excel(writer, sheet_name)
-                    writer.save()
-
     def analyze_components(self):
 
         columns = ['Capacity [input]', 'Capacity Unit [input]', 'Investment [per input]',
@@ -1136,15 +442,15 @@ class ResultAnalysis:
             component_object = self.pm_object.get_component(key)
             component_name = key
 
-            capacity = self.all_variables_dict['nominal_cap'][key]
+            capacity = self.all_variables_dict['nominal_cap'][component_name]
 
             if capacity == 0:
                 continue
 
             investment = self.all_variables_dict['investment'][key]
-            annuity = self.all_variables_dict['annuity'][key]
-            fixed_om = self.all_variables_dict['fixed_om_costs'][key]
-            variable_om = self.all_variables_dict['variable_om_costs'][key]
+            annuity = self.annualized_investment[component_name]
+            fixed_om = self.fixed_costs[component_name]
+            variable_om = self.variable_costs[component_name]
 
             if component_object.get_component_type() == 'conversion':
                 capex_basis = component_object.get_capex_basis()
@@ -1189,18 +495,15 @@ class ResultAnalysis:
 
                 total_input_component = sum(self.time_depending_variables_df.loc[('Input',
                                                                                   component_name,
-                                                                                  name_commodity), t]
-                                            * self.model.weightings[t] for t in self.model.TIME)
+                                                                                  name_commodity), t + cl*self.pm_object.get_covered_period()]
+                                            * self.model.weightings[cl]
+                                            for cl in self.model.CLUSTERS
+                                            for t in self.model.TIME)
                 full_load_hours = total_input_component / (capacity * 8760) * 8760
 
                 capacity_df.loc[component_name, 'Full-load Hours'] = full_load_hours
 
-                if component_object.get_shut_down_ability():
-                    start_up_costs = self.all_variables_dict['total_start_up_costs_component'][key]
-                else:
-                    start_up_costs = 0
-
-                capacity_df.loc[component_name, 'Start-Up Costs'] = start_up_costs
+                capacity_df.loc[component_name, 'Start-Up Costs'] = self.start_up_costs[key]
 
             elif component_object.get_component_type() == 'generator':
                 commodity_object = self.pm_object.get_commodity(component_object.get_generated_commodity())
@@ -1239,61 +542,66 @@ class ResultAnalysis:
         capacity_df.to_excel(self.new_result_folder + '/2_components.xlsx')
 
         # Calculate efficiency
-        input_possibilities = ['Freely Available', 'Purchase', 'Generation']
-        energy_input = 0  # in MWh
-        for ip in input_possibilities:
+        total_energy_input = 0
+        total_energy_output = 0
+        for commodity in self.model.COMMODITIES:
+            energy_content = float(self.commodities_and_costs.loc[commodity, 'MWh per unit'])
 
-            input_time_series = self.time_depending_variables_df.iloc[
-                self.time_depending_variables_df.index.get_level_values('Variable') == ip]
+            if commodity in self.model.PURCHASABLE_COMMODITIES:
+                purchased = self.purchased_commodity[commodity]
+            else:
+                purchased = 0
 
-            input_commodities = input_time_series.index.get_level_values(2)
-            for i in input_commodities:
-                energy_content = float(self.commodities_and_costs.loc[i, 'MWh per unit'])
-                input_per_commodity = float(input_time_series.iloc[
-                                                input_time_series.index.get_level_values('Commodity') == i].loc[
-                                            :, 1:].sum().sum())
+            if commodity in self.model.AVAILABLE_COMMODITIES:
+                available = self.available_commodity[commodity]
+            else:
+                available = 0
 
-                energy_input_per_commodity = input_per_commodity * energy_content
-                energy_input += energy_input_per_commodity
+            if commodity in self.model.GENERATED_COMMODITIES:
+                generated = self.total_generated_commodity[commodity]
+            else:
+                generated = 0
 
-        if energy_input != 0:
-            energy_output = 0
-            output_time_series = self.time_depending_variables_df.iloc[
-                self.time_depending_variables_df.index.get_level_values('Variable') == 'Demand']
-            output_commodities = output_time_series.index.get_level_values(2)
-            for o in output_commodities:
-                energy_content = self.commodities_and_costs.loc[o, 'MWh per unit']
-                output_per_commodity = output_time_series.iloc[
-                                           output_time_series.index.get_level_values('Commodity') == o].loc[:,
-                                       1:].sum().sum()
+            total_commodity_in = purchased + available + generated
 
-                energy_output_per_commodity = float(output_per_commodity) * float(energy_content)
-                energy_output += energy_output_per_commodity
+            total_energy_input += total_commodity_in * energy_content
 
-            efficiency = str(round(energy_output / energy_input, 4))
-        else:
-            efficiency = 0
+            if commodity in self.model.DEMANDED_COMMODITIES:
+                conversed_commodity = self.conversed_commodity[commodity]
+            else:
+                conversed_commodity = 0
+
+            if commodity in self.model.SALEABLE_COMMODITIES:
+                sold = self.sold_commodity[commodity]
+            else:
+                sold = 0
+
+            total_commodity_out = sold + conversed_commodity
+
+            total_energy_output += total_commodity_out * energy_content
+
+        efficiency = str(round(total_energy_output / total_energy_input, 4))
 
         index_overview = ['Annual Production', 'Total Investment', 'Total Fix Costs', 'Total Variable Costs',
                           'Annual Costs', 'Production Costs per Unit', 'Efficiency']
 
         total_production = 0
-        for commodity in [*self.all_variables_dict['mass_energy_demand'].keys()]:
-            total_production += sum(self.all_variables_dict['mass_energy_demand'][commodity][t]
-                                    * self.model.weightings[t] for t in self.model.TIME)
+        total_production += sum(self.all_variables_dict['mass_energy_demand'][key]
+                                * self.model.weightings[key[1]]
+                                for key in [*self.all_variables_dict['mass_energy_demand'].keys()])
 
         total_investment = capacity_df['Total Investment'].sum()
         fix_costs = capacity_df['Annuity'].sum() + capacity_df['Fixed Operation and Maintenance'].sum()
 
         variable_costs = 0
-        for commodity in self.model.ME_STREAMS:
+        for commodity in self.model.COMMODITIES:
             if self.purchase_costs[commodity] != 0:
                 variable_costs += self.purchase_costs[commodity]
             if self.selling_costs[commodity] != 0:
                 variable_costs += self.selling_costs[commodity]
 
-        variable_costs += (self.all_variables_dict['total_start_up_costs']
-                           + self.all_variables_dict['total_variable_om_costs'])
+        variable_costs += (sum(self.start_up_costs[c] for c in self.model.SHUT_DOWN_COMPONENTS)
+                           + sum(self.variable_costs[c] for c in self.model.COMPONENTS))
 
         annual_costs = fix_costs + variable_costs
         production_costs_per_unit = annual_costs / total_production
@@ -1304,6 +612,8 @@ class ResultAnalysis:
         results_overview.index = index_overview
 
         results_overview.to_excel(self.new_result_folder + '/1_results_overview.xlsx')
+
+        self.exported_results['Production Costs'] = production_costs_per_unit
 
     def analyze_generation(self):
 
@@ -1324,7 +634,8 @@ class ResultAnalysis:
                 generator_name = generator
                 generated_commodity = generator_object.get_generated_commodity()
 
-                generator_profile = generation_profile.iloc[0:max(self.model.TIME) + 1][generator_name]
+                t_range = range(self.pm_object.get_covered_period() * self.pm_object.get_number_clusters())
+                generator_profile = generation_profile.iloc[t_range][generator_name]
 
                 investment = self.all_variables_dict['investment'][generator]
                 capacity = self.all_variables_dict['nominal_cap'][generator]
@@ -1332,27 +643,28 @@ class ResultAnalysis:
                 generation_df.loc[generator_name, 'Generated Commodity'] = generated_commodity
                 generation_df.loc[generator_name, 'Capacity'] = capacity
                 generation_df.loc[generator_name, 'Investment'] = investment
-                generation_df.loc[generator_name, 'Annuity'] = self.all_variables_dict['annuity'][generator]
+                generation_df.loc[generator_name, 'Annuity'] = self.annualized_investment[generator]
                 generation_df.loc[generator_name, 'Fixed Operation and Maintenance'] = \
-                    self.all_variables_dict['fixed_om_costs'][generator]
+                    self.fixed_costs[generator]
                 generation_df.loc[generator_name, 'Variable Operation and Maintenance'] = \
-                    self.all_variables_dict['variable_om_costs'][generator]
+                    self.variable_costs[generator]
 
                 if capacity != 0:
                     potential_generation = sum(
-                        generator_profile.loc[generator_profile.index[t]] * self.model.weightings[t] for t in
-                        self.model.TIME) * capacity
+                        generator_profile.loc[generator_profile.index[t + cl*self.pm_object.get_covered_period()]] * self.model.weightings[cl]
+                        for cl in self.model.CLUSTERS
+                        for t in self.model.TIME) * capacity
                     generation_df.loc[generator_name, 'Potential Generation'] = potential_generation
                     generation_df.loc[generator_name, 'Potential Full-load Hours'] = potential_generation / (
                             capacity * 8760) * 8760
 
                     generation_df.loc[generator_name, 'LCOE before Curtailment'] = \
                         (generation_df.loc[generator_name, 'Annuity']
-                         + generation_df.loc[generator_name, 'Fixed Operation and Maintenance']) \
-                        / potential_generation \
-                        + generation_df.loc[generator_name, 'Variable Operation and Maintenance']
+                         + generation_df.loc[generator_name, 'Fixed Operation and Maintenance']
+                         + generation_df.loc[generator_name, 'Variable Operation and Maintenance']) \
+                        / potential_generation
 
-                    generation = self.generated_commodity[generator]
+                    generation = self.generated_commodity_per_component[generator]
                     generation_df.loc[generator_name, 'Actual Generation'] = generation
                     generation_df.loc[generator_name, 'Actual Full-load Hours'] = generation / (
                             capacity * 8760) * 8760
@@ -1361,15 +673,15 @@ class ResultAnalysis:
                     generation_df.loc[generator_name, 'Curtailment'] = curtailment
                     generation_df.loc[generator_name, 'LCOE after Curtailment'] = \
                         (generation_df.loc[generator_name, 'Annuity']
-                         + generation_df.loc[generator_name, 'Fixed Operation and Maintenance']) \
-                        / generation \
-                        + generation_df.loc[generator_name, 'Variable Operation and Maintenance']
+                         + generation_df.loc[generator_name, 'Fixed Operation and Maintenance']
+                         + generation_df.loc[generator_name, 'Variable Operation and Maintenance']) \
+                        / generation
 
                 else:
 
                     potential_generation = sum(
-                        generator_profile.loc[generator_profile.index[t]] * self.model.weightings[t] for t in
-                        self.model.TIME)
+                        generator_profile.loc[generator_profile.index[t + cl*self.pm_object.get_covered_period()]] * self.model.weightings[cl]
+                        for cl in self.model.CLUSTERS for t in self.model.TIME)
                     generation_df.loc[generator_name, 'Potential Generation'] = 0
                     generation_df.loc[generator_name, 'Potential Full-load Hours'] = potential_generation
 
@@ -1403,9 +715,8 @@ class ResultAnalysis:
     def analyze_total_costs(self):
         # Total costs: annuity, maintenance, buying and selling, taxes and insurance, etc.
         total_production = 0
-        for commodity in [*self.all_variables_dict['mass_energy_demand'].keys()]:
-            total_production += sum(self.all_variables_dict['mass_energy_demand'][commodity][t]
-                                    * self.model.weightings[t] for t in self.model.TIME)
+        for key in [*self.all_variables_dict['mass_energy_demand'].keys()]: # todo: demand stimmt nicht
+            total_production += self.all_variables_dict['mass_energy_demand'][key] * self.model.weightings[key[1]]
 
         cost_distribution = pd.DataFrame()
         total_costs = 0
@@ -1422,36 +733,36 @@ class ResultAnalysis:
             if capacity == 0:
                 continue
 
-            annuity = self.all_variables_dict['annuity'][key]
+            annuity = self.annualized_investment[key]
             cost_distribution.loc[component_name + ' Annuity', 'Total'] = annuity
             total_costs += annuity
 
-            fixed_om_costs = self.all_variables_dict['fixed_om_costs'][key]
+            fixed_om_costs = self.fixed_costs[key]
             if fixed_om_costs != 0:
                 cost_distribution.loc[component_name + ' Fixed Operation and Maintenance Costs', 'Total'] = \
-                    self.all_variables_dict['fixed_om_costs'][key]
+                    fixed_om_costs
                 total_costs += fixed_om_costs
 
-            variable_om_costs = self.all_variables_dict['variable_om_costs'][key]
+            variable_om_costs = self.variable_costs[key]
             if fixed_om_costs != 0:
                 cost_distribution.loc[component_name + ' Variable Operation and Maintenance Costs', 'Total'] = \
-                    self.all_variables_dict['variable_om_costs'][key]
+                    variable_om_costs
                 total_costs += variable_om_costs
 
             if component_object.get_component_type() == 'conversion':
                 if component_object.get_shut_down_ability():
-                    start_up_costs = self.all_variables_dict['total_start_up_costs_component'][key]
+                    start_up_costs = self.start_up_costs[key]
                     if start_up_costs != 0:
                         cost_distribution.loc[component_name + ' Start-Up Costs', 'Total'] = start_up_costs
                         total_costs += start_up_costs
 
-        for commodity in self.model.ME_STREAMS:
+        for commodity in self.model.COMMODITIES:
             if self.purchase_costs[commodity] != 0:
                 cost_distribution.loc['Purchase Costs ' + commodity, 'Total'] \
                     = self.purchase_costs[commodity]
                 total_costs += self.purchase_costs[commodity]
 
-        for commodity in self.model.ME_STREAMS:
+        for commodity in self.model.COMMODITIES:
             if self.selling_costs[commodity] < 0:
                 cost_distribution.loc['Disposal ' + commodity, 'Total'] \
                     = self.selling_costs[commodity]
@@ -1479,28 +790,26 @@ class ResultAnalysis:
                              'storage_charge_binary', 'storage_discharge_binary']
 
         time_depending_variables = {}
+        list_values = {}
+        for variable_name in self.status_variables:
+            for key in [*self.all_variables_dict[variable_name].keys()]:
 
-        for variable_name in [*self.all_variables_dict]:
+                c = key[0]
 
-            if variable_name in integer_variables:
+                if self.all_variables_dict['nominal_cap'][c] == 0:
+                    continue
 
-                for c in [*self.all_variables_dict[variable_name]]:
+                if variable_name not in [*list_values.keys()]:
+                    list_values[variable_name] = {}
 
-                    if self.all_variables_dict['nominal_cap'][c] == 0:
-                        continue
+                if c not in [*list_values[variable_name].keys()]:
+                    list_values[variable_name][c] = []
 
-                    list_values = self.all_variables_dict[variable_name][c]
-                    if plots:
-                        plt.figure()
-                        plt.plot(list_values)
-                        plt.xlabel('Hours')
-                        plt.title(variable_name)
+                list_values[variable_name][c].append(self.all_variables_dict[variable_name][key])
 
-                        plt.savefig(self.new_result_folder + '/' + variable_name + " " + c + '.png')
-                        plt.close()
-
-                    if variable_name in integer_variables:
-                        time_depending_variables[(variable_name, c)] = list_values
+        for variable_name in [*list_values.keys()]:
+            for component in [*list_values[variable_name].keys()]:
+                time_depending_variables[(variable_name, component)] = list_values
 
         ind = pd.MultiIndex.from_tuples([*time_depending_variables.keys()], names=('Variable', 'Component'))
         time_depending_variables_df = pd.DataFrame(index=ind)
@@ -1750,6 +1059,23 @@ class ResultAnalysis:
         self.file_name = self.pm_object.get_project_name()
         self.monetary_unit = self.pm_object.get_monetary_unit()
 
+        self.status_variables = ['status_on', 'status_off', 'status_off_switch_on', 'status_off_switch_off',
+                            'status_standby_switch_on', 'status_standby_switch_off', 'status_standby',
+                            'storage_charge_binary', 'storage_discharge_binary']
+
+        self.component_financial_one_index = ['nominal_cap', 'investment']
+
+        self.commodity_four_index = ['mass_energy_component_in_commodities', 'mass_energy_component_out_commodities',
+                                'mass_energy_generation']
+
+        self.commodity_three_index = ['mass_energy_available', 'mass_energy_emitted',
+                                 'mass_energy_storage_in_commodities',
+                                 'mass_energy_storage_out_commodities', 'soc', 'mass_energy_sell_commodity',
+                                 'mass_energy_purchase_commodity', 'mass_energy_demand',
+                                 'mass_energy_hot_standby_demand']
+
+        self.exported_results = {}
+
         now = datetime.now()
         dt_string = now.strftime("%Y%m%d_%H%M%S")
 
@@ -1770,13 +1096,12 @@ class ResultAnalysis:
         self.financial_df = pd.DataFrame()
         self.annuity_df = pd.DataFrame()
         self.maintenance_df = pd.DataFrame()
-        self.one_index_dict = {}
-        self.two_index_dict = {}
-        self.three_index_dict = {}
         self.available_commodity = {}
         self.emitted_commodity = {}
         self.conversed_commodity = {}
         self.conversed_commodity_per_component = {}
+        self.used_commodity = {}
+        self.used_commodity_per_component = {}
         self.purchased_commodity = {}
         self.purchase_costs = {}
         self.sold_commodity = {}
@@ -1784,11 +1109,16 @@ class ResultAnalysis:
         self.stored_commodity = {}
         self.storage_costs = {}
         self.storage_costs_per_unit = {}
-        self.generated_commodity = {}
+        self.generated_commodity_per_component = {}
         self.generation_costs = {}
         self.generation_costs_per_unit = {}
         self.conversion_component_costs = {}
-        self.maintenance = {}
+
+        self.annualized_investment = {}
+        self.fixed_costs = {}
+        self.variable_costs = {}
+        self.start_up_costs = {}
+
         self.total_fix_costs = {}
         self.total_variable_costs = {}
         self.total_costs = {}
@@ -1814,7 +1144,7 @@ class ResultAnalysis:
         self.process_variables()
         self.create_assumptions_file()
         self.create_and_print_vector()
-        self.analyze_commodities()
+        create_linear_system_of_equations(self)
         self.analyze_components()
         self.analyze_generation()
         self.analyze_total_costs()

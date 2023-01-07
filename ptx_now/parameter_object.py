@@ -358,24 +358,23 @@ class ParameterObject:
     def get_uses_representative_periods(self):
         return self.uses_representative_periods
 
-    def set_representative_periods_length(self, representative_periods_length):
-        self.representative_periods_length = representative_periods_length
+    def get_number_clusters(self):
+        path = self.get_path_data() + self.get_profile_data()
+        if path.split('.')[-1] == 'xlsx':
+            generation_profile = pd.read_excel(path, index_col=0)
+        else:
+            generation_profile = pd.read_csv(path, index_col=0)
 
-    def get_representative_periods_length(self):
-        return self.representative_periods_length
+        if self.get_uses_representative_periods():
+            return int(len(generation_profile.index) / self.get_covered_period())
+        else:
+            return 1
 
     def set_covered_period(self, covered_period):
         self.covered_period = int(covered_period)
 
     def get_covered_period(self):
         return self.covered_period
-
-    def get_time_steps(self):
-        if self.get_uses_representative_periods():
-            length_weighting = len(pd.read_excel(self.get_path_data() + self.get_profile_data(), index_col=0).index)
-            return int(length_weighting)
-        else:
-            return int(self.covered_period)
 
     def set_single_or_multiple_profiles(self, status):
         self.single_or_multiple_profiles = status
@@ -911,8 +910,23 @@ class ParameterObject:
             if generator.get_generated_commodity() not in generated_commodities:
                 generated_commodities.append(generator.get_generated_commodity())
 
-        return final_commodities, available_commodities, emittable_commodities, purchasable_commodities,\
-            saleable_commodities, demanded_commodities, total_demand_commodities, generated_commodities
+        all_inputs = []
+        all_outputs = []
+        for component in self.get_final_conversion_components_objects():
+            inputs = component.get_inputs()
+            outputs = component.get_outputs()
+
+            for i in inputs:
+                if i not in all_inputs:
+                    all_inputs.append(i)
+
+            for o in outputs:
+                if o not in all_outputs:
+                    all_outputs.append(o)
+
+        return final_commodities, available_commodities, emittable_commodities, purchasable_commodities, \
+            saleable_commodities, demanded_commodities, total_demand_commodities, generated_commodities, \
+            all_inputs, all_outputs
 
     def get_input_conversions(self):
         input_tuples = []
@@ -976,10 +990,12 @@ class ParameterObject:
 
             for generator in self.get_final_generator_components_objects():
                 generator_name = generator.get_name()
-                for t in range(self.get_time_steps()):
-                    ind = profile.index[t]
-                    generation_profiles_dict.update({(generator_name, t):
-                                                     float(profile.loc[ind, generator.get_name()])})
+                ind = 0
+                for cl in range(self.get_number_clusters()):
+                    for t in range(self.get_covered_period()):
+                        generation_profiles_dict.update({(generator_name, cl, t):
+                                                         float(profile.loc[profile.index[ind], generator.get_name()])})
+                        ind += 1
 
         return generation_profiles_dict
 
@@ -991,8 +1007,12 @@ class ParameterObject:
 
             if commodity.is_demanded():
                 if commodity.get_demand_type() == 'fixed':
-                    for t in range(self.get_time_steps()):
-                        demand_dict.update({(commodity_name, t): float(commodity.get_demand())})
+                    if not commodity.is_total_demand():
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                demand_dict.update({(commodity_name, cl, t): float(commodity.get_demand())})
+                    else:
+                        demand_dict.update({commodity_name: float(commodity.get_demand())})
 
                 else:
 
@@ -1006,8 +1026,12 @@ class ParameterObject:
 
                     demand_curve = profile.loc[:, commodity_name + '_Demand']
 
-                    for t in range(self.get_time_steps()):
-                        demand_dict.update({(commodity_name, t): float(demand_curve.loc[t])})
+                    ind = 0
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            demand_dict.update({(commodity_name, cl, t): float(demand_curve.loc[demand_curve.index[ind]])})
+
+                            ind += 1
 
         return demand_dict
 
@@ -1018,8 +1042,9 @@ class ParameterObject:
             commodity_name = commodity.get_name()
             if commodity.is_purchasable():
                 if commodity.get_purchase_price_type() == 'fixed':
-                    for t in range(self.get_time_steps()):
-                        purchase_price_dict.update({(commodity_name, t): float(commodity.get_purchase_price())})
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            purchase_price_dict.update({(commodity_name, cl, t): float(commodity.get_purchase_price())})
 
                 else:
 
@@ -1033,8 +1058,11 @@ class ParameterObject:
 
                     purchase_price_curve = profile.loc[:, commodity_name + '_Purchase_Price']
 
-                    for t in range(self.get_time_steps()):
-                        purchase_price_dict.update({(commodity_name, t): float(purchase_price_curve.loc[t])})
+                    ind = 0
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            purchase_price_dict.update({(commodity_name, cl, t): float(purchase_price_curve.loc[purchase_price_curve.index[ind]])})
+                            ind += 1
 
         return purchase_price_dict
 
@@ -1044,8 +1072,9 @@ class ParameterObject:
             commodity_name = commodity.get_name()
             if commodity.is_saleable():
                 if commodity.get_sale_price_type() == 'fixed':
-                    for t in range(self.get_time_steps()):
-                        sell_price_dict.update({(commodity_name, t): float(commodity.get_sale_price())})
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            sell_price_dict.update({(commodity_name, cl, t): float(commodity.get_sale_price())})
                 else:
 
                     path = self.get_path_data() + self.get_profile_data()
@@ -1058,8 +1087,11 @@ class ParameterObject:
 
                     sale_price_curve = profile.loc[:, commodity_name + '_Selling_Price']
 
-                    for t in range(self.get_time_steps()):
-                        sell_price_dict.update({(commodity_name, t): float(sale_price_curve.loc[t])})
+                    ind = 0
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            sell_price_dict.update({(commodity_name, cl, t): float(sale_price_curve.loc[sale_price_curve.index[ind]])})
+                            ind += 1
 
         return sell_price_dict
 
@@ -1076,11 +1108,11 @@ class ParameterObject:
 
             j = 0
             for i in weightings.index:
-                weightings_dict[j] = weightings.at[i, 'Weighting']
+                cl = math.floor(j / self.get_covered_period())
+                weightings_dict[cl] = weightings.at[i, 'Weighting']
                 j += 1
         else:
-            for t in range(self.get_time_steps()):
-                weightings_dict[t] = 1
+            weightings_dict[0] = 1
 
         return weightings_dict
 

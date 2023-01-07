@@ -454,7 +454,6 @@ class StorageInterface(ttk.Frame):
         for s in self.pm_object_copy.get_final_commodities_names():
             self.storages_names.append(s)
             if s not in self.pm_object_copy.get_storage_components_names():
-                self.storages_names.append(s)
                 storage = StorageComponent(s, final_unit=False, custom_unit=True)
                 self.pm_object_copy.add_component(s, storage)
 
@@ -516,7 +515,6 @@ class StorageInterface(ttk.Frame):
         for s in self.pm_object_copy.get_final_commodities_names():
             self.storages_names.append(s)
             if s not in self.pm_object_copy.get_storage_components_names():
-                self.storages_names.append(s)
                 storage = StorageComponent(s, final_unit=False, custom_unit=True)
                 self.pm_object_copy.add_component(s, storage)
 
@@ -1179,7 +1177,6 @@ def save_current_parameters_and_options(pm_object, path_name):
 
     case_data['representative_periods'] = {}
     case_data['representative_periods']['uses_representative_periods'] = pm_object.get_uses_representative_periods()
-    case_data['representative_periods']['representative_periods_length'] = pm_object.get_representative_periods_length()
     case_data['representative_periods']['covered_period'] = pm_object.get_covered_period()
 
     case_data['monetary_unit'] = pm_object.get_monetary_unit()

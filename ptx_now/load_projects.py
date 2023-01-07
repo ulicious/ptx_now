@@ -21,7 +21,6 @@ def load_010(pm_object, case_data):
     pm_object.set_wacc(case_data['wacc'])
 
     pm_object.set_uses_representative_periods(case_data['representative_periods']['uses_representative_periods'])
-    pm_object.set_representative_periods_length(case_data['representative_periods']['representative_periods_length'])
     pm_object.set_covered_period(case_data['representative_periods']['covered_period'])
 
     pm_object.set_monetary_unit(case_data['monetary_unit'])
@@ -173,7 +172,6 @@ def load_009(pm_object, case_data):
     """ Set general parameters """
 
     pm_object.set_uses_representative_periods(case_data['representative_periods']['uses_representative_periods'])
-    pm_object.set_representative_periods_length(case_data['representative_periods']['representative_periods_length'])
     pm_object.set_covered_period(case_data['representative_periods']['covered_period'])
 
     pm_object.set_monetary_unit(case_data['monetary_unit'])

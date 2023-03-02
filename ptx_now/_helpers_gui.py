@@ -1172,6 +1172,7 @@ def save_current_parameters_and_options(pm_object, path_name):
 
     case_data = {}
     case_data['version'] = '0.1.0'
+    case_data['project_name'] = pm_object.get_project_name()
 
     case_data['wacc'] = pm_object.get_wacc()
 

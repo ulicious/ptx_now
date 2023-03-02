@@ -3,6 +3,8 @@ import numpy as np
 
 
 def create_linear_system_of_equations(data):
+    # todo: currently, variable operation costs are included in the total costs of components and not indicated
+    #  separately
 
     # Calculate total commodity availability
     for commodity in data.model.COMMODITIES:
@@ -274,14 +276,14 @@ def create_linear_system_of_equations(data):
             commodity_equations_constant.update({column: (-conversion_costs_per_conversed_unit[column]
                                                           * main_output_coefficients[main_output])})
 
-        if 'Generation' in column:
-            commodity_equations_constant.update({column: -data.total_generation_costs_per_available_unit[column.split(' ')[0]]})
+        if 'Generation' in column: # todo: wird aktuell getestet - Das funktioniert so nicht, wenn eine Komponente z.B. FT Crude heißt (Leerzeichen)
+            commodity_equations_constant.update({column: -data.total_generation_costs_per_available_unit[column.split(' Generation')[0]]})
         if 'Purchase' in column:
-            commodity_equations_constant.update({column: -data.purchase_costs_per_available_unit[column.split(' ')[0]]})
+            commodity_equations_constant.update({column: -data.purchase_costs_per_available_unit[column.split(' Purchase')[0]]})
         if 'Selling' in column:
-            commodity_equations_constant.update({column: -data.selling_costs_per_available_unit[column.split(' ')[0]]})
+            commodity_equations_constant.update({column: -data.selling_costs_per_available_unit[column.split(' Selling')[0]]})
         if 'Storage' in column:
-            commodity_equations_constant.update({column: -data.storage_costs_per_available_unit[column.split(' ')[0]]})
+            commodity_equations_constant.update({column: -data.storage_costs_per_available_unit[column.split(' Storage')[0]]})
 
     if False:
         pd.DataFrame.from_dict(commodity_equations_constant, orient='index').to_excel(

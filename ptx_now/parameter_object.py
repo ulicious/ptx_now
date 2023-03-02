@@ -313,6 +313,10 @@ class ParameterObject:
     def remove_commodity(self, commodity):
         self.get_commodity(commodity).set_final(False)
 
+        for g in self.get_final_generator_components_objects():
+            if commodity == g.get_generated_commodity():
+                g.set_generated_commodity(self.get_final_commodities_names()[0])
+
     def activate_commodity(self, commodity):
         self.get_commodity(commodity).set_final(True)
 
@@ -1144,7 +1148,7 @@ class ParameterObject:
         names_dict = copy.deepcopy(self.names_dict)
         commodities = copy.deepcopy(self.commodities)
 
-        return ParameterObject(name=self.name,
+        return ParameterObject(project_name=self.project_name,
                                integer_steps=self.integer_steps, wacc=self.wacc,
                                names_dict=names_dict,
                                commodities=commodities,
@@ -1156,12 +1160,11 @@ class ParameterObject:
                                monetary_unit=self.monetary_unit,
                                copy_object=True)
 
-    def __init__(self, name=None, integer_steps=5,
+    def __init__(self, project_name='', integer_steps=5,
                  wacc=0.07, names_dict=None, commodities=None, components=None,
                  profile_data=False, single_or_multiple_profiles='single',
                  uses_representative_periods=False, representative_periods_length=0,
-                 covered_period=8760, monetary_unit='€',
-                 project_name=None, path_data=None,
+                 covered_period=8760, monetary_unit='€', path_data=None,
                  copy_object=False):
 
         """
@@ -1174,7 +1177,7 @@ class ParameterObject:
         :param components: [dict] - Dictionary with abbreviations as keys and component objects as values
         :param copy_object: [boolean] - Boolean if object is copy
         """
-        self.name = name
+        self.project_name = project_name
 
         if not copy_object:
 
@@ -1203,7 +1206,6 @@ class ParameterObject:
         self.single_or_multiple_profiles = single_or_multiple_profiles
         self.profile_data = profile_data
         self.path_data = path_data
-        self.project_name = project_name
 
         self.commodity_data_needed = False
         self.check_commodity_data_needed()

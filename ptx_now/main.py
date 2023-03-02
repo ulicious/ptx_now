@@ -583,10 +583,10 @@ class GUI:
             self.root.title(custom_title)
             self.project_name = custom_title
 
-            self.pm_object_original = ParameterObject('parameter', integer_steps=10,
-                                                      path_data=path_data, project_name=custom_title)
-            self.pm_object_copy = ParameterObject('parameter2', integer_steps=10,
-                                                  path_data=path_data, project_name=custom_title)
+            self.pm_object_original = ParameterObject(integer_steps=10,
+                                                      path_data=path_data)
+            self.pm_object_copy = ParameterObject(integer_steps=10,
+                                                  path_data=path_data)
 
             path = self.path_projects + '/' + self.path_optimize
             if 'xlsx' in path:

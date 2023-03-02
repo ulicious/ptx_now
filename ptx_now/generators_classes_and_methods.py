@@ -65,7 +65,14 @@ class GeneratorFrame:
         window.grid_columnconfigure(0, weight=1)
         window.grid_columnconfigure(2, weight=1)
 
-        tk.Label(window, text='CAPEX [' + self.monetary_unit + '/' + self.commodity_unit + ']').grid(row=0, column=0, sticky='w')
+        if self.commodity_unit in ['kWh', 'MWh', 'GWh', 'TWh']:
+            commodity_unit = self.commodity_unit[0:2]
+        else:
+            commodity_unit = self.commodity_unit + ' / h'
+
+        tk.Label(window, text='CAPEX [' + self.monetary_unit + '/' + commodity_unit + ']').grid(row=0,
+                                                                                                column=0,
+                                                                                                sticky='w')
         tk.Label(window, text='Lifetime [years]').grid(row=1, column=0, sticky='w')
         tk.Label(window, text='Fixed O&M [%]').grid(row=2, column=0, sticky='w')
         tk.Label(window, text='Variable O&M [' + self.pm_object.get_monetary_unit() + ' / ' + self.commodity_unit + ']').grid(row=3, column=0, sticky='w')
@@ -95,7 +102,7 @@ class GeneratorFrame:
         ttk.Checkbutton(window, text='Fixed Capacity used?', variable=self.checkbox_fixed_capacity_var,
                         command=check_fixed_capacity).grid(row=6, column=0, sticky='ew')
 
-        fixed_capacity_label = ttk.Label(window, text='Fixed Capacity [' + self.commodity_unit + ']:')
+        fixed_capacity_label = ttk.Label(window, text='Fixed Capacity [' + commodity_unit + ']:')
         fixed_capacity_label.grid(row=7, column=0)
         fixed_capacity_entry = ttk.Entry(window, text=self.fixed_capacity_var)
         fixed_capacity_entry.grid(row=7, column=1)
@@ -125,12 +132,8 @@ class GeneratorFrame:
 
     def initialize_generator_frame(self):
 
-        if self.commodity_unit == 'MWh':
-            commodity_unit = 'MW'
-        elif self.commodity_unit == 'GWh':
-            commodity_unit = 'GW'
-        elif self.commodity_unit == 'kWh':
-            commodity_unit = 'kW'
+        if self.commodity_unit in ['kWh', 'MWh', 'GWh', 'TWh']:
+            commodity_unit = self.commodity_unit[0:2]
         else:
             commodity_unit = self.commodity_unit + ' / h'
 

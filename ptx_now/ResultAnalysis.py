@@ -369,7 +369,7 @@ class ResultAnalysis:
                             covered_index = profile.index[0:self.pm_object.get_covered_period()*self.pm_object.get_number_clusters()]
                             time_depending_variables[
                                 'Potential Generation', generator_object.get_name(), commodity] \
-                                = profile.loc[covered_index]
+                                = profile.loc[covered_index].tolist()
 
                             total_profile.append(profile)
 
@@ -379,10 +379,10 @@ class ResultAnalysis:
                     potential_profile = None
                     for pr in total_profile:
                         if first:
-                            potential_profile = pr
+                            potential_profile = pr.iloc[0:self.pm_object.get_covered_period() * self.pm_object.get_number_clusters()]
                             first = False
                         else:
-                            potential_profile += pr
+                            potential_profile += pr.iloc[0:self.pm_object.get_covered_period() * self.pm_object.get_number_clusters()]
 
                     time_depending_variables[
                         'Total Potential Generation', '', commodity] = potential_profile.tolist()
@@ -445,12 +445,15 @@ class ResultAnalysis:
             capacity = self.all_variables_dict['nominal_cap'][component_name]
 
             if capacity == 0:
-                continue
-
-            investment = self.all_variables_dict['investment'][key]
-            annuity = self.annualized_investment[component_name]
-            fixed_om = self.fixed_costs[component_name]
-            variable_om = self.variable_costs[component_name]
+                investment = 0
+                annuity = 0
+                fixed_om = 0
+                variable_om = 0
+            else:
+                investment = self.all_variables_dict['investment'][key]
+                annuity = self.annualized_investment[component_name]
+                fixed_om = self.fixed_costs[component_name]
+                variable_om = self.variable_costs[component_name]
 
             if component_object.get_component_type() == 'conversion':
                 capex_basis = component_object.get_capex_basis()
@@ -487,11 +490,19 @@ class ResultAnalysis:
                 capacity_df.loc[component_name, 'Capacity Basis'] = capex_basis
                 capacity_df.loc[component_name, 'Capacity [input]'] = capacity
                 capacity_df.loc[component_name, 'Capacity Unit [input]'] = unit_input
-                capacity_df.loc[component_name, 'Investment [per input]'] = investment / capacity
+
+                if capacity == 0:
+                    capacity_df.loc[component_name, 'Investment [per input]'] = 0
+                else:
+                    capacity_df.loc[component_name, 'Investment [per input]'] = investment / capacity
 
                 capacity_df.loc[component_name, 'Capacity [output]'] = capacity * coefficient
                 capacity_df.loc[component_name, 'Capacity Unit [output]'] = unit_output
-                capacity_df.loc[component_name, 'Investment [per output]'] = investment / (capacity * coefficient)
+
+                if capacity == 0:
+                    capacity_df.loc[component_name, 'Investment [per output]'] = 0
+                else:
+                    capacity_df.loc[component_name, 'Investment [per output]'] = investment / (capacity * coefficient)
 
                 total_input_component = sum(self.time_depending_variables_df.loc[('Input',
                                                                                   component_name,
@@ -499,7 +510,11 @@ class ResultAnalysis:
                                             * self.model.weightings[cl]
                                             for cl in self.model.CLUSTERS
                                             for t in self.model.TIME)
-                full_load_hours = total_input_component / (capacity * 8760) * 8760
+
+                if capacity == 0:
+                    full_load_hours = 0
+                else:
+                    full_load_hours = total_input_component / (capacity * 8760) * 8760
 
                 capacity_df.loc[component_name, 'Full-load Hours'] = full_load_hours
 
@@ -520,7 +535,10 @@ class ResultAnalysis:
 
                 capacity_df.loc[component_name, 'Capacity Unit [output]'] = unit
 
-                capacity_df.loc[component_name, 'Investment [per output]'] = investment / capacity
+                if capacity == 0:
+                    capacity_df.loc[component_name, 'Investment [per output]'] = 0
+                else:
+                    capacity_df.loc[component_name, 'Investment [per output]'] = investment / capacity
 
             else:
                 component_name += ' Storage'
@@ -532,7 +550,10 @@ class ResultAnalysis:
                 capacity_df.loc[component_name, 'Capacity [input]'] = capacity
                 capacity_df.loc[component_name, 'Capacity Unit [input]'] = unit + ' ' + name_commodity
 
-                capacity_df.loc[component_name, 'Investment [per input]'] = investment / capacity
+                if capacity == 0:
+                    capacity_df.loc[component_name, 'Investment [per input]'] = 0
+                else:
+                    capacity_df.loc[component_name, 'Investment [per input]'] = investment / capacity
 
             capacity_df.loc[component_name, 'Total Investment'] = investment
             capacity_df.loc[component_name, 'Annuity'] = annuity
@@ -792,6 +813,10 @@ class ResultAnalysis:
         time_depending_variables = {}
         list_values = {}
         for variable_name in self.status_variables:
+
+            if variable_name not in [*self.all_variables_dict.keys()]:
+                continue
+
             for key in [*self.all_variables_dict[variable_name].keys()]:
 
                 c = key[0]
@@ -819,7 +844,7 @@ class ResultAnalysis:
             for i, elem in enumerate(time_depending_variables[key]):
                 time_depending_variables_df.loc[key, i] = elem
 
-        if True:
+        if False:
             # Only for maintenance
             if len(time_depending_variables_df.index) > 0:
                 time_depending_variables_df.to_excel(self.new_result_folder + '/time_series_binaries.xlsx')
@@ -1148,7 +1173,7 @@ class ResultAnalysis:
         self.analyze_components()
         self.analyze_generation()
         self.analyze_total_costs()
-        self.check_integer_variables()
+        # self.check_integer_variables()
         self.copy_input_data()
 
         # self.build_sankey_diagram(only_energy=False)

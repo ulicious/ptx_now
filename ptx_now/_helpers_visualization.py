@@ -214,7 +214,7 @@ def create_visualization(path):
             return cost_fig, cost_share_fig, cost_structure_df_with_unit
 
         def create_assumptions_table():
-            columns = ['Fixed Operation and Maintenance', 'Fixed Operation and Maintenance']
+            columns = ['Fixed Operation and Maintenance', 'Variable Operation and Maintenance']
             local_assumptions_tab = pd.DataFrame(index=assumptions_df.index)
             local_assumptions_tab[''] = assumptions_df.index
             local_assumptions_tab['Capex Unit'] = assumptions_df['Capex Unit']
@@ -338,6 +338,9 @@ def create_visualization(path):
 
         annual_production = overview_df.loc['Annual Production'].values[0]
         annual_production_unit = time_series_df.loc[['Demand']].loc[:, 'unit'].values[0].split(' / ')[0]
+
+        if annual_production_unit in ['kW', 'MW', 'GW', 'TW']:
+            annual_production_unit = annual_production_unit + 'h'
 
         overview_tab = create_overview_table()
 

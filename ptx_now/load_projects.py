@@ -18,6 +18,8 @@ def load_project(pm_object, case_data):
 def load_010(pm_object, case_data):
     """ Set general parameters """
 
+    pm_object.set_project_name(case_data['project_name'])
+
     pm_object.set_wacc(case_data['wacc'])
 
     pm_object.set_uses_representative_periods(case_data['representative_periods']['uses_representative_periods'])

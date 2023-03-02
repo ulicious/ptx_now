@@ -666,44 +666,66 @@ class AddNewComponentWindow:
 
     def add_component_and_kill_window(self):
 
-        # Creates component with dummy parameters and random main conversion
+        def destroy_windows_after_error():
+            self.newWindow.destroy()
+            self.newWindowWrongName.destroy()
 
-        new_component = ConversionComponent(self.name.get(), final_unit=True, custom_unit=True)
+        if (self.name.get() in self.pm_object.get_all_component_names()) \
+            | (self.name.get() in self.pm_object.get_all_commodity_names()):
 
-        if len([*self.pm_object.get_all_commodities().keys()]) > 0:
+            self.newWindowWrongName = Toplevel()
+            self.newWindowWrongName.grab_set()
+            self.newWindowWrongName.title('Error')
 
-            input_random = random.choice([*self.pm_object.get_all_commodities().keys()])
-            new_component.add_input(input_random, 1)
-            new_component.set_main_input(input_random)
-            self.pm_object.get_commodity(input_random).set_final(True)
+            self.name = StringVar()
 
-            output_random = random.choice([*self.pm_object.get_all_commodities().keys()])
-            new_component.add_output(output_random, 1)
-            new_component.set_main_output(output_random)
-            self.pm_object.get_commodity(output_random).set_final(True)
+            ttk.Label(self.newWindowWrongName, text='Please choose other name as component or commodities with this name exists').grid(row=0, column=0, sticky='ew')
 
-            self.pm_object.add_component(self.name.get(), new_component)
+            ttk.Button(self.newWindowWrongName, text='Ok',
+                       command=destroy_windows_after_error).grid(row=1, column=0, sticky='ew')
+
+            self.newWindowWrongName.grid_columnconfigure(0, weight=1, uniform='a')
 
         else:
 
-            input_commodity = 'Electricity'
-            output_commodity = 'Electricity'
+            # Creates component with dummy parameters and random main conversion
 
-            new_component.add_input(input_commodity, 1)
-            new_component.add_output(output_commodity, 1)
+            new_component = ConversionComponent(self.name.get(), final_unit=True, custom_unit=True)
 
-            new_component.set_main_input(input_commodity)
-            new_component.set_main_output(output_commodity)
+            if len([*self.pm_object.get_all_commodities().keys()]) > 0:
 
-            s = Commodity('Electricity', 'kWh', final_commodity=True)
-            self.pm_object.add_commodity('Electricity', s)
+                input_random = random.choice([*self.pm_object.get_all_commodities().keys()])
+                new_component.add_input(input_random, 1)
+                new_component.set_main_input(input_random)
+                self.pm_object.get_commodity(input_random).set_final(True)
 
-            self.pm_object.add_component(self.name.get(), new_component)
+                output_random = random.choice([*self.pm_object.get_all_commodities().keys()])
+                new_component.add_output(output_random, 1)
+                new_component.set_main_output(output_random)
+                self.pm_object.get_commodity(output_random).set_final(True)
 
-        self.parent.pm_object_copy = self.pm_object
-        self.parent.update_widgets()
+                self.pm_object.add_component(self.name.get(), new_component)
 
-        self.newWindow.destroy()
+            else:
+
+                input_commodity = 'Electricity'
+                output_commodity = 'Electricity'
+
+                new_component.add_input(input_commodity, 1)
+                new_component.add_output(output_commodity, 1)
+
+                new_component.set_main_input(input_commodity)
+                new_component.set_main_output(output_commodity)
+
+                s = Commodity('Electricity', 'kWh', final_commodity=True)
+                self.pm_object.add_commodity('Electricity', s)
+
+                self.pm_object.add_component(self.name.get(), new_component)
+
+            self.parent.pm_object_copy = self.pm_object
+            self.parent.update_widgets()
+
+            self.newWindow.destroy()
 
     def __init__(self, parent, pm_object):
 
@@ -980,7 +1002,7 @@ class ConversionFrame:
                                                     command=change_input_entry)
             input_radiobutton_new.grid(row=3, column=0, sticky='ew')
 
-            input_commodity_name_entry = ttk.Entry(adjust_input_window)
+            input_commodity_name_entry = ttk.Entry(adjust_input_window) # todo: make sure that new commodities have not the name of components or other commodities
             input_commodity_name_entry.insert(END, 'Name')
             input_commodity_name_entry.config(state=DISABLED)
             input_commodity_name_entry.grid(row=4, column=0, sticky='ew')

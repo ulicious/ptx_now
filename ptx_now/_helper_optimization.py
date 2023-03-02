@@ -51,9 +51,10 @@ def optimize(pm_object, path_data, path_results, solver):
             inputs = tqdm(new_input)
             common_results = Parallel(n_jobs=num_cores)(delayed(multi_processing_optimization)(i) for i in inputs)
 
-            pm_object.set_path_data(path_data_before)
+            pm_object.set_profile_data(path_data_before)
 
             first = True
+            common_results_df = None
             for i in common_results:
                 if first:
                     common_results_df = pd.DataFrame(i[1], index=[i[0]])
@@ -62,7 +63,7 @@ def optimize(pm_object, path_data, path_results, solver):
                     k_df = pd.DataFrame(i[1], index=[i[0]])
                     common_results_df = common_results_df.append(k_df)
 
-            common_results_df.to_excel(path_results + 'common_results.xlsx')
+            common_results_df.to_excel(path_results + pm_object.get_project_name() + '_common_results.xlsx')
 
     else:
         optimization_problem = OptimizationProblem(pm_object, solver)

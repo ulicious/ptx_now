@@ -49,6 +49,9 @@ class ResultAnalysis:
                 commodity = k[0]
                 cluster = k[1]
 
+                if variable_dict[k] is None:
+                    continue
+
                 if variable == 'mass_energy_available':
                     self.available_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
 
@@ -61,7 +64,7 @@ class ResultAnalysis:
 
                 if variable == 'mass_energy_sell_commodity':
                     self.sold_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
-                    self.selling_costs += variable_dict[k] * self.model.weightings[cluster] * self.model.selling_price[k]
+                    self.selling_costs[commodity] += variable_dict[k] * self.model.weightings[cluster] * self.model.selling_price[k]
 
                 if variable == 'mass_energy_storage_in_commodities':
                     self.stored_commodity[commodity] += variable_dict[k] * self.model.weightings[cluster]
@@ -81,6 +84,9 @@ class ResultAnalysis:
                 component = k[0]
                 commodity = k[1]
                 cluster = k[2]
+
+                if variable_dict[k] is None:
+                    continue
 
                 ratio = 1
                 if component in self.model.CONVERSION_COMPONENTS:
@@ -186,14 +192,21 @@ class ResultAnalysis:
 
                 coefficient = outputs[main_output] / inputs[main_input]
 
-                if capex_basis == 'input':
-                    capex.append(self.all_variables_dict['investment'][c.get_name()] /
-                                 self.all_variables_dict['nominal_cap'][c.get_name()])
-                    commodity_name = main_input
-                    unit = self.pm_object.get_commodity(main_input).get_unit()
+                if self.all_variables_dict['nominal_cap'][c.get_name()] > 0:
+
+                    if capex_basis == 'input':
+                        capex.append(self.all_variables_dict['investment'][c.get_name()] /
+                                     self.all_variables_dict['nominal_cap'][c.get_name()])
+                        commodity_name = main_input
+                        unit = self.pm_object.get_commodity(main_input).get_unit()
+                    else:
+                        capex.append(self.all_variables_dict['investment'][c.get_name()] / (
+                                self.all_variables_dict['nominal_cap'][c.get_name()] * coefficient))
+                        commodity_name = main_output
+                        unit = self.pm_object.get_commodity(main_output).get_unit()
+
                 else:
-                    capex.append(self.all_variables_dict['investment'][c.get_name()] / (
-                            self.all_variables_dict['nominal_cap'][c.get_name()] * coefficient))
+                    capex.append(0)
                     commodity_name = main_output
                     unit = self.pm_object.get_commodity(main_output).get_unit()
 
@@ -504,17 +517,15 @@ class ResultAnalysis:
                 else:
                     capacity_df.loc[component_name, 'Investment [per output]'] = investment / (capacity * coefficient)
 
-                total_input_component = sum(self.time_depending_variables_df.loc[('Input',
-                                                                                  component_name,
-                                                                                  name_commodity), t + cl*self.pm_object.get_covered_period()]
-                                            * self.model.weightings[cl]
-                                            for cl in self.model.CLUSTERS
-                                            for t in self.model.TIME)
-
-                if capacity == 0:
-                    full_load_hours = 0
-                else:
+                if capacity > 0:
+                    total_input_component\
+                        = sum(self.time_depending_variables_df.loc[('Input', component_name, name_commodity),
+                                                                   t + cl*self.pm_object.get_covered_period()]
+                              * self.model.weightings[cl] for cl in self.model.CLUSTERS for t in self.model.TIME)
                     full_load_hours = total_input_component / (capacity * 8760) * 8760
+
+                else:
+                    full_load_hours = 0
 
                 capacity_df.loc[component_name, 'Full-load Hours'] = full_load_hours
 

@@ -122,8 +122,12 @@ class ResultAnalysis:
         for component in self.pm_object.get_final_components_objects():
             c = component.get_name()
 
-            self.annualized_investment[c] = self.all_variables_dict['investment'][c] * self.model.ANF[c]
-            self.fixed_costs[c] = self.all_variables_dict['investment'][c] * self.model.fixed_om[c]
+            if self.all_variables_dict['investment'][c] > 0:
+                self.annualized_investment[c] = self.all_variables_dict['investment'][c] * self.model.ANF[c]
+                self.fixed_costs[c] = self.all_variables_dict['investment'][c] * self.model.fixed_om[c]
+            else:
+                self.annualized_investment[c] = 0
+                self.fixed_costs[c] = 0
 
             if component.get_component_type() == 'conversion':
 

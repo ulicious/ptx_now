@@ -15,7 +15,7 @@ def create_linear_system_of_equations(data):
 
         difference = 0
         if commodity in data.model.STORAGES:
-            # Due to charging and discharging efficiency, some mass or energy gets 'lost'. This has to be considered
+            # Due to charging and discharging efficiency, some mass or energy gets 'lost'
             total_in = sum(data.all_variables_dict['mass_energy_storage_in_commodities'][(commodity, cl, t)]
                            * data.model.weightings[cl] for cl in data.model.CLUSTERS for t in data.model.TIME)
             total_out = sum(data.all_variables_dict['mass_energy_storage_out_commodities'][(commodity, cl, t)]
@@ -340,7 +340,7 @@ def create_linear_system_of_equations(data):
                         commodity, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] \
                         = 0
 
-                data.total_variable_costs[commodity] = data.purchase_costs[commodity] + data.selling_costs[commodity]
+                data.total_variable_costs[commodity] = data.purchase_costs[commodity] - data.selling_costs[commodity]  # todo: + oder -?
                 commodities_and_costs.loc[commodity, 'Total Variable Costs'] = data.total_variable_costs[commodity]
 
                 commodities_and_costs.loc[commodity, 'Total Generation Fix Costs'] = data.total_generation_costs[
@@ -389,8 +389,8 @@ def create_linear_system_of_equations(data):
                     commodities_and_costs.loc[commodity, 'Production Costs per Unit'] \
                         = data.production_cost_commodity_per_unit[commodity]
                 else:
-                    commodities_and_costs.loc[name, 'Production Costs per Unit'] \
-                        = -data.production_cost_commodity_per_unit[commodity]
+                    commodities_and_costs.loc[commodity, 'Production Costs per Unit'] \
+                        = - data.production_cost_commodity_per_unit[commodity]
 
                 commodities_and_costs.to_excel(data.new_result_folder + '/4_commodities.xlsx')
                 data.commodities_and_costs = commodities_and_costs

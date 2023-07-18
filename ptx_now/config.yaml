@@ -1,8 +1,8 @@
-chosen_optimization_setting: 
-optimization_or_visualization: 
-path_data: 
-path_optimize: 
-path_projects: 
-path_result: 
-path_visualization: 
-solver:
+chosen_optimization_setting: custom
+optimization_or_visualization: optimize
+path_data: C:/Users/mt5285/ptx_data/data/
+path_optimize: Ammonia_2030_14d.yaml
+path_projects: C:/Users/mt5285/ptx_data/projects/
+path_result: C:/Users/mt5285/ptx_data/results/
+path_visualization: null
+solver: gurobi

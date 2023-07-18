@@ -22,6 +22,8 @@ import yaml
 def run_main():
     setting_window = SettingWindow()
 
+    # todo: adjust this file --> check settings necessary
+
     if setting_window.go_on:
 
         path_data = setting_window.path_data
@@ -164,99 +166,84 @@ class GUI:
 
     def check_all_settings(self):
 
-        def kill_window():
-            alert_window.destroy()
+        if False:
 
-        valid_me_for_commodity = {}
-        commodities_without_well = []
-        commodities_without_sink = []
-        profile_not_exist = []
+            def kill_window():
+                alert_window.destroy()
 
-        for commodity in self.pm_object_copy.get_final_commodities_objects():
+            valid_me_for_commodity = {}
+            commodities_without_well = []
+            commodities_without_sink = []
+            profile_not_exist = []
 
-            well_existing = False
-            sink_existing = False
+            for commodity in self.pm_object_copy.get_final_commodities_objects():
 
-            # Check if commodity has a well
-            if commodity.is_available():
-                well_existing = True
-            elif commodity.is_purchasable():
-                well_existing = True
+                well_existing = False
+                sink_existing = False
 
-            # If no well exists, the commodity has to be generated or converted from other commodity
-            if not well_existing:
-                for component in self.pm_object_copy.get_final_conversion_components_objects():
-                    outputs = component.get_outputs()
-                    for o in [*outputs.keys()]:
-                        if o == commodity.get_name():
+                # Check if commodity has a well
+                if commodity.is_available():
+                    well_existing = True
+                elif commodity.is_purchasable():
+                    well_existing = True
+
+                # If no well exists, the commodity has to be generated or converted from other commodity
+                if not well_existing:
+                    for component in self.pm_object_copy.get_final_conversion_components_objects():
+                        outputs = component.get_outputs()
+                        for o in [*outputs.keys()]:
+                            if o == commodity.get_name():
+                                well_existing = True
+                                break
+
+                if not well_existing:
+                    for component in self.pm_object_copy.get_final_generator_components_objects():
+                        if commodity.get_name() == component.get_generated_commodity():
                             well_existing = True
                             break
 
-            if not well_existing:
-                for component in self.pm_object_copy.get_final_generator_components_objects():
-                    if commodity.get_name() == component.get_generated_commodity():
-                        well_existing = True
-                        break
+                if not well_existing:
+                    commodities_without_well.append(commodity.get_name())
 
-            if not well_existing:
-                commodities_without_well.append(commodity.get_name())
+                # Check if commodity has a sink
+                if commodity.is_emittable():
+                    sink_existing = True
+                elif commodity.is_saleable():
+                    sink_existing = True
+                elif commodity.is_demanded():
+                    sink_existing = True
 
-            # Check if commodity has a sink
-            if commodity.is_emittable():
-                sink_existing = True
-            elif commodity.is_saleable():
-                sink_existing = True
-            elif commodity.is_demanded():
-                sink_existing = True
+                for component in self.pm_object_copy.get_final_conversion_components_objects():
+                    inputs = component.get_inputs()
+                    for i in [*inputs.keys()]:
+                        if i == commodity.get_name():
+                            sink_existing = True
+                            break
 
-            for component in self.pm_object_copy.get_final_conversion_components_objects():
-                inputs = component.get_inputs()
-                for i in [*inputs.keys()]:
-                    if i == commodity.get_name():
-                        sink_existing = True
-                        break
+                if not sink_existing:
+                    commodities_without_sink.append(commodity.get_name())
 
-            if not sink_existing:
-                commodities_without_sink.append(commodity.get_name())
-
-            if well_existing & sink_existing:
-                valid_me_for_commodity.update({commodity.get_name(): True})
-            else:
-                valid_me_for_commodity.update({commodity.get_name(): False})
-
-        all_commodities_valid = True
-        for commodity in self.pm_object_copy.get_final_commodities_objects():
-            if not valid_me_for_commodity[commodity.get_name()]:
-                all_commodities_valid = False
-
-        no_data = False
-        data_length_not_matching = False
-        # Check if a profile for the generation unit exists, if generation unit is enabled
-        if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
-            if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
-
-                if not self.pm_object_copy.get_profile_data():
-                    no_data = True
-
+                if well_existing & sink_existing:
+                    valid_me_for_commodity.update({commodity.get_name(): True})
                 else:
+                    valid_me_for_commodity.update({commodity.get_name(): False})
 
+            all_commodities_valid = True
+            for commodity in self.pm_object_copy.get_final_commodities_objects():
+                if not valid_me_for_commodity[commodity.get_name()]:
+                    all_commodities_valid = False
+
+            # Check if a profile for the generation unit exists, if generation unit is enabled
+            if len(self.pm_object_copy.get_final_generator_components_names()) > 0:
+                if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
                     if self.pm_object_copy.get_profile_data().split('.')[-1] == 'csv':
                         generation_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
                     else:
                         generation_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(), index_col=0)
 
-                    if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
-                            & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                        data_length_not_matching = True
-
                     for generator in self.pm_object_copy.get_final_generator_components_objects():
                         if generator.get_name() not in generation_profile.columns:
                             profile_not_exist.append(generator.get_name())
-            else:
-
-                if not self.pm_object_copy.get_profile_data():
-                    no_data = True
-
                 else:
                     path_to_generation_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                     _, _, filenames = next(walk(path_to_generation_files))
@@ -268,241 +255,184 @@ class GUI:
                         else:
                             generation_profile = pd.read_csv(path, index_col=0)
 
-                        if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
-                                & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                            data_length_not_matching = True
-                            break
-
                         for generator in self.pm_object_copy.get_final_generator_components_objects():
                             if generator.get_name() not in generation_profile.columns:
                                 profile_not_exist.append(generator.get_name())
 
                         break
 
-        # Check if a profile for the commodity unit exists
-        for commodity in self.pm_object_copy.get_final_commodities_objects():
-            if commodity.is_saleable():
-                if commodity.get_sale_price_type() == 'variable':
+            # Check if a profile for the commodity unit exists
+            for commodity in self.pm_object_copy.get_final_commodities_objects():
+                if commodity.is_saleable():
+                    if commodity.get_sale_price_type() == 'variable':
 
-                    column_name = commodity.get_name() + '_Selling_Price'
+                        column_name = commodity.get_name() + '_Selling_Price'
 
-                    if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
-
-                        if not self.pm_object_copy.get_profile_data():
-                            no_data = True
-                            break
-
-                        if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
-                            commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
-                                                              index_col=0)
-                        else:
-                            commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
-                                                            index_col=0)
-
-                        if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
-                                & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                            data_length_not_matching = True
-                            break
-
-                        if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_name() + ' Selling Price')
-                    else:
-                        path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
-                        _, _, filenames = next(walk(path_to_commodity_files))
-
-                        for f in filenames:
-                            path = path_to_commodity_files + '/' + f
-                            if path.split('.')[-1] == 'xlsx':
-                                commodity_profile = pd.read_excel(path, index_col=0)
+                        if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                            if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
+                                commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
+                                                                  index_col=0)
                             else:
-                                commodity_profile = pd.read_csv(path, index_col=0)
-
-                            if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
-                                    & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                                data_length_not_matching = True
-                                break
+                                commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
+                                                                index_col=0)
 
                             if column_name not in commodity_profile.columns:
                                 profile_not_exist.append(commodity.get_name() + ' Selling Price')
-
-                            break
-
-            if commodity.is_purchasable():
-                if commodity.get_purchase_price_type() == 'variable':
-                    column_name = commodity.get_name() + '_Purchase_Price'
-
-                    if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
-
-                        if not self.pm_object_copy.get_profile_data():
-                            no_data = True
-                            break
-
-                        if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
-                            commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
-                                                              index_col=0)
                         else:
-                            commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
-                                                            index_col=0)
+                            path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
+                            _, _, filenames = next(walk(path_to_commodity_files))
 
-                        if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
-                                & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                            data_length_not_matching = True
-                            break
+                            for f in filenames:
+                                path = path_to_commodity_files + '/' + f
+                                if path.split('.')[-1] == 'xlsx':
+                                    commodity_profile = pd.read_excel(path, index_col=0)
+                                else:
+                                    commodity_profile = pd.read_csv(path, index_col=0)
 
-                        if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_name() + ' Purchase Price')
-                    else:
-                        path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
-                        _, _, filenames = next(walk(path_to_commodity_files))
+                                if column_name not in commodity_profile.columns:
+                                    profile_not_exist.append(commodity.get_name() + ' Selling Price')
 
-                        for f in filenames:
-                            path = path_to_commodity_files + '/' + f
-                            if path.split('.')[-1] == 'xlsx':
-                                commodity_profile = pd.read_excel(path, index_col=0)
-                            else:
-                                commodity_profile = pd.read_csv(path, index_col=0)
-
-                            if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
-                                    & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                                data_length_not_matching = True
                                 break
+
+                if commodity.is_purchasable():
+                    if commodity.get_purchase_price_type() == 'variable':
+                        column_name = commodity.get_name() + '_Purchase_Price'
+
+                        if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                            if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
+                                commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
+                                                                  index_col=0)
+                            else:
+                                commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
+                                                                index_col=0)
 
                             if column_name not in commodity_profile.columns:
                                 profile_not_exist.append(commodity.get_name() + ' Purchase Price')
-
-                            break
-
-            if commodity.is_demanded():
-                if commodity.get_demand_type() == 'variable':
-                    column_name = commodity.get_name() + '_Demand'
-
-                    if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
-
-                        if not self.pm_object_copy.get_profile_data():
-                            no_data = True
-                            break
-
-                        if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
-                            commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
-                                                              index_col=0)
                         else:
-                            commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
-                                                            index_col=0)
+                            path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
+                            _, _, filenames = next(walk(path_to_commodity_files))
 
-                        if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
-                                & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                            data_length_not_matching = True
-                            break
+                            for f in filenames:
+                                path = path_to_commodity_files + '/' + f
+                                if path.split('.')[-1] == 'xlsx':
+                                    commodity_profile = pd.read_excel(path, index_col=0)
+                                else:
+                                    commodity_profile = pd.read_csv(path, index_col=0)
 
-                        if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_name() + ' Demand')
-                    else:
-                        path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
-                        _, _, filenames = next(walk(path_to_commodity_files))
+                                if column_name not in commodity_profile.columns:
+                                    profile_not_exist.append(commodity.get_name() + ' Purchase Price')
 
-                        for f in filenames:
-                            path = path_to_commodity_files + '/' + f
-                            if path.split('.')[-1] == 'xlsx':
-                                commodity_profile = pd.read_excel(path, index_col=0)
-                            else:
-                                commodity_profile = pd.read_csv(path, index_col=0)
-
-                            if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
-                                    & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                                data_length_not_matching = True
                                 break
+
+                if commodity.is_demanded():
+                    if commodity.get_purchase_price_type() == 'variable':
+                        column_name = commodity.get_name() + '_Demand'
+
+                        if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                            if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
+                                commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
+                                                                  index_col=0)
+                            else:
+                                commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
+                                                                index_col=0)
 
                             if column_name not in commodity_profile.columns:
                                 profile_not_exist.append(commodity.get_name() + ' Demand')
-
-                            break
-
-        # Create alert if sink, well or profile is missing
-        error_in_setting = False
-        if (len(profile_not_exist) > 0) | (not all_commodities_valid) | no_data | data_length_not_matching:
-            error_in_setting = True
-
-        if error_in_setting:
-            self.optimize_button.config(state=DISABLED)
-            alert_window = Toplevel(self.root)
-            alert_window.title('')
-
-            if not all_commodities_valid:
-
-                no_well_text = ''
-                no_sink_text = ''
-
-                if len(commodities_without_well) > 0:
-
-                    if len(commodities_without_well) == 1:
-                        no_well_text = 'The following commodity has no well: '
-                    else:
-                        no_well_text = 'The following commodities have no well: '
-
-                    for commodity in commodities_without_well:
-                        if commodities_without_well.index(commodity) != len(commodities_without_well) - 1:
-                            no_well_text += commodity + ', '
                         else:
-                            no_well_text += commodity
+                            path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
+                            _, _, filenames = next(walk(path_to_commodity_files))
 
-                if len(commodities_without_sink) > 0:
+                            for f in filenames:
+                                path = path_to_commodity_files + '/' + f
+                                if path.split('.')[-1] == 'xlsx':
+                                    commodity_profile = pd.read_excel(path, index_col=0)
+                                else:
+                                    commodity_profile = pd.read_csv(path, index_col=0)
 
-                    if len(commodities_without_well) == 1:
-                        no_sink_text = 'The following commodity has no sink: '
-                    else:
-                        no_sink_text = 'The following commodities have no sink: '
+                                if column_name not in commodity_profile.columns:
+                                    profile_not_exist.append(commodity.get_name() + ' Demand')
 
-                    for commodity in commodities_without_sink:
-                        if commodities_without_sink.index(commodity) != len(commodities_without_sink) - 1:
-                            no_sink_text += commodity + ', '
+                                break
+
+            # Create alert if sink, well or profile is missing
+            error_in_setting = False
+            if (len(profile_not_exist) > 0) | (not all_commodities_valid):
+                error_in_setting = True
+
+            if error_in_setting:
+                self.optimize_button.config(state=DISABLED)
+                alert_window = Toplevel(self.root)
+                alert_window.title('')
+
+                if not all_commodities_valid:
+
+                    no_well_text = ''
+                    no_sink_text = ''
+
+                    if len(commodities_without_well) > 0:
+
+                        if len(commodities_without_well) == 1:
+                            no_well_text = 'The following commodity has no well: '
                         else:
-                            no_sink_text += commodity
+                            no_well_text = 'The following commodities have no well: '
 
-                if no_well_text != '':
+                        for commodity in commodities_without_well:
+                            if commodities_without_well.index(commodity) != len(commodities_without_well) - 1:
+                                no_well_text += commodity + ', '
+                            else:
+                                no_well_text += commodity
 
-                    tk.Label(alert_window, text=no_well_text).pack()
+                    if len(commodities_without_sink) > 0:
+
+                        if len(commodities_without_well) == 1:
+                            no_sink_text = 'The following commodity has no sink: '
+                        else:
+                            no_sink_text = 'The following commodities have no sink: '
+
+                        for commodity in commodities_without_sink:
+                            if commodities_without_sink.index(commodity) != len(commodities_without_sink) - 1:
+                                no_sink_text += commodity + ', '
+                            else:
+                                no_sink_text += commodity
+
+                    if no_well_text != '':
+
+                        tk.Label(alert_window, text=no_well_text).pack()
+                        tk.Label(alert_window,
+                                 text='It is important that every commodity has a well. \n' +
+                                      ' That means that it is either generated, converted from another commodity,' +
+                                      ' freely available or purchasable. \n'
+                                      ' Please adjust your inputs/outputs or the individual commodity').pack()
+                        tk.Label(alert_window, text='').pack()
+
+                    if no_sink_text != '':
+
+                        tk.Label(alert_window, text=no_sink_text).pack()
+                        tk.Label(alert_window,
+                                 text='It is important that every commodity has a sink. \n'
+                                      ' That means that it is either converted to another commodity,' +
+                                      ' emitted, saleable or implemented as demand. \n' +
+                                      ' Please adjust your inputs/outputs or the individual commodity').pack()
+                        tk.Label(alert_window, text='').pack()
+
+                if len(profile_not_exist) > 0:
+                    no_profile_text = 'The following generators or commodities have no profile: '
+
+                    for u in profile_not_exist:
+                        if profile_not_exist.index(u) != len(profile_not_exist) - 1:
+                            no_profile_text += u + ', '
+                        else:
+                            no_profile_text += u
+
+                    tk.Label(alert_window, text=no_profile_text).pack()
                     tk.Label(alert_window,
-                             text='It is important that every commodity has a well. \n' +
-                                  ' That means that it is either generated, converted from another commodity,' +
-                                  ' freely available or purchasable. \n'
-                                  ' Please adjust your inputs/outputs or the individual commodity').pack()
+                             text='It is important that every generator/commodity has a profile. \n'
+                                  ' Please adjust your generators/commodities').pack()
                     tk.Label(alert_window, text='').pack()
 
-                if no_sink_text != '':
-
-                    tk.Label(alert_window, text=no_sink_text).pack()
-                    tk.Label(alert_window,
-                             text='It is important that every commodity has a sink. \n'
-                                  ' That means that it is either converted to another commodity,' +
-                                  ' emitted, saleable or implemented as demand. \n' +
-                                  ' Please adjust your inputs/outputs or the individual commodity').pack()
-                    tk.Label(alert_window, text='').pack()
-
-            if len(profile_not_exist) > 0:
-                no_profile_text = 'The following generators or commodities have no profile: '
-
-                for u in profile_not_exist:
-                    if profile_not_exist.index(u) != len(profile_not_exist) - 1:
-                        no_profile_text += u + ', '
-                    else:
-                        no_profile_text += u
-
-                tk.Label(alert_window, text=no_profile_text).pack()
-                tk.Label(alert_window,
-                         text='It is important that every generator/commodity has a profile. \n'
-                              ' Please adjust your generators/commodities').pack()
-                tk.Label(alert_window, text='').pack()
-
-            if no_data:
-                tk.Label(alert_window,
-                         text='No profiles are selected - Please choose profile or set fixed values').pack()
-
-            if data_length_not_matching:
-                tk.Label(alert_window,
-                         text='Covered period does not match data - Please change covered period or select different data').pack()
-
-            ttk.Button(alert_window, text='OK', command=kill_window).pack(fill='both', expand=True)
-
+                ttk.Button(alert_window, text='OK', command=kill_window).pack(fill='both', expand=True)
+            else:
+                self.optimize_button.config(state=NORMAL)
         else:
             self.optimize_button.config(state=NORMAL)
 
@@ -583,9 +513,9 @@ class GUI:
             self.root.title(custom_title)
             self.project_name = custom_title
 
-            self.pm_object_original = ParameterObject(integer_steps=10,
+            self.pm_object_original = ParameterObject(custom_title, integer_steps=10,
                                                       path_data=path_data)
-            self.pm_object_copy = ParameterObject(integer_steps=10,
+            self.pm_object_copy = ParameterObject(custom_title, integer_steps=10,
                                                   path_data=path_data)
 
             path = self.path_projects + '/' + self.path_optimize

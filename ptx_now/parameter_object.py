@@ -380,6 +380,16 @@ class ParameterObject:
     def get_covered_period(self):
         return self.covered_period
 
+    def get_time_steps(self):
+        if self.get_uses_representative_periods():
+            length_weighting = len(pd.read_excel(self.get_path_data() + self.get_profile_data(), index_col=0).index)
+
+            time_steps_per_period = length_weighting / self.get_number_clusters()
+
+            return int(time_steps_per_period)
+        else:
+            return int(self.covered_period)
+
     def set_single_or_multiple_profiles(self, status):
         self.single_or_multiple_profiles = status
 
@@ -1004,7 +1014,8 @@ class ParameterObject:
         return generation_profiles_dict
 
     def get_demand_time_series(self):
-        demand_dict = {}
+        hourly_demand_dict = {}
+        total_demand_dict = {}
 
         for commodity in self.get_final_commodities_objects():
             commodity_name = commodity.get_name()
@@ -1014,9 +1025,9 @@ class ParameterObject:
                     if not commodity.is_total_demand():
                         for cl in range(self.get_number_clusters()):
                             for t in range(self.get_covered_period()):
-                                demand_dict.update({(commodity_name, cl, t): float(commodity.get_demand())})
+                                hourly_demand_dict.update({(commodity_name, cl, t): float(commodity.get_demand())})
                     else:
-                        demand_dict.update({commodity_name: float(commodity.get_demand())})
+                        total_demand_dict.update({commodity_name: float(commodity.get_demand())})
 
                 else:
 
@@ -1033,11 +1044,12 @@ class ParameterObject:
                     ind = 0
                     for cl in range(self.get_number_clusters()):
                         for t in range(self.get_covered_period()):
-                            demand_dict.update({(commodity_name, cl, t): float(demand_curve.loc[demand_curve.index[ind]])})
+                            hourly_demand_dict.update(
+                                {(commodity_name, cl, t): float(demand_curve.loc[demand_curve.index[ind]])})
 
                             ind += 1
 
-        return demand_dict
+        return hourly_demand_dict, total_demand_dict
 
     def get_purchase_price_time_series(self):
         purchase_price_dict = {}

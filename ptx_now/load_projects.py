@@ -40,6 +40,8 @@ def load_010(pm_object, case_data):
         fixed_om = case_data['component'][component]['fixed_om']
         variable_om = case_data['component'][component]['variable_om']
         final_unit = case_data['component'][component]['final']
+        has_fixed_capacity = case_data['component'][component]['has_fixed_capacity']
+        fixed_capacity = case_data['component'][component]['fixed_capacity']
 
         if case_data['component'][component]['component_type'] == 'conversion':
 
@@ -80,6 +82,7 @@ def load_010(pm_object, case_data):
                                                        hot_standby_ability=hot_standby_ability,
                                                        hot_standby_demand=hot_standby_demand,
                                                        hot_standby_startup_time=hot_standby_startup_time,
+                                                       has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
                                                        final_unit=final_unit, custom_unit=False)
 
             pm_object.add_component(name, conversion_component)
@@ -100,6 +103,7 @@ def load_010(pm_object, case_data):
                                                  discharging_efficiency=discharging_efficiency,
                                                  min_soc=min_soc, max_soc=max_soc, initial_soc=initial_soc,
                                                  leakage=leakage, ratio_capacity_p=ratio_capacity_p,
+                                                 has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
                                                  final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, storage_component)
 
@@ -107,9 +111,6 @@ def load_010(pm_object, case_data):
             generated_commodity = case_data['component'][component]['generated_commodity']
 
             curtailment_possible = case_data['component'][component]['curtailment_possible']
-
-            has_fixed_capacity = case_data['component'][component]['has_fixed_capacity']
-            fixed_capacity = case_data['component'][component]['fixed_capacity']
 
             generator = GenerationComponent(name=name, lifetime=lifetime, fixed_om=fixed_om, variable_om=variable_om,
                                             capex=capex,

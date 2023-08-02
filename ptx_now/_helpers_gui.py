@@ -1190,6 +1190,9 @@ def save_current_parameters_and_options(pm_object, path_name, fixed_capacities=N
 
     for component in pm_object.get_all_components():
 
+        if not component.is_final():
+            continue
+
         case_data['component'][component.get_name()] = {}
 
         case_data['component'][component.get_name()]['component_type'] = component.get_component_type()
@@ -1199,7 +1202,7 @@ def save_current_parameters_and_options(pm_object, path_name, fixed_capacities=N
         case_data['component'][component.get_name()]['lifetime'] = component.get_lifetime()
         case_data['component'][component.get_name()]['fixed_om'] = component.get_fixed_OM()
         case_data['component'][component.get_name()]['variable_om'] = component.get_variable_OM()
-        case_data['component'][component.get_name()]['has_fixed_capacities'] = component.get_has_fixed_capacity()
+        case_data['component'][component.get_name()]['has_fixed_capacity'] = component.get_has_fixed_capacity()
 
         if fixed_capacities is not None:
             case_data['component'][component.get_name()]['fixed_capacities'] = fixed_capacities[component.get_name()]

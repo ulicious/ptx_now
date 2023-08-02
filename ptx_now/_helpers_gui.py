@@ -1168,7 +1168,7 @@ class SettingWindow:
         self.window.mainloop()
 
 
-def save_current_parameters_and_options(pm_object, path_name):
+def save_current_parameters_and_options(pm_object, path_name, fixed_capacities=None):
 
     case_data = {}
     case_data['version'] = '0.1.0'
@@ -1199,6 +1199,12 @@ def save_current_parameters_and_options(pm_object, path_name):
         case_data['component'][component.get_name()]['lifetime'] = component.get_lifetime()
         case_data['component'][component.get_name()]['fixed_om'] = component.get_fixed_OM()
         case_data['component'][component.get_name()]['variable_om'] = component.get_variable_OM()
+        case_data['component'][component.get_name()]['has_fixed_capacities'] = component.get_has_fixed_capacity()
+
+        if fixed_capacities is not None:
+            case_data['component'][component.get_name()]['fixed_capacities'] = fixed_capacities[component.get_name()]
+        else:
+            case_data['component'][component.get_name()]['fixed_capacities'] = component.get_fixed_capacity()
 
         if component.get_component_type() == 'conversion':
 

@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter import *
 from copy import deepcopy
 
+
 class CommodityFrame:
 
     def adjust_values(self):
@@ -24,13 +25,17 @@ class CommodityFrame:
 
         self.initialize_commodity()
 
-        i = 0
+        tk.Label(self.frame, text='').grid(row=0, column=0, sticky='w')
+        tk.Label(self.frame, text='Configuration').grid(row=0, column=1, sticky='w')
+
+        i = 1
 
         tk.Label(self.frame, text='Commodity freely available?').grid(row=i, column=0, sticky='w')
         if self.available_var.get():
             text_dummy = 'Yes'
         else:
             text_dummy = 'No'
+
         tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
 
         i += 1
@@ -46,10 +51,10 @@ class CommodityFrame:
             tk.Label(self.frame, text='Purchase price type:').grid(row=i + 1, column=0, sticky='w')
             if self.purchase_price_type_var.get() == 'fixed':
                 text = 'Fixed price at: ' + text_purchase_price + ' ' + text_purchase_price_unit
-                tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
             else:
                 text = 'Variable price [see profile data]'
-                tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
+
+            tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
 
             i += 2
         else:
@@ -63,6 +68,7 @@ class CommodityFrame:
             text_dummy = 'Yes'
         else:
             text_dummy = 'No'
+
         tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
         i += 1
 
@@ -77,15 +83,16 @@ class CommodityFrame:
             tk.Label(self.frame, text='Sale price type:').grid(row=i+1, column=0, sticky='w')
             if self.sale_price_type_var.get() == 'fixed':
                 text = 'Fixed price at: ' + text_sale_price + ' ' + text_sale_price_unit
-                tk.Label(self.frame, text=text).grid(row=i+1, column=1, sticky='w')
             else:
                 text = 'Variable price [see profile data]'
-                tk.Label(self.frame, text=text).grid(row=i+1, column=1, sticky='w')
+
+            tk.Label(self.frame, text=text).grid(row=i + 1, column=1, sticky='w')
 
             i += 2
         else:
             text_dummy = 'No'
             tk.Label(self.frame, text=text_dummy).grid(row=i, column=1, sticky='w')
+            tk.Label(self.frame, text='').grid(row=i + 1, column=2, sticky='w')
 
             i += 1
 
@@ -139,11 +146,11 @@ class CommodityFrame:
 
         button_frame = ttk.Frame(self.frame)
         ttk.Button(button_frame, text='Adjust Commodity', command=self.adjust_values)\
-            .grid(row=0, columnspan=2, sticky='ew')
+            .grid(row=0, columnspan=3, sticky='ew')
 
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid(row=i, columnspan=2, sticky='ew')
+        button_frame.grid(row=i, columnspan=3, sticky='ew')
 
         self.frame.grid_columnconfigure(0, weight=1)
         self.frame.grid_columnconfigure(1, weight=1)
@@ -176,7 +183,6 @@ class CommodityFrame:
             if self.commodity_object.get_sale_price_type() == 'fixed':
                 self.sale_price_type_var.set('fixed')
                 self.sale_price_fixed_text_var.set(self.commodity_object.get_sale_price())
-
         else:
             self.saleable_var.set(False)
             self.sale_price_type_var.set('fixed')
@@ -246,9 +252,9 @@ class AdjustCommodityWindow:
         basic_setting_frame = ttk.Frame(self.newWindow)
 
         ttk.Checkbutton(basic_setting_frame, text='Freely available', variable=self.available_var, onvalue=True,
-                        offvalue=False).grid(row=0, column=0, sticky='ew')
+                        offvalue=False).grid(row=1, column=0, sticky='ew')
         ttk.Checkbutton(basic_setting_frame, text='Emitted', variable=self.emitted_var, onvalue=True,
-                        offvalue=False).grid(row=0, column=1, sticky='ew')
+                        offvalue=False).grid(row=2, column=0, sticky='ew')
 
         basic_setting_frame.grid_columnconfigure(0, weight=1)
         basic_setting_frame.grid_columnconfigure(1, weight=1)
@@ -267,13 +273,13 @@ class AdjustCommodityWindow:
                                                      command=self.configure_purchase)
         self.purchase_fixed_price_radiobutton.grid(row=2, column=1, sticky='w')
 
+        self.purchase_fixed_price_entry.config(text=self.purchase_price_fixed_text_var)
+        self.purchase_fixed_price_entry.grid(row=3, column=1, sticky='ew')
+
         self.purchase_variable_radiobutton.config(text='Price curve',
                                                   variable=self.purchase_price_type_var, value='variable',
                                                   command=self.configure_purchase())
-        self.purchase_variable_radiobutton.grid(row=3, rowspan=2, column=1, sticky='w')
-
-        self.purchase_fixed_price_entry.config(text=self.purchase_price_fixed_text_var)
-        self.purchase_fixed_price_entry.grid(row=2, column=2, sticky='ew')
+        self.purchase_variable_radiobutton.grid(row=4, column=1, sticky='w')
 
         ttk.Separator(self.newWindow).grid(row=5, columnspan=3, sticky='ew')
 
@@ -286,14 +292,14 @@ class AdjustCommodityWindow:
                                                  command=self.configure_sale)
         self.sale_fixed_price_radiobutton.grid(row=6, column=1, sticky='w')
 
+        self.sale_fixed_price_entry.config(text=self.sale_price_fixed_text_var)
+        self.sale_fixed_price_entry.grid(row=7, column=1, sticky='ew')
+
         self.sale_variable_radiobutton.config(text='Price curve',
                                               variable=self.sale_price_type_var,
                                               value='variable',
                                               command=self.configure_sale())
-        self.sale_variable_radiobutton.grid(row=7, column=1, sticky='w')
-
-        self.sale_fixed_price_entry.config(text=self.sale_price_fixed_text_var)
-        self.sale_fixed_price_entry.grid(row=6, column=2, sticky='ew')
+        self.sale_variable_radiobutton.grid(row=8, column=1, sticky='w')
 
         ttk.Separator(self.newWindow).grid(row=9, columnspan=3, sticky='ew')
 
@@ -336,7 +342,6 @@ class AdjustCommodityWindow:
                                               command=self.configure_demand)
         self.demand_type_variable_radiobutton.grid(row=12, column=1, sticky='w')
 
-        i = 0
         ttk.Separator(self.newWindow).grid(row=13, columnspan=3, sticky='ew')
         ttk.Label(self.newWindow, text='Energy content').grid(row=14, column=0, sticky='w')
         ttk.Entry(self.newWindow, textvariable=self.energy_content_var).grid(row=14, column=1, sticky='w')
@@ -431,7 +436,6 @@ class AdjustCommodityWindow:
                 self.purchase_fixed_price_entry.config(state=NORMAL)
             else:
                 self.purchase_fixed_price_entry.config(state=DISABLED)
-
         else:
             self.purchase_fixed_price_radiobutton.config(state=DISABLED)
             self.purchase_variable_radiobutton.config(state=DISABLED)

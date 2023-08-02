@@ -17,6 +17,12 @@ idx = pd.IndexSlice
 
 class ParameterObject:
 
+    def set_optimization_type(self, optimization_type):
+        self.optimization_type = optimization_type
+
+    def get_optimization_type(self):
+        return self.optimization_type
+
     def set_wacc(self, wacc):
         self.wacc = float(wacc)
 
@@ -363,14 +369,20 @@ class ParameterObject:
         return self.uses_representative_periods
 
     def get_number_clusters(self):
-        path = self.get_path_data() + self.get_profile_data()
-        if path.split('.')[-1] == 'xlsx':
-            generation_profile = pd.read_excel(path, index_col=0)
-        else:
-            generation_profile = pd.read_csv(path, index_col=0)
 
-        if self.get_uses_representative_periods():
-            return int(len(generation_profile.index) / self.get_covered_period())
+        if (len(self.get_final_generator_components_names()) > 0) | (self.get_commodity_data_needed()):
+
+            path = self.get_path_data() + self.get_profile_data()
+            if path.split('.')[-1] == 'xlsx':
+                generation_profile = pd.read_excel(path, index_col=0)
+            else:
+                generation_profile = pd.read_csv(path, index_col=0)
+
+            if self.get_uses_representative_periods():
+                return int(len(generation_profile.index) / self.get_covered_period())
+            else:
+                return 1
+
         else:
             return 1
 
@@ -674,7 +686,7 @@ class ParameterObject:
 
     def get_fixed_capacities(self):
         fixed_capacities_dict = {}
-        for component_object in self.get_final_generator_components_objects():
+        for component_object in self.get_final_components_objects():
             component_name = component_object.get_name()
             fixed_capacities_dict[component_name] = component_object.get_fixed_capacity()
 
@@ -1004,7 +1016,8 @@ class ParameterObject:
         return generation_profiles_dict
 
     def get_demand_time_series(self):
-        demand_dict = {}
+        hourly_demand_dict = {}
+        total_demand_dict = {}
 
         for commodity in self.get_final_commodities_objects():
             commodity_name = commodity.get_name()
@@ -1014,9 +1027,9 @@ class ParameterObject:
                     if not commodity.is_total_demand():
                         for cl in range(self.get_number_clusters()):
                             for t in range(self.get_covered_period()):
-                                demand_dict.update({(commodity_name, cl, t): float(commodity.get_demand())})
+                                hourly_demand_dict.update({(commodity_name, cl, t): float(commodity.get_demand())})
                     else:
-                        demand_dict.update({commodity_name: float(commodity.get_demand())})
+                        total_demand_dict.update({commodity_name: float(commodity.get_demand())})
 
                 else:
 
@@ -1033,11 +1046,11 @@ class ParameterObject:
                     ind = 0
                     for cl in range(self.get_number_clusters()):
                         for t in range(self.get_covered_period()):
-                            demand_dict.update({(commodity_name, cl, t): float(demand_curve.loc[demand_curve.index[ind]])})
+                            hourly_demand_dict.update({(commodity_name, cl, t): float(demand_curve.loc[demand_curve.index[ind]])})
 
                             ind += 1
 
-        return demand_dict
+        return hourly_demand_dict, total_demand_dict
 
     def get_purchase_price_time_series(self):
         purchase_price_dict = {}
@@ -1070,6 +1083,42 @@ class ParameterObject:
 
         return purchase_price_dict
 
+    def get_purchase_specific_co2_emissions_time_series(self):
+        purchase_specific_co2_emissions_dict = {}
+
+        for commodity in self.get_final_commodities_objects():
+            commodity_name = commodity.get_name()
+            if commodity.is_purchasable():
+                if commodity.get_purchase_price_type() == 'fixed':
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(commodity.get_specific_co2_emissions_purchase())})
+
+                else:
+
+                    path = self.get_path_data() + self.get_profile_data()
+
+                    if path.split('.')[-1] == 'xlsx':
+                        profile = pd.read_excel(path, index_col=0)
+
+                    else:
+                        profile = pd.read_csv(path, index_col=0)
+
+                    purchase_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Purchase_Specific_CO2_Emissions']
+
+                    ind = 0
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(purchase_specific_co2_emissions_curve.loc[purchase_specific_co2_emissions_curve.index[ind]])})
+                            ind += 1
+
+            else:
+                for cl in range(self.get_number_clusters()):
+                    for t in range(self.get_covered_period()):
+                        purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): 0})
+
+        return purchase_specific_co2_emissions_dict
+
     def get_sale_price_time_series(self):
         sell_price_dict = {}
         for commodity in self.get_final_commodities_objects():
@@ -1098,6 +1147,41 @@ class ParameterObject:
                             ind += 1
 
         return sell_price_dict
+
+    def get_sale_specific_co2_emissions_time_series(self):
+        sale_specific_co2_emissions_dict = {}
+        for commodity in self.get_final_commodities_objects():
+            commodity_name = commodity.get_name()
+            if commodity.is_saleable():
+                if commodity.get_sale_price_type() == 'fixed':
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            sale_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(commodity.get_specific_co2_emissions_sale())})
+                else:
+
+                    path = self.get_path_data() + self.get_profile_data()
+
+                    if path.split('.')[-1] == 'xlsx':
+                        profile = pd.read_excel(path, index_col=0)
+
+                    else:
+                        profile = pd.read_csv(path, index_col=0)
+
+                    sale_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Selling_Specific_CO2_Emissions']
+
+                    ind = 0
+                    for cl in range(self.get_number_clusters()):
+                        for t in range(self.get_covered_period()):
+                            sale_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(sale_specific_co2_emissions_curve.loc[sale_specific_co2_emissions_curve.index[ind]])})
+                            ind += 1
+
+            else:
+                for cl in range(self.get_number_clusters()):
+                    for t in range(self.get_covered_period()):
+                        sale_specific_co2_emissions_dict.update(
+                            {(commodity_name, cl, t): 0})
+
+        return sale_specific_co2_emissions_dict
 
     def get_weightings_time_series(self):
         weightings_dict = {}
@@ -1157,19 +1241,19 @@ class ParameterObject:
                                uses_representative_periods=self.uses_representative_periods,
                                representative_periods_length=self.representative_periods_length,
                                covered_period=self.covered_period,
-                               monetary_unit=self.monetary_unit,
+                               monetary_unit=self.monetary_unit, optimization_type=self.optimization_type,
                                copy_object=True)
 
     def __init__(self, project_name='', integer_steps=5,
                  wacc=0.07, names_dict=None, commodities=None, components=None,
                  profile_data=False, single_or_multiple_profiles='single',
                  uses_representative_periods=False, representative_periods_length=0,
-                 covered_period=8760, monetary_unit='€', path_data=None,
+                 covered_period=8760, monetary_unit='€', path_data=None, optimization_type='economical',
                  copy_object=False):
 
         """
         Object, which stores all components, commodities, settings etc.
-        :param name: [string] - name of parameter object
+        :param project_name: [string] - name of parameter object
         :param integer_steps: [int] - number of integer steps (used to split capacity)
         :param wacc: [float] - Weighted Average Cost of Capital
         :param names_dict: [dict] - List of abbreviations of components, commodities etc.
@@ -1178,6 +1262,8 @@ class ParameterObject:
         :param copy_object: [boolean] - Boolean if object is copy
         """
         self.project_name = project_name
+
+        self.optimization_type = optimization_type
 
         if not copy_object:
 

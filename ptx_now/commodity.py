@@ -90,7 +90,7 @@ class Commodity:
     def is_total_demand(self):
         return self.total_demand
 
-    def set_default(self, status):
+    def set_default(self, status):  # todo: remove
         self.default_commodity = status
 
     def set_final(self, status):

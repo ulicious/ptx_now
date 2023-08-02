@@ -87,6 +87,12 @@ class ComponentParametersFrame:
 
             self.component_object.set_number_parallel_units(float(self.label_number_parallel_units_str.get()))
 
+            if self.has_fixed_capacity_var.get():
+                self.component_object.set_has_fixed_capacity(True)
+                self.component_object.set_fixed_capacity(self.fixed_capacity_var.get())
+            else:
+                self.component_object.set_has_fixed_capacity(False)
+
             self.parent.parent.pm_object_copy = self.pm_object
             self.parent.parent.update_widgets()
 
@@ -128,6 +134,12 @@ class ComponentParametersFrame:
                 hot_standby_entry.config(state=DISABLED)
                 hot_standby_startup_time_entry.config(state=DISABLED)
 
+        def activate_fixed_capacity():
+            if self.has_fixed_capacity_var.get():
+                entry_fixed_capacity.config(state=NORMAL)
+            else:
+                entry_fixed_capacity.config(state=DISABLED)
+
         def change_capex_basis():
 
             if capex_basis_var.get() == 'input':
@@ -156,6 +168,8 @@ class ComponentParametersFrame:
             capex_unit_var.set('Capex [' + capex_unit_new + ']')
             base_capacity_var.set('Base Capacity [' + capacity_unit_new + ']')
             max_capacity_var.set('Maximal Capacity [' + capacity_unit_new + ']')
+            fixed_capacity_var.set('Fixed Capacity [' + capacity_unit_new + ']')
+            cold_start_up_var.set('Cold Start up Costs [' + self.monetary_unit + '/' + capacity_unit_new + ']')
 
         # Toplevel object which will
         # be treated as a new window
@@ -219,13 +233,13 @@ class ComponentParametersFrame:
             capex_unit = self.monetary_unit + '/' + unit + '*h ' + name
             capacity_unit = unit + '/h ' + name
 
-        capex_unit_var = DoubleVar()
+        capex_unit_var = StringVar()
         capex_unit_var.set('Capex [' + capex_unit + ']')
 
-        base_capacity_var = DoubleVar()
+        base_capacity_var = StringVar()
         base_capacity_var.set('Base Capacity [' + capacity_unit + ']')
 
-        max_capacity_var = DoubleVar()
+        max_capacity_var = StringVar()
         max_capacity_var.set('Maximal Capacity [' + capacity_unit + ']')
 
         ttk.Label(newWindow, textvariable=capex_unit_var).grid(row=2, column=0, sticky='w')
@@ -266,10 +280,9 @@ class ComponentParametersFrame:
         entry_fixed_om = ttk.Entry(newWindow, text=self.label_fixed_om)
         entry_fixed_om.grid(row=8, column=1, sticky='w')
 
+        text_variable_om = 'Variable O&M [' + self.pm_object.get_monetary_unit() + ' / ' + unit_output + ' ' + self.component_object.get_main_output() + ']'
         ttk.Label(newWindow,
-                  text='Variable O&M [' + self.pm_object.get_monetary_unit() + ' / ' + unit_output + ']').grid(row=9,
-                                                                                                                 column=0,
-                                                                                                                 sticky='w')
+                  text=text_variable_om).grid(row=9, column=0, sticky='w')
         entry_variable_om = ttk.Entry(newWindow, text=self.label_variable_om)
         entry_variable_om.grid(row=9, column=1, sticky='w')
 
@@ -302,7 +315,10 @@ class ComponentParametersFrame:
         entry_start_up_time = ttk.Entry(newWindow, text=self.label_start_up_time_value_str, state=shut_down_state)
         entry_start_up_time.grid(row=15, column=1, sticky='w')
 
-        ttk.Label(newWindow, text='Cold Start up Costs [' + self.monetary_unit + '/' + capacity_unit + ']').grid(row=16, column=0, sticky='w')
+        cold_start_up_var = StringVar()
+        cold_start_up_var.set('Cold Start up Costs [' + self.monetary_unit + '/' + capacity_unit + ']')
+
+        ttk.Label(newWindow, textvariable=cold_start_up_var).grid(row=16, column=0, sticky='w')
         entry_start_up_costs = ttk.Entry(newWindow, text=self.label_start_up_costs_value_str, state=shut_down_state)
         entry_start_up_costs.grid(row=16, column=1, sticky='w')
 
@@ -340,11 +356,24 @@ class ComponentParametersFrame:
         entry_number_units = ttk.Entry(newWindow, text=self.label_number_parallel_units_str)
         entry_number_units.grid(row=21, column=1, sticky='w')
 
+        if self.has_fixed_capacity_var.get():
+            state_fixed_capacity = NORMAL
+        else:
+            state_fixed_capacity = DISABLED
+
+        fixed_capacity_var = StringVar()
+        fixed_capacity_var.set('Fixed Capacity [' + capacity_unit + ']')
+
+        ttk.Checkbutton(newWindow, textvariable=fixed_capacity_var, variable=self.has_fixed_capacity_var,
+                        command=activate_fixed_capacity).grid(row=22, column=0, columnspan=2, sticky='w')
+        entry_fixed_capacity = ttk.Entry(newWindow, text=self.fixed_capacity_var, state=state_fixed_capacity)
+        entry_fixed_capacity.grid(row=22, column=1, sticky='w')
+
         button = ttk.Button(newWindow, text='Adjust values', command=get_value_and_kill_window)
-        button.grid(row=22, column=0, sticky='ew')
+        button.grid(row=23, column=0, sticky='ew')
 
         button = ttk.Button(newWindow, text='Cancel', command=newWindow.destroy)
-        button.grid(row=22, column=1, sticky='ew')
+        button.grid(row=23, column=1, sticky='ew')
 
         newWindow.grid_columnconfigure(0, weight=1, uniform='a')
         newWindow.grid_columnconfigure(1, weight=1, uniform='a')
@@ -384,6 +413,9 @@ class ComponentParametersFrame:
             component_copy.set_hot_standby_ability(component_original.get_hot_standby_ability())
             component_copy.set_hot_standby_startup_time(component_original.get_hot_standby_startup_time())
             component_copy.set_hot_standby_demand(component_original.get_hot_standby_demand())
+
+        component_copy.set_has_fixed_capacity(component_original.get_has_fixed_capacity())
+        component_copy.set_fixed_capacity(component_original.get_fixed_capacity())
 
         self.parent.parent.pm_object_copy = self.pm_object
         self.parent.parent.update_widgets()
@@ -471,6 +503,9 @@ class ComponentParametersFrame:
 
             number_parallel_units = int(self.component_object.get_number_parallel_units())
 
+            has_fixed_capacity = self.component_object.get_has_fixed_capacity()
+            fixed_capacity = self.component_object.get_fixed_capacity()
+
             self.label_capex_value_str = DoubleVar()
             self.capex_basis_var = StringVar()
             self.capex_basis_var.set(capex_basis)
@@ -499,6 +534,11 @@ class ComponentParametersFrame:
 
             self.label_number_parallel_units_str = IntVar()
             self.label_number_parallel_units_str.set(number_parallel_units)
+
+            self.has_fixed_capacity_var = BooleanVar()
+            self.has_fixed_capacity_var.set(has_fixed_capacity)
+            self.fixed_capacity_var = DoubleVar()
+            self.fixed_capacity_var.set(fixed_capacity)
 
             # Capex Basis
             ttk.Label(self.frame, text='Investment Basis').grid(row=1, column=0, sticky='ew')
@@ -652,6 +692,14 @@ class ComponentParametersFrame:
 
             ttk.Label(self.frame, text='Number of units in system').grid(column=0, row=i + 1, sticky='w')
             ttk.Label(self.frame, text=self.label_number_parallel_units_str.get()).grid(column=1, row=i + 1, sticky='w')
+
+            i += 1
+
+            if self.has_fixed_capacity_var.get():
+                ttk.Label(self.frame, text='Fixed Capacity [' + capacity_unit + ']').grid(column=0, row=i + 1, sticky='w')
+                ttk.Label(self.frame, text=self.fixed_capacity_var.get()).grid(column=1, row=i + 1, sticky='w')
+
+                i += 1
 
             self.delete_component_dict = {}
 

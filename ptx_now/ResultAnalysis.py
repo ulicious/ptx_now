@@ -124,7 +124,7 @@ class ResultAnalysis:
 
             if self.all_variables_dict['investment'][c] > 0:
                 self.annualized_investment[c] = self.all_variables_dict['investment'][c] * self.model.ANF[c]
-                self.fixed_costs[c] = self.all_variables_dict['investment'][c] * self.model.fixed_om[c]
+                self.fixed_costs[c] = self.all_variables_dict['investment'][c] * self.model.fixed_om_var[c]
             else:
                 self.annualized_investment[c] = 0
                 self.fixed_costs[c] = 0
@@ -133,7 +133,7 @@ class ResultAnalysis:
 
                 main_output = self.pm_object.get_component(c).get_main_output()
                 self.variable_costs[c] = sum(self.all_variables_dict['mass_energy_component_out_commodities'][(c, main_output, cl, t)]
-                                             * self.model.variable_om[c] * self.model.weightings[cl]
+                                             * self.model.variable_om_var[c] * self.model.weightings[cl]
                                              for cl in self.model.CLUSTERS for t in self.model.TIME)
 
                 if component.get_shut_down_ability():
@@ -145,15 +145,32 @@ class ResultAnalysis:
 
             elif component.get_component_type() == 'storage':
                 self.variable_costs[c] = sum(self.all_variables_dict['mass_energy_storage_in_commodities'][(c, cl, t)]
-                                             * self.model.variable_om[c] * self.model.weightings[cl]
+                                             * self.model.variable_om_var[c] * self.model.weightings[cl]
                                              for cl in self.model.CLUSTERS for t in self.model.TIME)
 
             else:
 
                 generated_commodity = self.pm_object.get_component(c).get_generated_commodity()
-                self.variable_costs[c] = sum(self.all_variables_dict['mass_energy_generation'][(c, generated_commodity, cl, t)]
-                                     * self.model.variable_om[c] * self.model.weightings[cl]
-                                     for cl in self.model.CLUSTERS for t in self.model.TIME)
+                if not self.pm_object.get_component(c).get_uses_ppa():
+                    self.variable_costs[c] = sum(self.all_variables_dict['mass_energy_generation'][(c, generated_commodity, cl, t)]
+                                                 * self.model.variable_om_var[c] * self.model.weightings[cl]
+                                                 for cl in self.model.CLUSTERS for t in self.model.TIME)
+                else:
+
+                    path = self.pm_object.get_path_data() + self.pm_object.get_profile_data()
+
+                    if path.split('.')[-1] == 'xlsx':
+                        generation_profile = pd.read_excel(path, index_col=0)
+                    else:
+                        generation_profile = pd.read_csv(path, index_col=0)
+
+                    generator_profile = generation_profile[c]
+
+                    self.variable_costs[c] = sum(generator_profile.loc[generator_profile.index[t + cl * self.pm_object.get_covered_period()]]
+                                                 * self.all_variables_dict['nominal_cap'][c]
+                                                 * self.pm_object.get_component(c).get_ppa_price()
+                                                 * self.model.weightings[cl]
+                                                 for cl in self.model.CLUSTERS for t in self.model.TIME)
 
     def create_assumptions_file(self):
 
@@ -451,8 +468,8 @@ class ResultAnalysis:
 
         columns = ['Capacity [input]', 'Capacity Unit [input]', 'Investment [per input]',
                    'Capacity [output]', 'Capacity Unit [output]', 'Investment [per output]', 'Full-load Hours',
-                   'Total Investment', 'Annuity', 'Fixed Operation and Maintenance', 'Variable Operation and Maintenance',
-                   'Start-Up Costs']
+                   'Total Investment', 'Annuity', 'Fixed Operation and Maintenance',
+                   'Variable Operation and Maintenance', 'Start-Up Costs']
 
         capacity_df = pd.DataFrame(columns=columns)
         for key in self.all_variables_dict['nominal_cap']:
@@ -539,6 +556,7 @@ class ResultAnalysis:
                 commodity_object = self.pm_object.get_commodity(component_object.get_generated_commodity())
                 name_commodity = commodity_object.get_name()
                 unit = commodity_object.get_unit()
+                uses_ppa = component_object.get_uses_ppa()
 
                 capacity_df.loc[component_name, 'Capacity [output]'] = capacity
                 if unit == 'MWh':
@@ -581,7 +599,7 @@ class ResultAnalysis:
         total_energy_input = 0
         total_energy_output = 0
         for commodity in self.model.COMMODITIES:
-            energy_content = float(self.commodities_and_costs.loc[commodity, 'MWh per unit'])
+            energy_content = self.pm_object.get_commodity(commodity).get_energy_content()
 
             if commodity in self.model.PURCHASABLE_COMMODITIES:
                 purchased = self.purchased_commodity[commodity]
@@ -1184,7 +1202,7 @@ class ResultAnalysis:
         self.process_variables()
         self.create_assumptions_file()
         self.create_and_print_vector()
-        create_linear_system_of_equations(self)
+        # create_linear_system_of_equations(self)
         self.analyze_components()
         self.analyze_generation()
         self.analyze_total_costs()

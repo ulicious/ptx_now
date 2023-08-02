@@ -34,6 +34,18 @@ class Component:
     def get_fixed_OM(self):
         return self.fixed_om
 
+    def set_has_fixed_capacity(self, status):
+        self.has_fixed_capacity = bool(status)
+
+    def get_has_fixed_capacity(self):
+        return self.has_fixed_capacity
+
+    def set_fixed_capacity(self, fixed_capacity):
+        self.fixed_capacity = float(fixed_capacity)
+
+    def get_fixed_capacity(self):
+        return self.fixed_capacity
+
     def set_final(self, status):
         self.final_unit = status
 
@@ -52,10 +64,12 @@ class Component:
     def __copy__(self):
         return Component(name=self.name, final_unit=self.final_unit,
                          custom_unit=self.custom_unit, capex=self.capex, lifetime=self.lifetime,
-                         fixed_om=self.fixed_om, variable_om=self.variable_om)
+                         fixed_om=self.fixed_om, variable_om=self.variable_om,
+                         has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity)
 
     def __init__(self, name, lifetime, fixed_om, variable_om, capex=None,
-                 final_unit=False, custom_unit=False):
+                 final_unit=False, custom_unit=False,
+                 has_fixed_capacity=False, fixed_capacity=0.):
 
         """
         Defines basic component class
@@ -79,6 +93,9 @@ class Component:
         self.lifetime = int(lifetime)
         self.fixed_om = float(fixed_om)
         self.variable_om = float(variable_om)
+
+        self.has_fixed_capacity = bool(has_fixed_capacity)
+        self.fixed_capacity = float(fixed_capacity)
 
 
 class ConversionComponent(Component):
@@ -270,6 +287,7 @@ class ConversionComponent(Component):
                                    number_parallel_units=self.number_parallel_units,
                                    min_p=self.min_p, max_p=self.max_p, inputs=inputs, outputs=outputs,
                                    main_input=self.main_input, main_output=self.main_output, commodities=commodities,
+                                   has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
                                    final_unit=self.final_unit)
 
     def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
@@ -279,6 +297,7 @@ class ConversionComponent(Component):
                  hot_standby_ability=False, hot_standby_demand=None, hot_standby_startup_time=0,
                  number_parallel_units=1,
                  min_p=0., max_p=1., inputs=None, outputs=None, main_input=None, main_output=None, commodities=None,
+                 has_fixed_capacity=False, fixed_capacity=0.1,
                  final_unit=False, custom_unit=False):
 
         """
@@ -310,7 +329,8 @@ class ConversionComponent(Component):
         :param custom_unit: [boolean] - if unit is custom
         """
 
-        super().__init__(name, lifetime, fixed_om, variable_om, capex, final_unit, custom_unit)
+        super().__init__(name, lifetime, fixed_om, variable_om, capex, final_unit, custom_unit,
+                         has_fixed_capacity, fixed_capacity)
 
         self.component_type = 'conversion'
         self.scalable = bool(scalable)
@@ -407,12 +427,13 @@ class StorageComponent(Component):
                                 discharging_efficiency=self.discharging_efficiency,
                                 min_soc=self.min_soc, max_soc=self.max_soc, initial_soc=self.initial_soc,
                                 leakage=self.leakage, ratio_capacity_p=self.ratio_capacity_p,
+                                has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
                                 final_unit=self.final_unit, custom_unit=self.custom_unit)
 
     def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
                  charging_efficiency=1., discharging_efficiency=1., min_soc=0., max_soc=1.,
                  initial_soc=0.5,
-                 leakage=0., ratio_capacity_p=1.,
+                 leakage=0., ratio_capacity_p=1., has_fixed_capacity=False, fixed_capacity=0.,
                  final_unit=False, custom_unit=False):
 
         """
@@ -435,7 +456,7 @@ class StorageComponent(Component):
         """
 
         super().__init__(name, lifetime, fixed_om, variable_om, capex,
-                         final_unit, custom_unit)
+                         final_unit, custom_unit, has_fixed_capacity, fixed_capacity)
 
         self.component_type = 'storage'
 
@@ -463,17 +484,23 @@ class GenerationComponent(Component):
     def get_curtailment_possible(self):
         return self.curtailment_possible
 
-    def set_has_fixed_capacity(self, status):
-        self.has_fixed_capacity = bool(status)
+    def set_uses_ppa(self, uses_ppa):
+        self.uses_ppa = uses_ppa
 
-    def get_has_fixed_capacity(self):
-        return self.has_fixed_capacity
+    def get_uses_ppa(self):
+        return self.uses_ppa
 
-    def set_fixed_capacity(self, fixed_capacity):
-        self.fixed_capacity = float(fixed_capacity)
+    def set_ppa_price(self, ppa_price):
+        self.ppa_price = ppa_price
 
-    def get_fixed_capacity(self):
-        return self.fixed_capacity
+    def get_ppa_price(self):
+        return self.ppa_price
+
+    def set_subsidies(self, subsidies):
+        self.subsidies = subsidies
+
+    def get_subsidies(self):
+        return self.subsidies
 
     def __copy__(self):
         return GenerationComponent(name=self.name, lifetime=self.lifetime,
@@ -481,10 +508,14 @@ class GenerationComponent(Component):
                                    generated_commodity=self.generated_commodity,
                                    curtailment_possible=self.curtailment_possible,
                                    has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
+                                   uses_ppa=self.uses_ppa, ppa_price=self.ppa_price, subsidies=self.subsidies,
                                    final_unit=self.final_unit, custom_unit=self.custom_unit)
 
-    def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0., generated_commodity='Electricity',
-                 curtailment_possible=True, has_fixed_capacity=False, fixed_capacity=0.,
+    def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
+                 generated_commodity='Electricity',
+                 curtailment_possible=True,
+                 uses_ppa=False, ppa_price=0., subsidies=0.,
+                 has_fixed_capacity=False, fixed_capacity=0.,
                  final_unit=False, custom_unit=False):
 
         """
@@ -500,7 +531,7 @@ class GenerationComponent(Component):
         :param custom_unit: [boolean] - if not default component
         """
         super().__init__(name, lifetime, fixed_om, variable_om, capex,
-                         final_unit, custom_unit)
+                         final_unit, custom_unit, has_fixed_capacity, fixed_capacity)
 
         self.component_type = 'generator'
 
@@ -508,3 +539,6 @@ class GenerationComponent(Component):
         self.curtailment_possible = bool(curtailment_possible)
         self.has_fixed_capacity = bool(has_fixed_capacity)
         self.fixed_capacity = float(fixed_capacity)
+        self.uses_ppa = bool(uses_ppa)
+        self.ppa_price = float(ppa_price)
+        self.subsidies = float(subsidies)

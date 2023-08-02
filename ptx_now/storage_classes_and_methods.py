@@ -18,11 +18,19 @@ class StorageFrame:
             self.storage_object.set_min_soc(str(float(self.min_soc_entry_var.get()) / 100))
             self.storage_object.set_max_soc(str(float(self.max_soc_entry_var.get()) / 100))
             self.storage_object.set_ratio_capacity_p(self.ratio_capacity_p_entry_var.get())
+            self.storage_object.set_has_fixed_capacity(self.has_fixed_capacity_var.get())
+            self.storage_object.set_fixed_capacity(self.fixed_capacity_var.get())
 
             self.parent.parent.pm_object_copy = self.pm_object
             self.parent.parent.update_widgets()
 
             newWindow.destroy()
+
+        def change_fixed_capacity():
+            if self.has_fixed_capacity_var.get():
+                fixed_capacity_entry.config(state=NORMAL)
+            else:
+                fixed_capacity_entry.config(state=DISABLED)
 
         def kill_only():
             newWindow.destroy()
@@ -75,6 +83,17 @@ class StorageFrame:
         ratio_capacity_p_entry = tk.Entry(newWindow, text=self.ratio_capacity_p_entry_var)
         ratio_capacity_p_entry.grid(row=8, column=1, sticky='ew')
 
+        if self.has_fixed_capacity_var.get():
+            fixed_capacity_state = NORMAL
+        else:
+            fixed_capacity_state = DISABLED
+
+        ttk.Checkbutton(newWindow, text='Use fixed capacity?', variable=self.has_fixed_capacity_var,
+                        command=change_fixed_capacity).grid(row=9, column=0, sticky='w')
+        ttk.Label(newWindow, text='Fixed capacity [' + commodity_unit + ']').grid(row=10, column=0, sticky='w')
+        fixed_capacity_entry = ttk.Entry(newWindow, text=self.fixed_capacity_var, state=fixed_capacity_state)
+        fixed_capacity_entry.grid(row=10, column=1, sticky='w')
+
         button_frame = ttk.Frame(newWindow)
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
@@ -82,7 +101,7 @@ class StorageFrame:
         ttk.Button(button_frame, text='Ok', command=safe_adjustments).grid(row=0, column=0, sticky='ew')
         ttk.Button(button_frame, text='Cancel', command=kill_only).grid(row=0, column=1, sticky='ew')
 
-        button_frame.grid(row=9, columnspan=2, sticky='ew')
+        button_frame.grid(row=11, columnspan=2, sticky='ew')
 
     def set_storage_settings_to_default(self):
 
@@ -125,6 +144,8 @@ class StorageFrame:
         self.min_soc = 100 * float(storage.get_min_soc())
         self.max_soc = 100 * float(storage.get_max_soc())
         self.ratio_capacity_p = storage.get_ratio_capacity_p()
+        self.has_fixed_capacity = storage.get_has_fixed_capacity()
+        self.fixed_capacity = storage.get_fixed_capacity()
 
         self.capex_entry_var.set(self.capex)
         self.fixed_om_entry_var.set(self.fixed_om)
@@ -135,6 +156,8 @@ class StorageFrame:
         self.min_soc_entry_var.set(self.min_soc)
         self.max_soc_entry_var.set(self.max_soc)
         self.ratio_capacity_p_entry_var.set(self.ratio_capacity_p)
+        self.has_fixed_capacity_var.set(self.has_fixed_capacity)
+        self.fixed_capacity_var.set(self.fixed_capacity)
 
         commodity = self.pm_object.get_commodity(self.commodity)
         commodity_unit = commodity.get_unit()
@@ -177,7 +200,11 @@ class StorageFrame:
         self.ratio_capacity_p_entry.config(text=self.ratio_capacity_p_entry_var.get(), state=self.state)
         self.ratio_capacity_p_entry.grid(row=9, column=1, sticky='w')
 
-        row = 10
+        if self.has_fixed_capacity_var.get():
+            ttk.Label(self.frame, text='Fixed capacity [' + commodity_unit + ']', state=self.state).grid(row=10, column=0, sticky='w')
+            ttk.Label(self.frame, text=self.fixed_capacity_var.get(), state=self.state).grid(row=10, column=1, sticky='w')
+
+        row = 11
 
         self.button_frame.grid_columnconfigure(0, weight=1)
 
@@ -219,6 +246,8 @@ class StorageFrame:
         self.min_soc = None
         self.max_soc = None
         self.ratio_capacity_p = None
+        self.has_fixed_capacity = None
+        self.fixed_capacity = None
 
         self.capex_entry_var = DoubleVar()
         self.fixed_om_entry_var = DoubleVar()
@@ -229,6 +258,8 @@ class StorageFrame:
         self.ratio_capacity_p_entry_var = DoubleVar()
         self.min_soc_entry_var = DoubleVar()
         self.max_soc_entry_var = DoubleVar()
+        self.has_fixed_capacity_var = BooleanVar()
+        self.fixed_capacity_var = DoubleVar()
 
         self.storable_checkbox = ttk.Checkbutton(self.frame, command=self.create_storage, variable=self.storable_var)
         self.capex_label = ttk.Label(self.frame)
@@ -241,6 +272,9 @@ class StorageFrame:
         self.max_soc_entry = ttk.Label(self.frame)
         self.ratio_capacity_p_entry = ttk.Label(self.frame)
         self.ratio_capacity_p_label = ttk.Label(self.frame)
+        self.has_fixed_capacity_checkbutton = ttk.Checkbutton(self.frame)
+        self.fixed_capacity_label = ttk.Label(self.frame)
+
         self.button_frame = ttk.Frame(self.frame)
         self.adjust_value_button = ttk.Button(self.button_frame)
         self.reset_button = ttk.Button(self.button_frame)

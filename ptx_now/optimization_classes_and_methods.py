@@ -5,12 +5,6 @@ from copy import deepcopy
 
 import os
 
-GLPK_FOLDER_PATH = "C:/Users/mt5285/glpk/w64"
-os.environ["PATH"] += os.pathsep + str(GLPK_FOLDER_PATH)  # todo: Check if necessary
-
-from pyutilib.services import register_executable
-register_executable(name='glpsol')
-
 
 class OptimizationProblem:
 
@@ -66,9 +60,9 @@ class OptimizationProblem:
         self.model.ANF = Param(self.model.COMPONENTS, initialize=self.annuity_factor_dict)
 
     def attach_component_parameters_to_optimization_problem(self):
-        self.model.lifetime = Param(self.model.COMPONENTS, initialize=self.lifetime_dict)
-        self.model.fixed_om = Param(self.model.COMPONENTS, initialize=self.fixed_om_dict)
-        self.model.variable_om = Param(self.model.COMPONENTS, initialize=self.variable_om_dict)
+        self.model.lifetime_var = Param(self.model.COMPONENTS, initialize=self.lifetime_dict)
+        self.model.fixed_om_var = Param(self.model.COMPONENTS, initialize=self.fixed_om_dict)
+        self.model.variable_om_var = Param(self.model.COMPONENTS, initialize=self.variable_om_dict)
 
         self.model.capex_var = Param(self.model.COMPONENTS, initialize=self.capex_var_dict)
         self.model.capex_fix = Param(self.model.COMPONENTS, initialize=self.capex_fix_dict)
@@ -87,7 +81,7 @@ class OptimizationProblem:
 
         self.model.ratio_capacity_p = Param(self.model.STORAGES, initialize=self.ratio_capacity_power_dict)
 
-        self.model.generator_fixed_capacity = Param(self.model.GENERATORS, initialize=self.fixed_capacity_dict)
+        self.model.fixed_capacity = Param(self.model.COMPONENTS, initialize=self.fixed_capacity_dict)
 
     def attach_scalable_component_parameters_to_optimization_problem(self):
         # Investment linearized: Investment = capex var * capacity + capex fix
@@ -169,11 +163,11 @@ class OptimizationProblem:
 
         # generated commodities
         self.model.mass_energy_generation = Var(self.model.GENERATORS, self.model.GENERATED_COMMODITIES,
-                                                self.model.CLUSTERS,  self.model.TIME,
+                                                self.model.CLUSTERS, self.model.TIME,
                                                 bounds=(0, None))
 
         # Demanded commodities
-        self.model.mass_energy_demand = Var(self.model.DEMANDED_COMMODITIES, self.model.CLUSTERS,  self.model.TIME,
+        self.model.mass_energy_demand = Var(self.model.DEMANDED_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
                                             bounds=(0, None))
 
         # Hot standby demand
@@ -190,11 +184,11 @@ class OptimizationProblem:
 
     def attach_demand_time_series_to_optimization_problem(self):
 
-        if isinstance([*self.demand_dict.keys()][0], tuple):
-            self.model.commodity_demand = Param(self.model.DEMANDED_COMMODITIES, self.model.CLUSTERS,
-                                                self.model.TIME, initialize=self.demand_dict)
-        else:
-            self.model.commodity_demand = Param(self.model.TOTAL_DEMANDED_COMMODITIES, initialize=self.demand_dict)
+        self.model.hourly_commodity_demand = Param(self.model.DEMANDED_COMMODITIES, self.model.CLUSTERS,
+                                                   self.model.TIME, initialize=self.hourly_demand_dict)
+
+        self.model.total_commodity_demand = Param(self.model.TOTAL_DEMANDED_COMMODITIES,
+                                            initialize=self.total_demand_dict)
 
     def attach_generation_time_series_to_optimization_problem(self):
         self.model.generation_profiles = Param(self.model.GENERATORS, self.model.CLUSTERS, self.model.TIME,
@@ -256,7 +250,7 @@ class OptimizationProblem:
         def demand_satisfaction_rule(m, me, cl, t):
             # Sets commodities, which are demanded
             if me not in m.TOTAL_DEMANDED_COMMODITIES:  # Case where demand needs to be satisfied in every t
-                return m.mass_energy_demand[me, cl, t] >= m.commodity_demand[me, cl, t]
+                return m.mass_energy_demand[me, cl, t] >= m.hourly_commodity_demand[me, cl, t]
             else:  # case covering demand over all time steps
                 return Constraint.Skip
         model.demand_satisfaction_con = Constraint(model.DEMANDED_COMMODITIES, model.CLUSTERS, model.TIME,
@@ -268,7 +262,7 @@ class OptimizationProblem:
                 return Constraint.Skip
             else:  # case covering demand over all time steps
                 return sum(m.mass_energy_demand[me, cl, t] * m.weightings[cl]
-                           for cl in m.CLUSTERS for t in m.TIME) >= m.commodity_demand[me]
+                           for cl in m.CLUSTERS for t in m.TIME) >= m.total_commodity_demand[me]
         model.total_demand_satisfaction_con = Constraint(model.DEMANDED_COMMODITIES,
                                                          rule=total_demand_satisfaction_rule)
 
@@ -309,7 +303,7 @@ class OptimizationProblem:
                 return m.mass_energy_component_out_commodities[c, oc, cl, t] == 0
         model._commodity_conversion_output_con = Constraint(model.CONVERSION_COMPONENTS, model.OUTPUT_COMMODITIES,
                                                             model.CLUSTERS, model.TIME,
-                                                         rule=_commodity_conversion_output_rule)
+                                                            rule=_commodity_conversion_output_rule)
 
         def _commodity_conversion_input_rule(m, c, ic, cl, t):
             # Define ratio between main input and other input commodities for all conversion tuples
@@ -326,7 +320,7 @@ class OptimizationProblem:
                 return m.mass_energy_component_in_commodities[c, ic, cl, t] == 0
         model._commodity_conversion_input_con = Constraint(model.CONVERSION_COMPONENTS, model.INPUT_COMMODITIES,
                                                            model.CLUSTERS, model.TIME,
-                                                        rule=_commodity_conversion_input_rule)
+                                                           rule=_commodity_conversion_input_rule)
 
         def balance_component_status_rule(m, c, cl, t):
             # The component is either on, off or in hot standby
@@ -444,7 +438,7 @@ class OptimizationProblem:
                 st = m.standby_time[c]
 
             if t > 0:
-                return (m.status_standby[c, cl, t] - m.status_standby[c, cl, t - 1]) - sum(m.status_stanby[c, cl, t + i]
+                return (m.status_standby[c, cl, t] - m.status_standby[c, cl, t - 1]) - sum(m.status_standby[c, cl, t + i]
                                                                                            for i in range(st)) / st <= 0
             else:
                 return Constraint.Skip
@@ -497,12 +491,12 @@ class OptimizationProblem:
                                                 model.CLUSTERS, model.TIME,
                                                 rule=power_generation_rule)
 
-        def attach_fixed_capacity_rule(m, g):
-            if pm_object.get_component(g).get_has_fixed_capacity():
-                return m.nominal_cap[g] == m.generator_fixed_capacity[g]
+        def attach_fixed_capacity_rule(m, c):
+            if pm_object.get_component(c).get_has_fixed_capacity():
+                return m.nominal_cap[c] == m.fixed_capacity[c]
             else:
                 return Constraint.Skip
-        model.attach_fixed_capacity_con = Constraint(model.GENERATORS, rule=attach_fixed_capacity_rule)
+        model.attach_fixed_capacity_con = Constraint(model.COMPONENTS, rule=attach_fixed_capacity_rule)
 
         def storage_balance_rule(m, s, cl, t):
             if t == 0:
@@ -564,7 +558,13 @@ class OptimizationProblem:
         """ Financial constraints """
         def calculate_investment_components_rule(m, c):
             if c not in m.SCALABLE_COMPONENTS:
-                return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+                if self.pm_object.get_component(c).get_component_type() != 'generator':
+                    return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+                else:
+                    if not self.pm_object.get_component(c).get_uses_ppa():
+                        return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+                    else:
+                        return m.investment[c] == 0
             else:
                 return m.investment[c] == sum(m.nominal_cap_pre[c, i] * m.capex_pre_var[c, i]
                                               + m.capex_pre_fix[c, i] * m.capacity_binary[c, i]
@@ -573,23 +573,30 @@ class OptimizationProblem:
                                                                rule=calculate_investment_components_rule)
 
         def objective_function(m):
-            return (sum(m.investment[c] * m.ANF[c] for c in m.COMPONENTS)
-                    + sum(m.investment[c] * m.fixed_om[c] for c in m.COMPONENTS)
-                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_om[s] * m.weightings[cl]
+            return (sum(m.investment[c] * m.ANF[c] for c in m.COMPONENTS if c not in m.GENERATORS)
+                    + sum(m.investment[c] * m.fixed_om_var[c] for c in m.COMPONENTS if c not in m.GENERATORS)
+                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_om_var[s] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                     + sum(m.mass_energy_component_out_commodities[c, pm_object.get_component(c).get_main_output(), cl, t]
-                          * m.variable_om[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for c in m.CONVERSION_COMPONENTS)
-                    + sum(m.mass_energy_generation[g, pm_object.get_component(g).get_generated_commodity(), cl, t]
-                          * m.variable_om[g] * m.weightings[cl]
-                          for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
+                          * m.variable_om_var[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for c in m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_purchase_commodity[me, cl, t] * m.purchase_price[me, cl, t] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES if
                           me in self.purchasable_commodities)
                     - sum(m.mass_energy_sell_commodity[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES if
                           me in self.saleable_commodities)
-                    + sum(m.status_off_switch_off[c, cl, t] * m.weightings[cl] * m.start_up_costs[c]
-                          for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS))
+                    + sum(m.status_off_switch_off[c, cl, t] * m.weightings[cl] * m.start_up_costs[c]  # das stimmt doch so nicht, oder? Ist unabhängig von der Kapazität
+                          for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS)
+                    + sum(m.investment[g] * m.ANF[g]
+                          + m.investment[g] * m.fixed_om_var[g]
+                          + sum(m.mass_energy_generation[g, pm_object.get_component(g).get_generated_commodity(), cl, t]
+                                * m.variable_om_var[g] * m.weightings[cl]
+                                for t in m.TIME for cl in m.CLUSTERS)
+                          for g in m.GENERATORS if not self.pm_object.get_component(g).get_uses_ppa())
+                    + sum(m.generation_profiles[g, cl, t] * m.nominal_cap[g]
+                          * self.pm_object.get_component(g).get_ppa_price() * m.weightings[cl]
+                          for t in m.TIME for cl in m.CLUSTERS
+                          for g in m.GENERATORS if self.pm_object.get_component(g).get_uses_ppa()))
         model.obj = Objective(rule=objective_function, sense=minimize)
 
         return model
@@ -608,7 +615,7 @@ class OptimizationProblem:
         else:
             results = opt.solve(instance, tee=True, warmstart=True)
 
-        print(results)
+        # print(results)
 
         return instance, results
 
@@ -651,7 +658,7 @@ class OptimizationProblem:
             = self.pm_object.get_all_conversions()
 
         self.generation_profiles_dict = self.pm_object.get_generation_time_series()
-        self.demand_dict = self.pm_object.get_demand_time_series()
+        self.hourly_demand_dict, self.total_demand_dict = self.pm_object.get_demand_time_series()
         self.purchase_price_dict = self.pm_object.get_purchase_price_time_series()
         self.sell_price_dict = self.pm_object.get_sale_price_time_series()
         self.weightings_dict = self.pm_object.get_weightings_time_series()

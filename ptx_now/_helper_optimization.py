@@ -1,6 +1,8 @@
 import pandas as pd
 
 from optimization_classes_and_methods import OptimizationProblem
+from gurobi_optimization_classes_and_methods import GurobiOptimizationProblem
+from gurobi_matrix_optimization_classes_and_methods import GurobiMatrixOptimizationProblem
 from ResultAnalysis import ResultAnalysis
 from _helpers_gui import save_current_parameters_and_options
 from joblib import Parallel, delayed
@@ -9,6 +11,8 @@ import multiprocessing
 from copy import deepcopy
 
 from os import walk
+
+import time
 
 idx = pd.IndexSlice
 
@@ -23,9 +27,23 @@ def optimize(pm_object, path_data, path_results, solver):
 
         if pm_object.get_single_or_multiple_profiles() == 'single':  # Case single file generation
 
+            # now = time.time()
             optimization_problem = OptimizationProblem(pm_object, solver)
+            # print('time needed pyomo: ' + str(time.time() - now))
+
             result = ResultAnalysis(optimization_problem, path_results)
-            save_current_parameters_and_options(pm_object, result.new_result_folder + '/7_settings.yaml')
+            save_current_parameters_and_options(pm_object, result.new_result_folder + '/7_settings.yaml',
+                                                    result_mp.all_variables_dict['nominal_cap'])
+
+            # now = time.time()
+            # optimization_problem = GurobiOptimizationProblem(pm_object, solver)
+            # print('time needed gurobipy: ' + str(time.time() - now))
+
+            if False:
+
+                now = time.time()
+                optimization_problem = GurobiMatrixOptimizationProblem(pm_object, solver)
+                print('time needed gurobipy: ' + str(time.time() - now))
 
         else:  # Case with several profiles
 
@@ -34,7 +52,8 @@ def optimize(pm_object, path_data, path_results, solver):
 
                 optimization_problem_mp = OptimizationProblem(input_data[0], solver)
                 result_mp = ResultAnalysis(optimization_problem_mp, path_results)
-                save_current_parameters_and_options(pm_object, result_mp.new_result_folder + '/7_settings.yaml')
+                save_current_parameters_and_options(pm_object, result_mp.new_result_folder + '/7_settings.yaml',
+                                                    result_mp.all_variables_dict['nominal_cap'])
 
                 return [input_data[1], result_mp.exported_results]
 
@@ -68,4 +87,9 @@ def optimize(pm_object, path_data, path_results, solver):
     else:
         optimization_problem = OptimizationProblem(pm_object, solver)
         result = ResultAnalysis(optimization_problem, path_results)
-        save_current_parameters_and_options(pm_object, result.new_result_folder + '/7_settings.yaml')
+        save_current_parameters_and_options(pm_object, result.new_result_folder + '/7_settings.yaml',
+                                            result.all_variables_dict['nominal_cap'])
+
+        # optimization_problem = GurobiOptimizationProblem(pm_object, solver)
+
+    print('Optimization completed.')

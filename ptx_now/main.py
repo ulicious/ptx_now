@@ -306,6 +306,7 @@ class GUI:
 
                         if column_name not in commodity_profile.columns:
                             profile_not_exist.append(commodity.get_name() + ' Selling Price')
+
                     else:
                         path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                         _, _, filenames = next(walk(path_to_commodity_files))
@@ -351,6 +352,7 @@ class GUI:
 
                         if column_name not in commodity_profile.columns:
                             profile_not_exist.append(commodity.get_name() + ' Purchase Price')
+
                     else:
                         path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                         _, _, filenames = next(walk(path_to_commodity_files))

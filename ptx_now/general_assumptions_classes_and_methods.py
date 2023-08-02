@@ -106,7 +106,12 @@ class GeneralAssumptionsFrame:
 
         i = 0
         ttk.Label(self.frame, text='WACC [%]').grid(column=0, row=i, sticky='w')
-        ttk.Label(self.frame, text=round(self.pm_object.get_wacc() * 100, 2)).grid(column=1, row=i, sticky='w')
+        ttk.Label(self.frame, text=round(self.pm_object.get_wacc() * 100, 2)).grid(column=1, columnspan=2, row=i, sticky='w')
+
+        i += 1
+
+        ttk.Label(self.frame, text='Monetary Unit').grid(column=0, row=i, sticky='w')
+        ttk.Label(self.frame, text=self.pm_object.get_monetary_unit()).grid(column=1, columnspan=2, row=i, sticky='w')
 
         i += 1
 
@@ -122,11 +127,6 @@ class GeneralAssumptionsFrame:
 
         i += 1
 
-        ttk.Label(self.frame, text='Monetary Unit').grid(column=0, row=i, sticky='w')
-        ttk.Label(self.frame, text=self.pm_object.get_monetary_unit()).grid(column=1, row=i, sticky='w')
-
-        i += 1
-
         button_frame = ttk.Frame(self.frame)
 
         button_frame.grid_columnconfigure(0, weight=1, uniform="a")
@@ -135,7 +135,7 @@ class GeneralAssumptionsFrame:
                                                command=self.adjust_component_value)
         self.adjust_values_button.grid(row=0, column=0, sticky='ew')
 
-        button_frame.grid(row=i, column=0, columnspan=2, sticky='ew')
+        button_frame.grid(row=i, column=0, columnspan=3, sticky='ew')
 
     def __init__(self, interface, parent, frame, pm_object):
 

@@ -1205,9 +1205,9 @@ def save_current_parameters_and_options(pm_object, path_name, fixed_capacities=N
         case_data['component'][component.get_name()]['has_fixed_capacity'] = component.get_has_fixed_capacity()
 
         if fixed_capacities is not None:
-            case_data['component'][component.get_name()]['fixed_capacities'] = fixed_capacities[component.get_name()]
+            case_data['component'][component.get_name()]['fixed_capacity'] = fixed_capacities[component.get_name()]
         else:
-            case_data['component'][component.get_name()]['fixed_capacities'] = component.get_fixed_capacity()
+            case_data['component'][component.get_name()]['fixed_capacity'] = component.get_fixed_capacity()
 
         if component.get_component_type() == 'conversion':
 

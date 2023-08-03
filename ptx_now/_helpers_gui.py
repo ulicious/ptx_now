@@ -1249,8 +1249,8 @@ def save_current_parameters_and_options(pm_object, path_name, fixed_capacities=N
 
             case_data['component'][component.get_name()]['generated_commodity'] = component.get_generated_commodity()
             case_data['component'][component.get_name()]['curtailment_possible'] = component.get_curtailment_possible()
-            case_data['component'][component.get_name()]['has_fixed_capacity'] = component.get_has_fixed_capacity()
-            case_data['component'][component.get_name()]['fixed_capacity'] = component.get_fixed_capacity()
+            case_data['component'][component.get_name()]['uses_ppa'] = component.get_uses_ppa()
+            case_data['component'][component.get_name()]['ppa_price'] = component.get_ppa_price()
 
         elif component.get_component_type() == 'storage':
 

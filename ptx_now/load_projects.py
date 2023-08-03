@@ -111,6 +111,8 @@ def load_010(pm_object, case_data):
             generated_commodity = case_data['component'][component]['generated_commodity']
 
             curtailment_possible = case_data['component'][component]['curtailment_possible']
+            uses_ppa = case_data['component'][component]['uses_ppa']
+            ppa_price = case_data['component'][component]['ppa_price']
 
             generator = GenerationComponent(name=name, lifetime=lifetime, fixed_om=fixed_om, variable_om=variable_om,
                                             capex=capex,
@@ -118,6 +120,7 @@ def load_010(pm_object, case_data):
                                             curtailment_possible=curtailment_possible,
                                             has_fixed_capacity=has_fixed_capacity,
                                             fixed_capacity=fixed_capacity,
+                                            uses_ppa=uses_ppa, ppa_price=ppa_price,
                                             final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, generator)
 

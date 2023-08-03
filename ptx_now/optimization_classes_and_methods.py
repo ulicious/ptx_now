@@ -174,6 +174,10 @@ class OptimizationProblem:
         self.model.mass_energy_hot_standby_demand = Var(self.model.STANDBY_COMPONENTS, self.model.COMMODITIES,
                                                         self.model.CLUSTERS, self.model.TIME, bounds=(0, None))
 
+        # Restart costs
+        self.model.restart_costs = Var(self.model.SHUT_DOWN_COMPONENTS, self.model.CLUSTERS, self.model.TIME,
+                                       bounds=(0, None))
+
     def attach_purchase_price_time_series_to_optimization_problem(self):
         self.model.purchase_price = Param(self.model.PURCHASABLE_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
                                           initialize=self.purchase_price_dict)
@@ -475,6 +479,12 @@ class OptimizationProblem:
         model.hot_standby_binary_activation_con = Constraint(model.STANDBY_COMPONENTS, model.CLUSTERS, model.TIME,
                                                              rule=hot_standby_binary_activation_rule)
 
+        def restart_costs_rule(m, c, cl, t):
+            return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * m.weightings[cl] * m.start_up_costs[c] \
+                - (1 - m.status_off_switch_off[c, cl, t]) * 1000000
+        model.restart_costs_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.CLUSTERS, model.TIME,
+                                             rule=restart_costs_rule)
+
         """ Generation constraints """
         def power_generation_rule(m, g, gc, cl, t):
             generated_commodity = pm_object.get_component(g).get_generated_commodity()
@@ -585,10 +595,8 @@ class OptimizationProblem:
                     - sum(m.mass_energy_sell_commodity[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES if
                           me in self.saleable_commodities)
-                    + sum(m.status_off_switch_off[c, cl, t] * m.weightings[cl] * m.start_up_costs[c]  # das stimmt doch so nicht, oder? Ist unabhängig von der Kapazität
-                          for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS)
-                    + sum(m.investment[g] * m.ANF[g]
-                          + m.investment[g] * m.fixed_om_var[g]
+                    + sum(m.restart_costs[c, cl, t] for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS)
+                    + sum(m.investment[g] * (m.ANF[g] + m.fixed_om_var[g])
                           + sum(m.mass_energy_generation[g, pm_object.get_component(g).get_generated_commodity(), cl, t]
                                 * m.variable_om_var[g] * m.weightings[cl]
                                 for t in m.TIME for cl in m.CLUSTERS)

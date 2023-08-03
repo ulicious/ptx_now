@@ -137,8 +137,7 @@ class ResultAnalysis:
                                              for cl in self.model.CLUSTERS for t in self.model.TIME)
 
                 if component.get_shut_down_ability():
-                    self.start_up_costs[c] = sum(self.all_variables_dict['status_off_switch_off'][(c, cl, t)]
-                                                 * self.model.weightings[cl] * self.model.start_up_costs[c]
+                    self.start_up_costs[c] = sum(self.all_variables_dict['restart_costs'][(c, cl, t)]
                                                  for cl in self.model.CLUSTERS for t in self.model.TIME)
                 else:
                     self.start_up_costs[c] = 0
@@ -484,10 +483,24 @@ class ResultAnalysis:
                 fixed_om = 0
                 variable_om = 0
             else:
-                investment = self.all_variables_dict['investment'][key]
-                annuity = self.annualized_investment[component_name]
-                fixed_om = self.fixed_costs[component_name]
-                variable_om = self.variable_costs[component_name]
+
+                if component_object.get_component_type() != 'generator':
+                    investment = self.all_variables_dict['investment'][key]
+                    annuity = self.annualized_investment[component_name]
+                    fixed_om = self.fixed_costs[component_name]
+                    variable_om = self.variable_costs[component_name]
+                else:
+
+                    if not component_object.get_uses_ppa():
+                        investment = self.all_variables_dict['investment'][key]
+                        annuity = self.annualized_investment[component_name]
+                        fixed_om = self.fixed_costs[component_name]
+                        variable_om = self.variable_costs[component_name]
+                    else:
+                        investment = 0
+                        annuity = 0
+                        fixed_om = 0
+                        variable_om = self.variable_costs[component_name]
 
             if component_object.get_component_type() == 'conversion':
                 capex_basis = component_object.get_capex_basis()
@@ -571,7 +584,10 @@ class ResultAnalysis:
                 if capacity == 0:
                     capacity_df.loc[component_name, 'Investment [per output]'] = 0
                 else:
-                    capacity_df.loc[component_name, 'Investment [per output]'] = investment / capacity
+                    if not uses_ppa:
+                        capacity_df.loc[component_name, 'Investment [per output]'] = investment / capacity
+                    else:
+                        capacity_df.loc[component_name, 'Investment [per output]'] = 0
 
             else:
                 component_name += ' Storage'
@@ -637,7 +653,8 @@ class ResultAnalysis:
         efficiency = str(round(total_energy_output / total_energy_input, 4))
 
         index_overview = ['Annual Production', 'Total Investment', 'Total Fix Costs', 'Total Variable Costs',
-                          'Annual Costs', 'Production Costs per Unit', 'Efficiency']
+                          'Annual Costs', 'Production Costs per Unit', 'Efficiency',
+                          'Production Costs per Unit Objective Function']
 
         total_production = 0
         total_production += sum(self.all_variables_dict['mass_energy_demand'][key]
@@ -661,8 +678,11 @@ class ResultAnalysis:
         production_costs_per_unit = annual_costs / total_production
         efficiency = efficiency
 
+        production_costs_per_unit_obj = self.instance.obj() / total_production
+
         results_overview = pd.Series([total_production, total_investment,
-                                      fix_costs, variable_costs, annual_costs, production_costs_per_unit, efficiency])
+                                      fix_costs, variable_costs, annual_costs, production_costs_per_unit, efficiency,
+                                      production_costs_per_unit_obj])
         results_overview.index = index_overview
 
         results_overview.to_excel(self.new_result_folder + '/1_results_overview.xlsx')

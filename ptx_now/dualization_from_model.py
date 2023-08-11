@@ -1,6 +1,6 @@
 import pyomo.environ as pyo
 from pyomo.core import *
-import pyomo.core.base.initializer
+# import pyomo.core.base.initializer
 from pyomo.core.base.var import _GeneralVarData
 from pyomo.core.expr.numeric_expr import SumExpression
 from pyomo.core.expr.numeric_expr import MonomialTermExpression

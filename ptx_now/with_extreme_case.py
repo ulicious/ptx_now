@@ -71,7 +71,11 @@ class ExtremeCaseBilinear:
         dual_model.y_balance_constraint_variable = Var(dual_model.ME_COMMODITIES, dual_model.TIME, dual_model.CLUSTER,
                                                        bounds=(None, None))
 
-        dual_model.y_demand_constraint_variable = Var(dual_model.DEMANDED_COMMODITIES, bounds=(None, None))
+        # dual_model.y_demand_constraint_variable = Var(dual_model.DEMANDED_COMMODITIES, bounds=(None, 0))
+        # todo: Check if right bounds. Normally should be None, 0
+
+        dual_model.y_demand_constraint_variable = Var(dual_model.DEMANDED_COMMODITIES, dual_model.CLUSTER,
+                                                      bounds=(None, None))
 
         dual_model.y_out_constraint_variable = Var(dual_model.CONVERSION_COMPONENTS,
                                                    dual_model.ME_COMMODITIES, dual_model.TIME, dual_model.CLUSTER,
@@ -182,11 +186,13 @@ class ExtremeCaseBilinear:
                     return sum(dm.weighting_profiles_binary[p] for p in dm.PROFILES) == 1
                 dual_model.balance_profile_binaries_con = Constraint(rule=balance_profile_binaries)
 
-                def define_chosen_profile(dm, g, t):
-                    return dm.chosen_profile_variable[g, t] == sum(dm.generation_profile_uncertain[g, p, t]
-                                                                   * dm.weighting_profiles_binary[p] for p in dm.PROFILES)
-                dual_model.define_chosen_profile_con = Constraint(dual_model.GENERATORS, dual_model.TIME,
-                                                                  rule=define_chosen_profile)
+                if False:
+
+                    def define_chosen_profile(dm, g, t):
+                        return dm.chosen_profile_variable[g, t] == sum(dm.generation_profile_uncertain[g, p, t]
+                                                                       * dm.weighting_profiles_binary[p] for p in dm.PROFILES)
+                    dual_model.define_chosen_profile_con = Constraint(dual_model.GENERATORS, dual_model.TIME,
+                                                                      rule=define_chosen_profile)
 
             if True:
 
@@ -200,15 +206,15 @@ class ExtremeCaseBilinear:
                     = Constraint(dual_model.GENERATORS, dual_model.TIME, dual_model.PROFILES,
                                  rule=define_relation_auxiliary_to_generation_variable)
 
-            if False:
+            if True:
                 def min_renewable_generation_solar_rule(dm):
                     return sum(dm.generation_profile_uncertain['Solar', p, t] * dm.weighting_profiles_binary[p]
-                               for t in dm.TIME for p in dm.PROFILES) / 336 >= 0.05
+                               for t in dm.TIME for p in dm.PROFILES) >= 65
                 dual_model.min_renewable_generation_solar_con = Constraint(rule=min_renewable_generation_solar_rule)
 
                 def min_renewable_generation_wind_rule(dm):
                     return sum(dm.generation_profile_uncertain['Wind', p, t] * dm.weighting_profiles_binary[p]
-                               for t in dm.TIME for p in dm.PROFILES) / 336 >= 0.5
+                               for t in dm.TIME for p in dm.PROFILES) >= 79
                 dual_model.min_renewable_generation_wind_con = Constraint(rule=min_renewable_generation_wind_rule)
 
         return dual_model
@@ -256,15 +262,36 @@ class ExtremeCaseBilinear:
         self.dual_model.x_sell_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.TIME,
                                                 self.dual_model.CLUSTER, rule=x_sell_rule)
 
-        def x_demand_rule(dm, s, t, n):
-            if s in self.demanded_commodities:
-                return - dm.y_balance_constraint_variable[s, t, n] \
-                       + dm.y_demand_constraint_variable[s] * dm.weightings[n] <= 0
-            else:
-                return Constraint.Skip
+        if False:
+            def x_demand_rule(dm, s, t, n):
+                if s in self.demanded_commodities:
+                    return - dm.y_balance_constraint_variable[s, t, n] \
+                           + dm.y_demand_constraint_variable[s] * dm.weightings[n] <= 0
+                else:
+                    return Constraint.Skip
 
-        self.dual_model.x_demand_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.TIME, self.dual_model.CLUSTER,
-                                                  rule=x_demand_rule)
+            self.dual_model.x_demand_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.TIME, self.dual_model.CLUSTER,
+                                                      rule=x_demand_rule)
+
+        else:
+            def x_demand_rule(dm, s, t, n):
+                if s in self.demanded_commodities:
+                    return - dm.y_balance_constraint_variable[s, t, n] \
+                           + dm.y_demand_constraint_variable[s, n] <= 0
+                else:
+                    return Constraint.Skip
+
+            self.dual_model.x_demand_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.TIME,
+                                                      self.dual_model.CLUSTER,
+                                                      rule=x_demand_rule)
+
+            def x_short_demand_rule(dm, s, n):
+                if s in self.demanded_commodities:
+                    return dm.y_demand_constraint_variable[s, n] <= dm.weightings[n] * 0.25
+                else:
+                    return Constraint.Skip
+            self.dual_model.x_short_demand_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.CLUSTER,
+                                                            rule=x_short_demand_rule)
 
         def x_generation_rule(dm, g, s, t, n):
             generated_commodity = self.pm_object.get_component(g).get_generated_commodity()
@@ -427,9 +454,31 @@ class ExtremeCaseBilinear:
                               + dm.y_soc_discharge_limit_constraint_variable[s, t, n] * self.ratio_capacity_power_dict[
                                   s]) * self.optimal_capacities[s]
                              for t in dm.TIME for s in dm.STORAGES if s in self.storage_components for n in dm.CLUSTER)
-            else:
+            elif False:
                 return sum(dm.y_demand_constraint_variable[s] * dm.total_commodity_demand[s]
                            for s in dm.DEMANDED_COMMODITIES) \
+                       + sum((dm.y_conv_cap_ub_constraint_variable[c, t, n] * self.maximal_power_dict[c]
+                              - dm.y_conv_cap_lb_constraint_variable[c, t, n] * self.minimal_power_dict[c]
+                              + dm.y_conv_cap_ramp_up_constraint_variable[c, t, n] * self.ramp_up_dict[c]
+                              + dm.y_conv_cap_ramp_down_constraint_variable[c, t, n] * self.ramp_down_dict[c])
+                             * self.optimal_capacities[c]
+                             for t in dm.TIME for c in dm.CONVERSION_COMPONENTS for n in dm.CLUSTER) \
+                       + sum(dm.y_generation_constraint_variable_active[
+                                 g, self.pm_object.get_component(g).get_generated_commodity(), t, n]
+                             * self.optimal_capacities[g]
+                             * dm.generation_profiles_certain[g, t, n]
+                             for n in dm.CLUSTER if n < max(dm.CLUSTER) for t in dm.TIME for g in dm.GENERATORS) \
+                       + sum(dm.auxiliary_variable[g, self.pm_object.get_component(g).get_generated_commodity(), t, p]
+                             for g in dm.GENERATORS for t in dm.TIME for p in dm.PROFILES) \
+                       + sum((dm.y_soc_ub_constraint_variable[s, t, n] * self.maximal_soc_dict[s]
+                              - dm.y_soc_lb_constraint_variable[s, t, n] * self.minimal_soc_dict[s]
+                              + dm.y_soc_charge_limit_constraint_variable[s, t, n] * self.ratio_capacity_power_dict[s]
+                              + dm.y_soc_discharge_limit_constraint_variable[s, t, n] * self.ratio_capacity_power_dict[
+                                  s]) * self.optimal_capacities[s]
+                             for t in dm.TIME for s in dm.STORAGES if s in self.storage_components for n in dm.CLUSTER)
+            if True:
+                return sum(dm.y_demand_constraint_variable[s, n] * dm.total_commodity_demand[s] / (8760 / len(dm.TIME))
+                           for s in dm.DEMANDED_COMMODITIES for n in dm.CLUSTER) \
                        + sum((dm.y_conv_cap_ub_constraint_variable[c, t, n] * self.maximal_power_dict[c]
                               - dm.y_conv_cap_lb_constraint_variable[c, t, n] * self.minimal_power_dict[c]
                               + dm.y_conv_cap_ramp_up_constraint_variable[c, t, n] * self.ramp_up_dict[c]
@@ -460,8 +509,9 @@ class ExtremeCaseBilinear:
         else:
             opt = pyo.SolverFactory(self.solver, solver_io="python")
 
-        opt.options["mipgap"] = 0.05
-        opt.options["NonConvex"] = 2
+        # opt.options["mipgap"] = 0.05
+        # opt.options["NonConvex"] = 2
+        opt.options['Threads'] = 120
         instance = self.dual_model.create_instance()
 
         results = opt.solve(instance, tee=True)
@@ -556,14 +606,15 @@ class ExtremeCaseBilinear:
         """ Adjust parameters to include extreme cluster """
         # todo: adjust regarding data --> maybe prices are also uncertain
 
-        for t in range(self.pm_object.get_time_steps()):
-            for me in self.purchasable_commodities:
-                self.purchase_price_dict[(me, number_clusters, t)]\
-                    = self.purchase_price_dict[(me, number_clusters - 1, t)]
+        if number_clusters > 0:
+            for t in range(self.pm_object.get_time_steps()):
+                for me in self.purchasable_commodities:
+                    self.purchase_price_dict[(me, number_clusters, t)]\
+                        = self.purchase_price_dict[(me, number_clusters - 1, t)]
 
-            for me in self.saleable_commodities:
-                self.sell_price_dict[(me, number_clusters, t)]\
-                    = self.sell_price_dict[(me, number_clusters - 1, t)]
+                for me in self.saleable_commodities:
+                    self.sell_price_dict[(me, number_clusters, t)]\
+                        = self.sell_price_dict[(me, number_clusters - 1, t)]
 
         """ Update sets and parameters as not all components are used anymore """
         conversion_components_new = []

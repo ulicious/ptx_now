@@ -19,6 +19,8 @@ from tqdm import tqdm
 import multiprocessing
 from copy import deepcopy
 
+import time
+
 import datetime
 
 from os import walk
@@ -32,9 +34,14 @@ def optimize(pm_object, path_data, path_results, solver):
 
     # read data
     # todo: read solar, wind and weighting data as normal data and implement new data request for all data
-    all_data_folder = 'C:/Users/mt5285/Desktop/clustering_test/solar_and_turbine_2030/'
 
-    nominal_data = pd.read_excel(path_data + pm_object.get_profile_data(), index_col=0) # todo:adjust to csv as well
+    now = time.time()
+
+    try:
+        nominal_data = pd.read_csv(path_data + pm_object.get_profile_data(), index_col=0)  # todo:adjust to csv as well
+    except:
+        nominal_data = pd.read_excel(path_data + pm_object.get_profile_data(), index_col=0)
+
     period_length = pm_object.get_covered_period()
     number_clusters = int(pm_object.get_number_clusters())
 
@@ -47,28 +54,41 @@ def optimize(pm_object, path_data, path_results, solver):
     for i in range(number_clusters):
         for col in nominal_data.columns:
             if col != 'Weighting':
-                profile = nominal_data.loc[i*period_length:(i+1)*period_length, col]
+
+                if pm_object.get_uses_representative_periods():
+                    profile = nominal_data.loc[i*period_length:(i+1)*period_length, col]
+                else:
+                    profile = nominal_data[col]
+
                 profile.index = range(len(profile.index))
                 nominal[0][col][i] = profile
 
     # Set initial worst case cluster
-    nominal[0]['Wind'][number_clusters] = nominal[0]['Wind'][0]
-    nominal[0]['Solar'][number_clusters] = nominal[0]['Solar'][0]
+    if pm_object.get_uses_representative_periods():
+        worst_case_cluster = number_clusters
+    else:
+        worst_case_cluster = 0
+
+    nominal[0]['Wind'][worst_case_cluster] = nominal[0]['Wind'][0]
+    nominal[0]['Solar'][worst_case_cluster] = nominal[0]['Solar'][0]
 
     weighting = {}
     for i in range(number_clusters):
-        weighting[i] = nominal_data.loc[i*period_length, 'Weighting'] / 2 - pm_object.get_time_steps() / 8760
+        if pm_object.get_uses_representative_periods():
+            weighting[i] = nominal_data.loc[i*period_length, 'Weighting'] / 2 - pm_object.get_time_steps() / 8760
+        else:
+            weighting[i] = 1
 
-    weighting[number_clusters] = 1
+    weighting[worst_case_cluster] = 1
 
     # all profile data
-    all_profiles = pd.read_csv(path_data + 'all_profiles.csv', index_col=0, sep=';')
+    all_profiles = pd.read_csv(path_data + 'Namibia_all_profiles_c1500x-2625_t2030_l336.csv', index_col=0)
     number_profiles = int(len(all_profiles.columns) / len(nominal[0].keys()))
 
     # choose if only some profiles are used
     preselect_profiles = True  # todo: delete. Data set should be correct in the first place
     if preselect_profiles:
-        preselection_profiles = [0, 1, 2, 3, 4]
+        preselection_profiles = [i for i in range(10)]
         number_profiles = len(preselection_profiles)
 
         selected_profiles = []
@@ -91,27 +111,33 @@ def optimize(pm_object, path_data, path_results, solver):
 
     while True:
         if True:
-            sup_problem = SuperProblemRepresentative(pm_object, solver, nominal, number_clusters, weighting, iteration)
+            sup_problem = SuperProblemRepresentative(pm_object, solver, nominal, worst_case_cluster, weighting,
+                                                     iteration)
             sup_problem.optimize()
             capacities_new = sup_problem.optimal_capacities
             capacities[iteration] = capacities_new
             print(capacities_new)
             LB = sup_problem.obj_value
 
-            total_costs_LB = LB / total_demand['Ammonia']
-            print('Production costs first stage: ' + str(total_costs_LB))
-
         else:
-            capacities_new = {'Electricity': 6.196400419016634,
-                              'H2': 72.31716678211828,
-                              'HB Synthesis': 9.993288319972256,
-                              'N2 Separation': 0.34113472620374263,
-                              'PEM': 29.319579230130245,
-                              'Solar': 59.616776674809785,
-                              'Wind': 0.20415967566580978}
+            capacities_new = {'Electricity': 0.010099551878199253,
+                              'H2': 59.15344688077161,
+                              'HB Synthesis': 9.340513246978954,
+                              'N2': 0.0, 'N2 Separation': 0.31885134573195656,
+                              'PEM': 17.244713271723377,
+                              'Solar': 26.768533816243124,
+                              'Wind': 18.040407087283917,
+                              'h2_turbine': 0.5539429037487302}
 
-        sub_problem = ExtremeCaseBilinear(pm_object, solver, capacities_new, nominal, all_profiles, number_clusters,
+            capacities[iteration] = capacities_new
+            LB = 5316.890252269012
+
+        total_costs_LB = LB / total_demand['Ammonia']
+        print('Production costs first stage: ' + str(total_costs_LB))
+
+        sub_problem = ExtremeCaseBilinear(pm_object, solver, capacities_new, nominal, all_profiles, worst_case_cluster,
                                           weighting, number_profiles, **kwargs)
+
         sub_problem.optimize()
 
         UB = min(UB, sup_problem.obj_value - sup_problem.auxiliary_variable + sub_problem.obj_value)
@@ -124,16 +150,15 @@ def optimize(pm_object, path_data, path_results, solver):
 
         print('Iteration number: ' + str(iteration))
 
-        print('Total costs UB: ' + str(total_costs_UB))
-        print('Total costs LB: ' + str(total_costs_LB))
+        print('Specific costs UB: ' + str(total_costs_UB))
+        print('Specific costs LB: ' + str(total_costs_LB))
 
-        difference = (UB - LB) / LB
+        # difference = (UB - LB) / LB
+        difference = UB - LB
         print('Difference is: ' + str(difference))
 
-        nominal[iteration]['Wind'][number_clusters] = sub_problem.chosen_profiles['Wind']
-        nominal[iteration]['Solar'][number_clusters] = sub_problem.chosen_profiles['Solar']
-
-        if -tolerance <= difference <= tolerance:
+        # if -tolerance <= difference <= tolerance:
+        if difference <= tolerance:
 
             first = True
             for k in [*capacities.keys()]:
@@ -143,7 +168,7 @@ def optimize(pm_object, path_data, path_results, solver):
                 else:
                     capacity_df[k] = pd.DataFrame.from_dict(capacities[k], orient='index')
 
-            capacity_df.to_excel('C:/Users/mt5285/Desktop/clustering_test/results/RO_results/capacity.xlsx')
+            capacity_df.to_excel(path_results + 'capacity.xlsx')
 
             profiles_df = pd.DataFrame()
             for i in [*nominal.keys()]:
@@ -151,19 +176,22 @@ def optimize(pm_object, path_data, path_results, solver):
                     for c in [*nominal[i][g].keys()]:
                         profiles_df[str(i) + '_' + g + '_' + str(c)] = nominal[i][g][c]
 
-            profiles_df.to_excel('C:/Users/mt5285/Desktop/clustering_test/results/RO_results/profiles.xlsx')
+            profiles_df.to_excel(path_results + 'profiles.xlsx')
 
-            first = True
-            total_costs_df = pd.DataFrame()
-            for k in [*total_costs_dict.keys()]:
-                if first:
-                    total_costs_df[k] = pd.DataFrame.from_dict(total_costs_dict[k], orient='index')
-                    first = False
-                else:
-                    total_costs_df[k] = pd.DataFrame.from_dict(total_costs_dict[k], orient='index')
-            total_costs_df.to_excel('C:/Users/mt5285/Desktop/clustering_test/results/RO_results/total_costs.xlsx')
+            if True:
+
+                first = True
+                total_costs_df = pd.DataFrame()
+                for k in [*total_costs_dict.keys()]:
+                    if first:
+                        total_costs_df = pd.DataFrame.from_dict(total_costs_dict[k], orient='index')
+                        first = False
+                    else:
+                        total_costs_df[k] = pd.DataFrame.from_dict(total_costs_dict[k], orient='index')
+                total_costs_df.to_excel(path_results + 'total_costs.xlsx')
 
             print('optimization successful')
+            print('time needed: ' + str((time.time() - now) / 60) + ' minutes')
 
             break
 
@@ -171,8 +199,8 @@ def optimize(pm_object, path_data, path_results, solver):
             iteration += 1
             nominal[iteration] = {}
 
-            nominal[iteration]['Wind'] = nominal[0]['Wind']
-            nominal[iteration]['Solar'] = nominal[0]['Solar']
+            nominal[iteration]['Wind'] = nominal[0]['Wind'].copy()
+            nominal[iteration]['Solar'] = nominal[0]['Solar'].copy()
 
-            nominal[iteration]['Wind'][number_clusters] = sub_problem.chosen_profiles['Wind']
-            nominal[iteration]['Solar'][number_clusters] = sub_problem.chosen_profiles['Solar']
+            nominal[iteration]['Wind'][worst_case_cluster] = sub_problem.chosen_profiles['Wind']
+            nominal[iteration]['Solar'][worst_case_cluster] = sub_problem.chosen_profiles['Solar']

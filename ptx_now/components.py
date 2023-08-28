@@ -61,15 +61,42 @@ class Component:
     def get_component_type(self):
         return self.component_type
 
+    def set_investment(self, investment):
+        self.investment = investment
+
+    def get_investment(self):
+        return self.investment
+
+    def set_annualized_investment(self, annualized_investment):
+        self.annualized_investment = annualized_investment
+
+    def get_annualized_investment(self):
+        return self.annualized_investment
+
+    def set_total_fixed_costs(self, total_fixed_costs):
+        self.total_fixed_costs = total_fixed_costs
+
+    def get_total_fixed_costs(self):
+        return self.total_fixed_costs
+
+    def set_total_variable_costs(self, total_variable_costs):
+        self.total_variable_costs = total_variable_costs
+
+    def get_total_variable_costs(self):
+        return self.total_variable_costs
+
     def __copy__(self):
         return Component(name=self.name, final_unit=self.final_unit,
                          custom_unit=self.custom_unit, capex=self.capex, lifetime=self.lifetime,
                          fixed_om=self.fixed_om, variable_om=self.variable_om,
-                         has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity)
+                         has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
+                         investment=self.investment, annualized_investment=self.annualized_investment,
+                         total_fixed_costs=self.total_fixed_costs, total_variable_costs=self.total_variable_costs)
 
     def __init__(self, name, lifetime, fixed_om, variable_om, capex=None,
                  final_unit=False, custom_unit=False,
-                 has_fixed_capacity=False, fixed_capacity=0.):
+                 has_fixed_capacity=False, fixed_capacity=0.,
+                 investment=0., annualized_investment=0., total_fixed_costs=0., total_variable_costs=0.):
 
         """
         Defines basic component class
@@ -96,6 +123,11 @@ class Component:
 
         self.has_fixed_capacity = bool(has_fixed_capacity)
         self.fixed_capacity = float(fixed_capacity)
+
+        self.investment = investment
+        self.annualized_investment = annualized_investment
+        self.total_fixed_costs = total_fixed_costs
+        self.total_variable_costs = total_variable_costs
 
 
 class ConversionComponent(Component):
@@ -203,9 +235,13 @@ class ConversionComponent(Component):
         self.inputs.update({input_commodity: float(coefficient)})
         self.add_commodity(input_commodity)
 
+        self.initialize_result_dictionaries()
+
     def remove_input(self, input_commodity):
         self.inputs.pop(input_commodity)
         self.remove_commodity(input_commodity)
+
+        self.initialize_result_dictionaries()
 
     def set_main_input(self, input_commodity):
         self.main_input = input_commodity
@@ -223,9 +259,13 @@ class ConversionComponent(Component):
         self.outputs.update({output_commodity: float(coefficient)})
         self.add_commodity(output_commodity)
 
+        self.initialize_result_dictionaries()
+
     def remove_output(self, output_commodity):
         self.outputs.pop(output_commodity)
         self.remove_commodity(output_commodity)
+
+        self.initialize_result_dictionaries()
 
     def set_main_output(self, output_commodity):
         self.main_output = output_commodity
@@ -262,6 +302,69 @@ class ConversionComponent(Component):
     def get_max_p(self):
         return self.max_p
 
+    def set_consumed_commodity(self, consumed_commodity):
+        self.consumed_commodity = consumed_commodity
+
+    def set_specific_consumed_commodity(self, commodity, quantity):
+        self.consumed_commodity.update({commodity: quantity})
+
+    def get_consumed_commodity(self):
+        return self.consumed_commodity
+
+    def get_specific_consumed_commodity(self, commodity):
+
+        if commodity not in self.get_commodities():
+            return 0
+        else:
+            return self.consumed_commodity[commodity]
+
+    def set_produced_commodity(self, produced_commodity):
+        self.produced_commodity = produced_commodity
+
+    def set_specific_produced_commodity(self, commodity, quantity):
+        self.produced_commodity.update({commodity: quantity})
+
+    def get_produced_commodity(self):
+        return self.produced_commodity
+
+    def get_specific_produced_commodity(self, commodity):
+        if commodity not in self.get_commodities():
+            return 0
+        else:
+            return self.produced_commodity[commodity]
+
+    def set_standby_quantity(self, standby_quantity):
+        self.standby_quantity = standby_quantity
+
+    def get_standby_quantity(self):
+        return self.standby_quantity
+
+    def initialize_result_dictionaries(self):
+
+        if self.consumed_commodity is None:
+            self.consumed_commodity = {}
+
+        if self.produced_commodity is None:
+            self.produced_commodity = {}
+
+        for commodity in self.get_commodities():
+
+            if commodity not in [*self.consumed_commodity.keys()]:
+                self.set_specific_consumed_commodity(commodity, 0)
+
+            if commodity not in [*self.produced_commodity.keys()]:
+                self.set_specific_produced_commodity(commodity, 0)
+
+    def set_total_start_up_costs(self, total_startup_costs):
+        self.total_startup_costs = total_startup_costs
+
+    def get_total_start_up_costs(self):
+        return self.total_startup_costs
+
+    def get_total_costs(self):
+        return self.annualized_investment + self.total_fixed_costs + self.total_variable_costs \
+            + self.total_startup_costs
+
     def __copy__(self, name=None):
 
         if name is None:
@@ -288,7 +391,10 @@ class ConversionComponent(Component):
                                    min_p=self.min_p, max_p=self.max_p, inputs=inputs, outputs=outputs,
                                    main_input=self.main_input, main_output=self.main_output, commodities=commodities,
                                    has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
-                                   final_unit=self.final_unit)
+                                   final_unit=self.final_unit,
+                                   consumed_commodity=self.consumed_commodity,
+                                   produced_commodity=self.produced_commodity, standby_quantity=self.standby_quantity,
+                                   total_startup_costs=self.total_startup_costs)
 
     def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
                  capex_basis='input', scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
@@ -297,8 +403,9 @@ class ConversionComponent(Component):
                  hot_standby_ability=False, hot_standby_demand=None, hot_standby_startup_time=0,
                  number_parallel_units=1,
                  min_p=0., max_p=1., inputs=None, outputs=None, main_input=None, main_output=None, commodities=None,
-                 has_fixed_capacity=False, fixed_capacity=0.1,
-                 final_unit=False, custom_unit=False):
+                 has_fixed_capacity=False, fixed_capacity=0.,
+                 final_unit=False, custom_unit=False,
+                 consumed_commodity=None, produced_commodity=None, standby_quantity=0., total_startup_costs=0.):
 
         """
         Class of conversion units
@@ -375,6 +482,14 @@ class ConversionComponent(Component):
 
         self.number_parallel_units = int(number_parallel_units)
 
+        self.consumed_commodity = consumed_commodity
+        self.produced_commodity = produced_commodity
+        self.standby_quantity = standby_quantity
+
+        self.initialize_result_dictionaries()
+
+        self.total_startup_costs = total_startup_costs
+
 
 class StorageComponent(Component):
 
@@ -414,26 +529,36 @@ class StorageComponent(Component):
     def get_min_soc(self):
         return self.min_soc
 
-    def set_initial_soc(self, initial_soc_component):
-        self.initial_soc = float(initial_soc_component)
+    def set_charged_quantity(self, charged_quantity):
+        self.charged_quantity = charged_quantity
 
-    def get_initial_soc(self):
-        return self.initial_soc
+    def get_charged_quantity(self):
+        return self.charged_quantity
+
+    def set_discharged_quantity(self, discharged_quantity):
+        self.discharged_quantity = discharged_quantity
+
+    def get_discharged_quantity(self):
+        return self.discharged_quantity
+
+    def get_total_costs(self):
+        return self.annualized_investment + self.total_fixed_costs + self.total_variable_costs
 
     def __copy__(self):
         return StorageComponent(name=self.name, lifetime=self.lifetime,
                                 fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
                                 charging_efficiency=self.charging_efficiency,
                                 discharging_efficiency=self.discharging_efficiency,
-                                min_soc=self.min_soc, max_soc=self.max_soc, initial_soc=self.initial_soc,
+                                min_soc=self.min_soc, max_soc=self.max_soc,
                                 leakage=self.leakage, ratio_capacity_p=self.ratio_capacity_p,
                                 has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
+                                charged_quantity=self.charged_quantity, discharged_quantity=self.discharged_quantity,
                                 final_unit=self.final_unit, custom_unit=self.custom_unit)
 
     def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
                  charging_efficiency=1., discharging_efficiency=1., min_soc=0., max_soc=1.,
-                 initial_soc=0.5,
                  leakage=0., ratio_capacity_p=1., has_fixed_capacity=False, fixed_capacity=0.,
+                 charged_quantity=0., discharged_quantity=0.,
                  final_unit=False, custom_unit=False):
 
         """
@@ -448,7 +573,6 @@ class StorageComponent(Component):
         :param discharging_efficiency: [float] - Charging efficiency when discharging storage
         :param min_soc: [float] - minimal SOC of storage
         :param max_soc: [float] - maximal SOC of storage
-        :param initial_soc: [float] - Initial SOC of storage
         :param leakage: [float] - Leakage over time #todo: delete or implement
         :param ratio_capacity_p: [float] - Ratio between capacity of storage and charging or discharging power
         :param final_unit: [boolean] - if part of the final optimization problem
@@ -467,7 +591,9 @@ class StorageComponent(Component):
 
         self.min_soc = float(min_soc)
         self.max_soc = float(max_soc)
-        self.initial_soc = float(initial_soc)
+
+        self.charged_quantity = charged_quantity
+        self.discharged_quantity = discharged_quantity
 
 
 class GenerationComponent(Component):
@@ -502,6 +628,51 @@ class GenerationComponent(Component):
     def get_subsidies(self):
         return self.subsidies
 
+    def set_potential_generation_quantity(self, potential_generation_quantity):
+        self.potential_generation_quantity = potential_generation_quantity
+
+    def get_potential_generation_quantity(self):
+        return self.potential_generation_quantity
+
+    def set_potential_capacity_factor(self, potential_capacity_factor):
+        self.potential_capacity_factor = potential_capacity_factor
+
+    def get_potential_capacity_factor(self):
+        return self.potential_capacity_factor
+
+    def set_potential_LCOE(self, potential_LCOE):
+        self.potential_LCOE = potential_LCOE
+
+    def get_potential_LCOE(self):
+        return self.potential_LCOE
+
+    def set_generated_quantity(self, generated_quantity):
+        self.generated_quantity = generated_quantity
+
+    def get_generated_quantity(self):
+        return self.generated_quantity
+
+    def set_actual_capacity_factor(self, actual_capacity_factor):
+        self.actual_capacity_factor = actual_capacity_factor
+
+    def get_actual_capacity_factor(self):
+        return self.actual_capacity_factor
+
+    def set_actual_LCOE(self, actual_LCOE):
+        self.actual_LCOE = actual_LCOE
+
+    def get_actual_LCOE(self):
+        return self.actual_LCOE
+
+    def set_curtailment(self, curtailment):
+        self.curtailment = curtailment
+
+    def get_curtailment(self):
+        return self.curtailment
+
+    def get_total_costs(self):
+        return self.annualized_investment + self.total_fixed_costs + self.total_variable_costs
+
     def __copy__(self):
         return GenerationComponent(name=self.name, lifetime=self.lifetime,
                                    fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
@@ -509,14 +680,23 @@ class GenerationComponent(Component):
                                    curtailment_possible=self.curtailment_possible,
                                    has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
                                    uses_ppa=self.uses_ppa, ppa_price=self.ppa_price, subsidies=self.subsidies,
-                                   final_unit=self.final_unit, custom_unit=self.custom_unit)
+                                   final_unit=self.final_unit, custom_unit=self.custom_unit,
+                                   potential_generation_quantity=self.potential_generation_quantity,
+                                   potential_capacity_factor=self.potential_capacity_factor,
+                                   potential_LCOE=self.potential_LCOE,
+                                   generated_quantity=self.generated_quantity,
+                                   actual_capacity_factor=self.actual_capacity_factor, actual_LCOE=self.actual_LCOE,
+                                   curtailment=self.curtailment)
 
     def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
                  generated_commodity='Electricity',
                  curtailment_possible=True,
                  uses_ppa=False, ppa_price=0., subsidies=0.,
                  has_fixed_capacity=False, fixed_capacity=0.,
-                 final_unit=False, custom_unit=False):
+                 final_unit=False, custom_unit=False,
+                 potential_generation_quantity=0., potential_capacity_factor=0., potential_LCOE=0.,
+                 generated_quantity=0., actual_capacity_factor=0., actual_LCOE=0.,
+                 curtailment=0.,):
 
         """
         Class of Generator component
@@ -542,3 +722,11 @@ class GenerationComponent(Component):
         self.uses_ppa = bool(uses_ppa)
         self.ppa_price = float(ppa_price)
         self.subsidies = float(subsidies)
+
+        self.potential_generation_quantity = potential_generation_quantity
+        self.potential_capacity_factor = potential_capacity_factor
+        self.potential_LCOE = potential_LCOE
+        self.generated_quantity = generated_quantity
+        self.actual_capacity_factor = actual_capacity_factor
+        self.actual_LCOE = actual_LCOE
+        self.curtailment = curtailment

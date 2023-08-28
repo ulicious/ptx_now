@@ -81,8 +81,7 @@ class ComponentParametersFrame:
                 self.component_object.set_hot_standby_ability(False)
             else:
                 self.component_object.set_hot_standby_ability(True)
-                self.component_object.set_hot_standby_demand(self.pm_object.get_abbreviation(hot_standby_combobox.get()),
-                                                             float(hot_standby_entry.get()))
+                self.component_object.set_hot_standby_demand(hot_standby_combobox.get(), float(hot_standby_entry.get()))
                 self.component_object.set_hot_standby_startup_time(int(hot_standby_startup_time_entry.get()))
 
             self.component_object.set_number_parallel_units(float(self.label_number_parallel_units_str.get()))

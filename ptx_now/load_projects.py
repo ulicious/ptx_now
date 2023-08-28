@@ -91,18 +91,15 @@ def load_010(pm_object, case_data):
 
             min_soc = case_data['component'][component]['min_soc']
             max_soc = case_data['component'][component]['max_soc']
-            initial_soc = case_data['component'][component]['initial_soc']
             charging_efficiency = case_data['component'][component]['charging_efficiency']
             discharging_efficiency = case_data['component'][component]['discharging_efficiency']
-            leakage = case_data['component'][component]['leakage']
             ratio_capacity_p = case_data['component'][component]['ratio_capacity_p']
 
             storage_component = StorageComponent(name=name, lifetime=lifetime,
                                                  fixed_om=fixed_om, variable_om=variable_om, capex=capex,
                                                  charging_efficiency=charging_efficiency,
                                                  discharging_efficiency=discharging_efficiency,
-                                                 min_soc=min_soc, max_soc=max_soc, initial_soc=initial_soc,
-                                                 leakage=leakage, ratio_capacity_p=ratio_capacity_p,
+                                                 min_soc=min_soc, max_soc=max_soc, ratio_capacity_p=ratio_capacity_p,
                                                  has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
                                                  final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, storage_component)

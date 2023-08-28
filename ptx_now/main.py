@@ -10,7 +10,7 @@ from datetime import datetime
 
 from _helpers_gui import AssumptionsInterface, ComponentInterface, CommodityInterface, StorageInterface,\
     GeneratorInterface, DataInterface, save_current_parameters_and_options
-from _helper_optimization import optimize
+from script_optimization import optimize
 from parameter_object import ParameterObject
 from load_projects import load_project
 
@@ -391,8 +391,8 @@ class GUI:
                             commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
                                                             index_col=0)
 
-                        if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
-                                & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                        if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
+                                & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
                             data_length_not_matching = True
                             break
 
@@ -409,8 +409,8 @@ class GUI:
                             else:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
-                            if ((len(generation_profile.index) != self.pm_object_copy.get_covered_period())
-                                    & (len(generation_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                            if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
+                                    & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
                                 data_length_not_matching = True
                                 break
 
@@ -419,9 +419,29 @@ class GUI:
 
                             break
 
+        no_weighting = False
+        if self.pm_object_copy.get_uses_representative_periods():
+            if not self.pm_object_copy.get_profile_data():
+                no_data = True
+            else:
+
+                if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
+                    profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
+                                            index_col=0)
+                else:
+                    profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
+                                          index_col=0)
+
+                if ((len(profile.index) != self.pm_object_copy.get_covered_period())
+                        & (len(profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                    no_weighting = True
+
+                if 'Weighting' not in profile.columns:
+                    no_weighting = True
+
         # Create alert if sink, well or profile is missing
         error_in_setting = False
-        if (len(profile_not_exist) > 0) | (not all_commodities_valid) | no_data | data_length_not_matching:
+        if (len(profile_not_exist) > 0) | (not all_commodities_valid) | no_data | data_length_not_matching | no_weighting:
             error_in_setting = True
 
         if error_in_setting:
@@ -502,6 +522,10 @@ class GUI:
             if data_length_not_matching:
                 tk.Label(alert_window,
                          text='Covered period does not match data - Please change covered period or select different data').pack()
+
+            if no_weighting:
+                tk.Label(alert_window,
+                         text='A weighting column does not exist in data. If representative periods are used, please provide weighting').pack()
 
             ttk.Button(alert_window, text='OK', command=kill_window).pack(fill='both', expand=True)
 

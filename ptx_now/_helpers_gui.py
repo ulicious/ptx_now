@@ -817,7 +817,8 @@ class DataInterface(ttk.Frame):
         self.data_frame = ttk.Frame(self)
 
         if (len(self.pm_object_copy.get_final_generator_components_names()) > 0) \
-                | (self.pm_object_copy.get_commodity_data_needed()):
+                | self.pm_object_copy.get_commodity_data_needed() \
+                | self.pm_object_copy.get_uses_representative_periods():
 
             profiles_data_frame = ttk.Frame(self.data_frame)
 
@@ -1256,10 +1257,8 @@ def save_current_parameters_and_options(pm_object, path_name, fixed_capacities=N
 
             case_data['component'][component.get_name()]['min_soc'] = component.get_min_soc()
             case_data['component'][component.get_name()]['max_soc'] = component.get_max_soc()
-            case_data['component'][component.get_name()]['initial_soc'] = component.get_initial_soc()
             case_data['component'][component.get_name()]['charging_efficiency'] = component.get_charging_efficiency()
             case_data['component'][component.get_name()]['discharging_efficiency'] = component.get_discharging_efficiency()
-            case_data['component'][component.get_name()]['leakage'] = component.get_leakage()
             case_data['component'][component.get_name()]['ratio_capacity_p'] = component.get_ratio_capacity_p()
 
     case_data['conversions'] = {}

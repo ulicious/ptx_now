@@ -3,31 +3,12 @@ from pyomo.core import *
 from pyomo.core import Binary
 from copy import deepcopy
 
+from _helper_optimization import anticipate_bigM, clone_components_which_use_parallelization
+
 import os
 
 
 class OptimizationProblem:
-
-    def clone_components_which_use_parallelization(self):
-        pm_object_copy = deepcopy(self.pm_object)
-
-        # Copy components if number of components in system is higher than 1
-        for component_object in pm_object_copy.get_final_conversion_components_objects():
-            if component_object.get_number_parallel_units() > 1:
-                # Simply rename first component
-                component_name = component_object.get_name()
-                component_object.set_name(component_name + '_0')
-                pm_object_copy.remove_component_entirely(component_name)
-                pm_object_copy.add_component(component_name + '_0', component_object)
-
-                for i in range(1, int(component_object.get_number_parallel_units())):
-                    # Add other components as copy
-                    parallel_unit_component_name = component_name + '_' + str(i)
-                    component_copy = component_object.__copy__()
-                    component_copy.set_name(parallel_unit_component_name)
-                    pm_object_copy.add_component(parallel_unit_component_name, component_copy)
-
-        return pm_object_copy
 
     def attach_component_sets_to_optimization_problem(self):
         self.model.CONVERSION_COMPONENTS = Set(initialize=self.conversion_components)
@@ -277,7 +258,7 @@ class OptimizationProblem:
 
         def capacity_binary_activation_rule(m, c, i):
             # Capacity binary will be 1 if the capacity of the integer step is higher than 0
-            return m.capacity_binary[c, i] >= m.nominal_cap_pre[c, i] / 1000000  # big M
+            return m.capacity_binary[c, i] >= m.nominal_cap_pre[c, i] / m.M[c]
         model.capacity_binary_activation_con = Constraint(model.SCALABLE_COMPONENTS, model.INTEGER_STEPS,
                                                           rule=capacity_binary_activation_rule)
 
@@ -349,9 +330,14 @@ class OptimizationProblem:
             # Set binary to 1 if component is active
             main_input = pm_object.get_component(c).get_main_input()
             return m.mass_energy_component_in_commodities[c, main_input, cl, t] \
-                   - m.status_on[c, cl, t] * 1000000 <= 0
+                - m.status_on[c, cl, t] * m.M[c] <= 0
         model._active_component_con = Constraint(model.CONVERSION_COMPONENTS, model.CLUSTERS, model.TIME,
                                                  rule=_active_component_rule)
+
+        def balance_status_off_switch_rule(m, c, cl, t):
+            return m.status_off_switch_on[c, cl, t] + m.status_off_switch_off[c, cl, t] <= 1
+        model.balance_status_off_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.CLUSTERS, model.TIME,
+                                                         rule=balance_status_off_switch_rule)
 
         def status_off_switch_rule(m, c, cl, t):
             if t > 0:
@@ -377,11 +363,6 @@ class OptimizationProblem:
         model.status_standby_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.CLUSTERS, model.TIME,
                                                      rule=status_standby_switch_rule)
 
-        def balance_status_off_switch_rule(m, c, cl, t):
-            return m.status_off_switch_on[c, cl, t] + m.status_off_switch_off[c, cl, t] <= 1
-        model.balance_status_off_switch_con = Constraint(model.CONVERSION_COMPONENTS, model.CLUSTERS, model.TIME,
-                                                         rule=balance_status_off_switch_rule)
-
         def _conversion_maximal_component_capacity_rule(m, c, cl, t):
             # Limits conversion on capacity of conversion unit and defines conversions
             # Important: Capacity is always matched with input
@@ -394,7 +375,7 @@ class OptimizationProblem:
         def _conversion_minimal_component_capacity_rule(m, c, cl, t):
             main_input = pm_object.get_component(c).get_main_input()
             return m.mass_energy_component_in_commodities[c, main_input, cl, t] \
-                   >= m.nominal_cap[c] * m.min_p[c] + (m.status_on[c, cl, t] - 1) * 1000000
+                >= m.nominal_cap[c] * m.min_p[c] + (m.status_on[c, cl, t] - 1) * m.M[c]
         model._conversion_minimal_component_capacity_con = Constraint(model.CONVERSION_COMPONENTS, model.CLUSTERS, model.TIME,
                                                                       rule=_conversion_minimal_component_capacity_rule)
 
@@ -404,7 +385,7 @@ class OptimizationProblem:
                 return (m.mass_energy_component_in_commodities[c, main_input, cl, t]
                         - m.mass_energy_component_in_commodities[c, main_input, cl, t - 1]) <= \
                        m.nominal_cap[c] * m.ramp_up[c] + (m.status_off_switch_off[c, cl, t]
-                                                          + m.status_standby_switch_off[c, cl, t]) * 1000000
+                                                          + m.status_standby_switch_off[c, cl, t]) * m.M[c]
             else:
                 return Constraint.Skip
         model._ramp_up_con = Constraint(model.CONVERSION_COMPONENTS, model.CLUSTERS, model.TIME, rule=_ramp_up_rule)
@@ -415,7 +396,7 @@ class OptimizationProblem:
                 return (m.mass_energy_component_in_commodities[c, main_input, cl, t]
                         - m.mass_energy_component_in_commodities[c, main_input, cl, t - 1]) >= \
                        - (m.nominal_cap[c] * m.ramp_down[c] +
-                          (m.status_off_switch_on[c, cl, t] + m.status_standby_switch_on[c, cl, t]) * 1000000)
+                          (m.status_off_switch_on[c, cl, t] + m.status_standby_switch_on[c, cl, t]) * m.M[c])
             else:
                 return Constraint.Skip
         model._ramp_down_con = Constraint(model.CONVERSION_COMPONENTS, model.CLUSTERS, model.TIME,
@@ -429,7 +410,7 @@ class OptimizationProblem:
 
             if t > 0:
                 return (m.status_off[c, cl, t] - m.status_off[c, cl, t - 1]) - sum(m.status_off[c, cl, t + i]
-                                                                           for i in range(dt)) / dt <= 0
+                                                                                   for i in range(dt)) / dt <= 0
             else:
                 return Constraint.Skip
         model.shut_off_downtime_adherence_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.CLUSTERS, model.TIME,
@@ -455,7 +436,7 @@ class OptimizationProblem:
             hot_standby_demand = pm_object.get_component(c).get_hot_standby_demand()[hot_standby_commodity]
             if me == hot_standby_commodity:
                 return m.mass_energy_hot_standby_demand[c, hot_standby_commodity, cl, t] \
-                       >= m.nominal_cap[c] * hot_standby_demand + (m.status_standby[c, t] - 1) * 1000000
+                       >= m.nominal_cap[c] * hot_standby_demand + (m.status_standby[c, cl, t] - 1) * m.M[c]
             else:
                 return m.mass_energy_hot_standby_demand[c, me, cl, t] == 0
         model.lower_limit_hot_standby_demand_con = Constraint(model.STANDBY_COMPONENTS, model.COMMODITIES,
@@ -467,7 +448,7 @@ class OptimizationProblem:
             hot_standby_commodity = [*pm_object.get_component(c).get_hot_standby_demand().keys()][0]
             hot_standby_demand = pm_object.get_component(c).get_hot_standby_demand()[hot_standby_commodity]
             return m.mass_energy_hot_standby_demand[c, hot_standby_commodity, cl, t] \
-                   <= m.nominal_cap[c] * hot_standby_demand
+                <= m.nominal_cap[c] * hot_standby_demand
         model.upper_limit_hot_standby_demand_con = Constraint(model.STANDBY_COMPONENTS, model.CLUSTERS, model.TIME,
                                                               rule=upper_limit_hot_standby_demand_rule)
 
@@ -475,13 +456,19 @@ class OptimizationProblem:
             # activates hot standby demand binary if component goes into hot standby
             hot_standby_commodity = [*pm_object.get_component(c).get_hot_standby_demand().keys()][0]
             return m.mass_energy_hot_standby_demand[c, hot_standby_commodity, cl, t] \
-                   <= m.status_standby[c, cl, t] * 1000000
+                <= m.status_standby[c, cl, t] * m.M[c]
         model.hot_standby_binary_activation_con = Constraint(model.STANDBY_COMPONENTS, model.CLUSTERS, model.TIME,
                                                              rule=hot_standby_binary_activation_rule)
 
         def restart_costs_rule(m, c, cl, t):
-            return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * m.weightings[cl] * m.start_up_costs[c] \
-                - (1 - m.status_off_switch_off[c, cl, t]) * 1000000
+            if t < max(m.TIME):  # costs when restarting
+                return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * m.weightings[cl] * m.start_up_costs[c] \
+                    - (1 - m.status_off_switch_off[c, cl, t]) * m.M[c]
+            else:
+                # costs when restarting --> specific case as otherwise component would stay off to avoid restarting
+                # costs
+                return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * m.weightings[cl] * m.start_up_costs[c] \
+                    - (m.status_on[c, cl, t] - m.status_off_switch_off[c, cl, t]) * m.M[c]
         model.restart_costs_con = Constraint(model.SHUT_DOWN_COMPONENTS, model.CLUSTERS, model.TIME,
                                              rule=restart_costs_rule)
 
@@ -515,27 +502,24 @@ class OptimizationProblem:
                 return m.soc[s, cl, t] == m.soc[s, cl, t - 1] \
                        + m.mass_energy_storage_in_commodities[s, cl, t - 1] * m.charging_efficiency[s] \
                        - m.mass_energy_storage_out_commodities[s, cl, t - 1] / m.discharging_efficiency[s]
-
         model.storage_balance_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME, rule=storage_balance_rule)
 
         def last_soc_rule(m, s, cl, t):
+            # first SOC is last SOC + storage activities
             if t == max(m.TIME):
                 return m.soc[s, cl, 0] == m.soc[s, cl, t] \
                        + m.mass_energy_storage_in_commodities[s, cl, t] * m.charging_efficiency[s] \
                        - m.mass_energy_storage_out_commodities[s, cl, t] / m.discharging_efficiency[s]
             else:
                 return Constraint.Skip
-
         model.last_soc_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME, rule=last_soc_rule)
 
         def soc_max_bound_rule(m, s, cl, t):
             return m.soc[s, cl, t] <= m.maximal_soc[s] * m.nominal_cap[s]
-
         model.soc_max = Constraint(model.STORAGES, model.CLUSTERS, model.TIME, rule=soc_max_bound_rule)
 
         def soc_min_bound_rule(m, s, cl, t):
             return m.soc[s, cl, t] >= m.minimal_soc[s] * m.nominal_cap[s]
-
         model.soc_min = Constraint(model.STORAGES, model.CLUSTERS, model.TIME, rule=soc_min_bound_rule)
 
         def storage_charge_upper_bound_rule(m, s, cl, t):
@@ -547,21 +531,24 @@ class OptimizationProblem:
         def storage_discharge_upper_bound_rule(m, s, cl, t):
             return m.mass_energy_storage_out_commodities[s, cl, t] / m.discharging_efficiency[s] \
                        <= m.nominal_cap[s] / m.ratio_capacity_p[s]
-
         model.storage_discharge_upper_bound_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME,
                                                              rule=storage_discharge_upper_bound_rule)
 
+        # storage binaries can be deactivated in certain cases to speed up calculations. This is possible
+        # if excess commodities can be emitted for free. Then, storage activities to "destroy" commodities are not
+        # necessary
         def storage_binary_sum_rule(m, s, cl, t):
             return m.storage_charge_binary[s, cl, t] + m.storage_discharge_binary[s, cl, t] <= 1
-        model.storage_binary_sum_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME, rule=storage_binary_sum_rule)
+        model.storage_binary_sum_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME,
+                                                  rule=storage_binary_sum_rule)
 
         def charge_binary_activation_rule(m, s, cl, t):
-            return m.mass_energy_storage_in_commodities[s, cl, t] - m.storage_charge_binary[s, cl, t] * 1000000 <= 0
-        model.charge_binary_activation_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME, rule=charge_binary_activation_rule)
+            return m.mass_energy_storage_in_commodities[s, cl, t] - m.storage_charge_binary[s, cl, t] * m.M[s] <= 0
+        model.charge_binary_activation_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME,
+                                                        rule=charge_binary_activation_rule)
 
         def discharge_binary_activation_rule(m, s, cl, t):
-            return m.mass_energy_storage_out_commodities[s, cl, t] - m.storage_discharge_binary[s, cl, t] * 1000000 <= 0
-
+            return m.mass_energy_storage_out_commodities[s, cl, t] - m.storage_discharge_binary[s, cl, t] * m.M[s] <= 0
         model.discharge_binary_activation_con = Constraint(model.STORAGES, model.CLUSTERS, model.TIME,
                                                            rule=discharge_binary_activation_rule)
 
@@ -583,24 +570,27 @@ class OptimizationProblem:
                                                                rule=calculate_investment_components_rule)
 
         def objective_function(m):
-            return (sum(m.investment[c] * m.ANF[c] for c in m.COMPONENTS if c not in m.GENERATORS)
-                    + sum(m.investment[c] * m.fixed_om_var[c] for c in m.COMPONENTS if c not in m.GENERATORS)
+            return (sum(m.investment[c] * (m.ANF[c] + m.fixed_om_var[c]) for c in m.COMPONENTS if c not in m.GENERATORS)
+                    + sum(m.investment[g] * (m.ANF[g] + m.fixed_om_var[g])
+                          for g in m.GENERATORS if not self.pm_object.get_component(g).get_uses_ppa())
+
                     + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_om_var[s] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                     + sum(m.mass_energy_component_out_commodities[c, pm_object.get_component(c).get_main_output(), cl, t]
-                          * m.variable_om_var[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for c in m.CONVERSION_COMPONENTS)
+                          * m.variable_om_var[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          for c in m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_purchase_commodity[me, cl, t] * m.purchase_price[me, cl, t] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES if
                           me in self.purchasable_commodities)
                     - sum(m.mass_energy_sell_commodity[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES if
                           me in self.saleable_commodities)
+                    + sum(m.mass_energy_generation[g, pm_object.get_component(g).get_generated_commodity(), cl, t]
+                          * m.variable_om_var[g] * m.weightings[cl]
+                          for g in m.GENERATORS if not self.pm_object.get_component(g).get_uses_ppa()
+                          for t in m.TIME for cl in m.CLUSTERS)
                     + sum(m.restart_costs[c, cl, t] for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS)
-                    + sum(m.investment[g] * (m.ANF[g] + m.fixed_om_var[g])
-                          + sum(m.mass_energy_generation[g, pm_object.get_component(g).get_generated_commodity(), cl, t]
-                                * m.variable_om_var[g] * m.weightings[cl]
-                                for t in m.TIME for cl in m.CLUSTERS)
-                          for g in m.GENERATORS if not self.pm_object.get_component(g).get_uses_ppa())
+
                     + sum(m.generation_profiles[g, cl, t] * m.nominal_cap[g]
                           * self.pm_object.get_component(g).get_ppa_price() * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS
@@ -616,7 +606,7 @@ class OptimizationProblem:
         else:
             opt = pyo.SolverFactory(self.solver, solver_io="python")
 
-        opt.options["mipgap"] = 0.01
+        # opt.options["mipgap"] = 0.01
         if instance is None:
             instance = self.model.create_instance()
             results = opt.solve(instance, tee=True)
@@ -639,8 +629,6 @@ class OptimizationProblem:
         self.solver = solver
         self.instance = None
         self.pm_object = pm_object
-
-        self.pm_object = self.clone_components_which_use_parallelization()
 
         self.annuity_factor_dict = self.pm_object.get_annuity_factor()
 
@@ -688,7 +676,9 @@ class OptimizationProblem:
         self.model.INTEGER_STEPS = RangeSet(0, self.pm_object.integer_steps)
         # self.model.pwconst = Piecewise(indexes, yvar, xvar, **Keywords) # todo: Implement with big m
         # https://pyomo.readthedocs.io/en/stable/pyomo_self.modeling_components/Expressions.html
-        self.model.M = Param(initialize=1000000000)
+
+        bigM_capacity = anticipate_bigM(self.pm_object)
+        self.model.M = Param(self.all_components, initialize=bigM_capacity)
 
         # Attach Sets
         self.attach_component_sets_to_optimization_problem()

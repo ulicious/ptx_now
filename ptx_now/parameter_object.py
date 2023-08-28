@@ -12,6 +12,10 @@ from copy import deepcopy
 
 import math
 
+from _transfer_results_to_parameter_object import _transfer_results_to_parameter_object
+from _transfer_gurobi_results_to_parameter_object import _transfer_gurobi_results_to_parameter_object
+from _create_result_files import _create_result_files
+
 idx = pd.IndexSlice
 
 
@@ -370,7 +374,7 @@ class ParameterObject:
 
     def get_number_clusters(self):
 
-        if (len(self.get_final_generator_components_names()) > 0) | (self.get_commodity_data_needed()):
+        if self.get_uses_representative_periods():
 
             path = self.get_path_data() + self.get_profile_data()
             if path.split('.')[-1] == 'xlsx':
@@ -918,8 +922,8 @@ class ParameterObject:
                 saleable_commodities.append(commodity_name)
             if commodity.is_demanded():
                 demanded_commodities.append(commodity_name)
-            if commodity.is_total_demand():
-                total_demand_commodities.append(commodity_name)
+                if commodity.is_total_demand():
+                    total_demand_commodities.append(commodity_name)
 
         generated_commodities = []
         for generator in self.get_final_generator_components_objects():
@@ -944,52 +948,56 @@ class ParameterObject:
             saleable_commodities, demanded_commodities, total_demand_commodities, generated_commodities, \
             all_inputs, all_outputs
 
-    def get_input_conversions(self):
-        input_tuples = []
-        input_conversion_tuples = []
-        input_conversion_tuples_dict = {}
+    def get_main_input_to_input_conversions(self):
+        # main input to other inputs
 
-        for component in self.get_final_conversion_components_objects():
-            name = component.get_name()
-            inputs = component.get_inputs()
-            main_input = component.get_main_input()
+        input_tuples = []
+        main_input_to_input_conversion_tuples = []
+        main_input_to_input_conversion_tuples_dict = {}
+
+        for component_object in self.get_final_conversion_components_objects():
+            component_name = component_object.get_name()
+            inputs = component_object.get_inputs()
+            main_input = component_object.get_main_input()
 
             for current_input in [*inputs.keys()]:
-                input_tuples.append((name, current_input))
+                input_tuples.append((component_name, current_input))
                 if current_input != main_input:
-                    input_conversion_tuples.append((name, main_input, current_input))
-                    input_conversion_tuples_dict.update(
-                        {(name, main_input, current_input): float(inputs[current_input]) / float(inputs[main_input])})
+                    main_input_to_input_conversion_tuples.append((component_name, main_input, current_input))
+                    main_input_to_input_conversion_tuples_dict.update(
+                        {(component_name, main_input, current_input): float(inputs[current_input]) / float(inputs[main_input])})
 
-        return input_tuples, input_conversion_tuples, input_conversion_tuples_dict
+        return input_tuples, main_input_to_input_conversion_tuples, main_input_to_input_conversion_tuples_dict
 
-    def get_output_conversions(self):
+    def get_main_input_to_output_conversions(self):
         output_tuples = []
-        output_conversion_tuples = []
-        output_conversion_tuples_dict = {}
+        main_input_to_output_conversion_tuples = []
+        main_input_to_output_conversion_tuples_dict = {}
 
-        for component in self.get_final_conversion_components_objects():
-            name = component.get_name()
-            inputs = component.get_inputs()
-            outputs = component.get_outputs()
+        for component_object in self.get_final_conversion_components_objects():
+            component_name = component_object.get_name()
+            inputs = component_object.get_inputs()
+            outputs = component_object.get_outputs()
 
-            main_input = component.get_main_input()
+            main_input = component_object.get_main_input()
             for current_output in [*outputs.keys()]:
-                output_conversion_tuples.append((name, main_input, current_output))
-                output_conversion_tuples_dict.update(
-                    {(name, main_input, current_output): float(outputs[current_output]) / float(inputs[main_input])})
+                main_input_to_output_conversion_tuples.append((component_name, main_input, current_output))
+                main_input_to_output_conversion_tuples_dict.update(
+                    {(component_name, main_input, current_output): float(outputs[current_output]) / float(inputs[main_input])})
 
-                output_tuples.append((name, current_output))
+                output_tuples.append((component_name, current_output))
 
-        return output_tuples, output_conversion_tuples, output_conversion_tuples_dict
+        return output_tuples, main_input_to_output_conversion_tuples, main_input_to_output_conversion_tuples_dict
 
     def get_all_conversions(self):
 
-        input_tuples, input_conversion_tuples, input_conversion_tuples_dict = self.get_input_conversions()
-        output_tuples, output_conversion_tuples, output_conversion_tuples_dict = self.get_output_conversions()
+        input_tuples, main_input_to_input_conversion_tuples, main_input_to_input_conversion_tuples_dict\
+            = self.get_main_input_to_input_conversions()
+        output_tuples, input_to_output_conversion_tuples, input_to_output_conversion_tuples_dict\
+            = self.get_main_input_to_output_conversions()
 
-        return input_tuples, input_conversion_tuples, input_conversion_tuples_dict,\
-            output_tuples, output_conversion_tuples, output_conversion_tuples_dict
+        return input_tuples, main_input_to_input_conversion_tuples, main_input_to_input_conversion_tuples_dict,\
+            output_tuples, input_to_output_conversion_tuples, input_to_output_conversion_tuples_dict
 
     def get_generation_time_series(self):
         generation_profiles_dict = {}
@@ -1226,22 +1234,51 @@ class ParameterObject:
         s = Commodity('Electricity', 'MWh', final_commodity=True)
         self.add_commodity('Electricity', s)
 
+    def set_instance(self, instance):
+        self.instance = instance
+
+    def get_instance(self):
+        return self.instance
+
+    def set_operation_time_series(self, operation_time_series):
+        self.operation_time_series = operation_time_series
+
+    def get_operation_time_series(self):
+        return self.operation_time_series
+
+    def process_results(self, path_results, solver):
+
+        _transfer_results_to_parameter_object(self, solver)
+
+        _create_result_files(self, path_results)
+
+    def set_objective_function_value(self, objective_function_value):
+        self.objective_function_value = objective_function_value
+
+    def get_objective_function_value(self):
+        return self.objective_function_value
+
     def __copy__(self):
 
         # deepcopy mutable objects
         names_dict = copy.deepcopy(self.names_dict)
+        components = copy.deepcopy(self.components)
         commodities = copy.deepcopy(self.commodities)
+        instance = copy.deepcopy(self.instance)
+        operation_time_series = copy.deepcopy(self.operation_time_series)
 
         return ParameterObject(project_name=self.project_name,
                                integer_steps=self.integer_steps, wacc=self.wacc,
                                names_dict=names_dict,
                                commodities=commodities,
-                               components=self.components, profile_data=self.profile_data,
+                               components=components, profile_data=self.profile_data,
                                single_or_multiple_profiles=self.single_or_multiple_profiles,
                                uses_representative_periods=self.uses_representative_periods,
                                representative_periods_length=self.representative_periods_length,
                                covered_period=self.covered_period,
                                monetary_unit=self.monetary_unit, optimization_type=self.optimization_type,
+                               instance=instance,
+                               operation_time_series=operation_time_series,
                                copy_object=True)
 
     def __init__(self, project_name='', integer_steps=5,
@@ -1249,6 +1286,7 @@ class ParameterObject:
                  profile_data=False, single_or_multiple_profiles='single',
                  uses_representative_periods=False, representative_periods_length=0,
                  covered_period=8760, monetary_unit='€', path_data=None, optimization_type='economical',
+                 instance=None, operation_time_series=None,
                  copy_object=False):
 
         """
@@ -1295,6 +1333,11 @@ class ParameterObject:
 
         self.commodity_data_needed = False
         self.check_commodity_data_needed()
+
+        self.instance = instance
+        self.operation_time_series = operation_time_series
+
+        self.objective_function_value = None
 
 
 ParameterObjectCopy = type('CopyOfB', ParameterObject.__bases__, dict(ParameterObject.__dict__))

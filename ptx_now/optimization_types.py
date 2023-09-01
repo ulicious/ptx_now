@@ -276,6 +276,10 @@ def optimize_multi_profiles_no_multi_optimization(optimization_type, pm_object_c
     print(results_gurobi)
 
 
+def multi_profiles_multi_objective():
+    print('')
+
+
 def optimize_no_profile(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
                         solver, path_results):
 

@@ -68,9 +68,9 @@ class GeneratorFrame:
                 generator.set_uses_ppa(False)
 
                 if capex_entry.get() != '':
-                    generator.set_capex(capex_entry.get())
+                    generator.set_capex(float(capex_entry.get()))
                 if lifetime_entry.get() != '':
-                    generator.set_lifetime(lifetime_entry.get())
+                    generator.set_lifetime(float(lifetime_entry.get()))
                 if fixed_om_entry.get() != '':
                     generator.set_fixed_OM(float(fixed_om_entry.get()) / 100)
                 if variable_om_entry.get() != '':
@@ -87,12 +87,12 @@ class GeneratorFrame:
             generator.set_curtailment_possible(self.checkbox_curtailment_var.get())
 
             generator.set_has_fixed_capacity(self.checkbox_fixed_capacity_var.get())
-            generator.set_fixed_capacity(fixed_capacity_entry.get())
+            generator.set_fixed_capacity(float(fixed_capacity_entry.get()))
 
-            generator.set_installation_co2_emissions(installation_co2_emissions_entry.get())
-            generator.set_fixed_co2_emissions(fixed_co2_emissions_entry.get())
-            generator.set_variable_co2_emissions(variable_co2_emissions_entry.get())
-            generator.set_disposal_co2_emissions(disposal_co2_emissions_entry.get())
+            generator.set_installation_co2_emissions(float(installation_co2_emissions_entry.get()))
+            generator.set_fixed_co2_emissions(float(fixed_co2_emissions_entry.get()))
+            generator.set_variable_co2_emissions(float(variable_co2_emissions_entry.get()))
+            generator.set_disposal_co2_emissions(float(disposal_co2_emissions_entry.get()))
 
             self.parent.parent.pm_object_copy = self.pm_object
             self.parent.parent.update_widgets()

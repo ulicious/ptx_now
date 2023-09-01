@@ -432,7 +432,7 @@ class GurobiMatrixOptimizationProblem:
             self.shut_down_down_time_dict, self.shut_down_start_up_costs, self.standby_down_time_dict, \
             self.charging_efficiency_dict, self.discharging_efficiency_dict, \
             self.minimal_soc_dict, self.maximal_soc_dict, \
-            self.ratio_capacity_power_dict, self.fixed_capacity_dict = self.pm_object.get_all_component_parameters()
+            self.ratio_capacity_power_dict, self.fixed_capacity_dict = self.pm_object.get_all_technical_component_parameters()
 
         self.scalable_components, self.not_scalable_components, self.shut_down_components,\
             self.no_shut_down_components, self.standby_components,\

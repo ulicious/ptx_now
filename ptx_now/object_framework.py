@@ -1,8 +1,8 @@
 import pandas as pd
 import copy
 
-from components import ConversionComponent
-from commodity import Commodity
+from object_component import ConversionComponent
+from object_commodity import Commodity
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,7 +13,6 @@ from copy import deepcopy
 import math
 
 from _transfer_results_to_parameter_object import _transfer_results_to_parameter_object
-from _transfer_gurobi_results_to_parameter_object import _transfer_gurobi_results_to_parameter_object
 from _create_result_files import _create_result_files
 
 idx = pd.IndexSlice
@@ -696,6 +695,21 @@ class ParameterObject:
 
         return fixed_capacities_dict
 
+    def get_co2_emission_data(self):
+        specific_co2_emissions_per_capacity = {}
+        fixed_yearly_co2_emissions = {}
+        variable_co2_emissions = {}
+        disposal_co2_emissions = {}
+        for component_object in self.get_final_components_objects():
+            component_name = component_object.get_name()
+            specific_co2_emissions_per_capacity[component_name] = component_object.get_installation_co2_emissions()
+            fixed_yearly_co2_emissions[component_name] = component_object.get_fixed_co2_emissions()
+            variable_co2_emissions[component_name] = component_object.get_variable_co2_emissions()
+            disposal_co2_emissions[component_name] = component_object.get_disposal_co2_emissions()
+
+        return specific_co2_emissions_per_capacity, fixed_yearly_co2_emissions,\
+            variable_co2_emissions, disposal_co2_emissions
+
     def calculate_economies_of_scale_steps(self, component_object, plot=False):
 
         component_name = component_object.get_name()
@@ -823,7 +837,7 @@ class ParameterObject:
 
         return lower_bound, upper_bound, coefficient, intercept
 
-    def get_all_component_parameters(self):
+    def get_all_technical_component_parameters(self):
 
         lifetime_dict = self.get_component_lifetime_parameters()
         fixed_om_dict = self.get_component_fixed_om_parameters()
@@ -862,6 +876,15 @@ class ParameterObject:
             shut_down_down_time_dict, shut_down_start_up_costs, standby_down_time_dict,\
             charging_efficiency_dict, discharging_efficiency_dict, minimal_soc_dict, maximal_soc_dict, \
             ratio_capacity_power_dict, fixed_capacity_dict
+
+    def get_all_financial_component_parameters(self):
+
+        fixed_om_dict = self.get_component_fixed_om_parameters()
+        variable_om_dict = self.get_component_variable_om_parameters()
+        capex_var_dict = self.get_component_variable_capex_parameters()
+        capex_fix_dict = self.get_component_fixed_capex_parameters()
+
+        return fixed_om_dict, variable_om_dict, capex_var_dict, capex_fix_dict
 
     def get_conversion_component_sub_sets(self):
 
@@ -1103,7 +1126,6 @@ class ParameterObject:
                             purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(commodity.get_specific_co2_emissions_purchase())})
 
                 else:
-
                     path = self.get_path_data() + self.get_profile_data()
 
                     if path.split('.')[-1] == 'xlsx':
@@ -1119,11 +1141,6 @@ class ParameterObject:
                         for t in range(self.get_covered_period()):
                             purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(purchase_specific_co2_emissions_curve.loc[purchase_specific_co2_emissions_curve.index[ind]])})
                             ind += 1
-
-            else:
-                for cl in range(self.get_number_clusters()):
-                    for t in range(self.get_covered_period()):
-                        purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): 0})
 
         return purchase_specific_co2_emissions_dict
 
@@ -1183,13 +1200,29 @@ class ParameterObject:
                             sale_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(sale_specific_co2_emissions_curve.loc[sale_specific_co2_emissions_curve.index[ind]])})
                             ind += 1
 
-            else:
+        return sale_specific_co2_emissions_dict
+
+    def get_available_specific_co2_emissions_time_series(self):
+        available_specific_co2_emissions_dict = {}
+        for commodity in self.get_final_commodities_objects():
+            commodity_name = commodity.get_name()
+            if commodity.is_available():
                 for cl in range(self.get_number_clusters()):
                     for t in range(self.get_covered_period()):
-                        sale_specific_co2_emissions_dict.update(
-                            {(commodity_name, cl, t): 0})
+                        available_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(commodity.get_specific_co2_emissions_available())})
 
-        return sale_specific_co2_emissions_dict
+        return available_specific_co2_emissions_dict
+
+    def get_emitted_specific_co2_emissions_time_series(self):
+        emitted_specific_co2_emissions_dict = {}
+        for commodity in self.get_final_commodities_objects():
+            commodity_name = commodity.get_name()
+            if commodity.is_emittable():
+                for cl in range(self.get_number_clusters()):
+                    for t in range(self.get_covered_period()):
+                        emitted_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(commodity.get_specific_co2_emissions_emitted())})
+
+        return emitted_specific_co2_emissions_dict
 
     def get_weightings_time_series(self):
         weightings_dict = {}
@@ -1246,9 +1279,9 @@ class ParameterObject:
     def get_operation_time_series(self):
         return self.operation_time_series
 
-    def process_results(self, path_results, solver):
+    def process_results(self, path_results, model_type):
 
-        _transfer_results_to_parameter_object(self, solver)
+        _transfer_results_to_parameter_object(self, model_type)
 
         _create_result_files(self, path_results)
 

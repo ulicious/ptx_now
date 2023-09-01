@@ -10,9 +10,9 @@ from datetime import datetime
 
 from _helpers_gui import AssumptionsInterface, ComponentInterface, CommodityInterface, StorageInterface,\
     GeneratorInterface, DataInterface, save_current_parameters_and_options
-from script_optimization import optimize
-from parameter_object import ParameterObject
-from load_projects import load_project
+from optimization_script import optimize
+from object_framework import ParameterObject
+from _load_projects import load_project
 
 import os
 from os import walk
@@ -425,19 +425,42 @@ class GUI:
                 no_data = True
             else:
 
-                if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
-                    profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
-                                            index_col=0)
+                if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
+
+                    if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
+                        profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
+                                                index_col=0)
+                    else:
+                        profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
+                                              index_col=0)
+
+                    if ((len(profile.index) != self.pm_object_copy.get_covered_period())
+                            & (len(profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                        no_weighting = True
+
+                    if 'Weighting' not in profile.columns:
+                        no_weighting = True
+
                 else:
-                    profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
-                                          index_col=0)
+                    path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
+                    _, _, filenames = next(walk(path_to_commodity_files))
 
-                if ((len(profile.index) != self.pm_object_copy.get_covered_period())
-                        & (len(profile.index) % self.pm_object_copy.get_covered_period()) != 0):
-                    no_weighting = True
+                    for f in filenames:
+                        path = path_to_commodity_files + '/' + f
+                        if path.split('.')[-1] == 'xlsx':
+                            commodity_profile = pd.read_excel(path, index_col=0)
+                        else:
+                            commodity_profile = pd.read_csv(path, index_col=0)
 
-                if 'Weighting' not in profile.columns:
-                    no_weighting = True
+                        if ((len(commodity_profile.index) != self.pm_object_copy.get_covered_period())
+                                & (len(commodity_profile.index) % self.pm_object_copy.get_covered_period()) != 0):
+                            data_length_not_matching = True
+                            break
+
+                        if 'Weighting' not in commodity_profile.columns:
+                            no_weighting = True
+
+                        break
 
         # Create alert if sink, well or profile is missing
         error_in_setting = False

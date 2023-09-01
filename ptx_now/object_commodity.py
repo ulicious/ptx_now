@@ -90,6 +90,72 @@ class Commodity:
     def is_total_demand(self):
         return self.total_demand
 
+    def set_specific_co2_emissions_available(self, specific_co2_emissions_available):
+        self.specific_co2_emissions_available = specific_co2_emissions_available
+
+    def get_specific_co2_emissions_available(self):
+        return self.specific_co2_emissions_available
+
+    def set_total_co2_emissions_available(self, total_co2_emissions_available):
+        self.total_co2_emissions_available = total_co2_emissions_available
+
+    def get_total_co2_emissions_available(self):
+        return self.total_co2_emissions_available
+
+    def set_specific_co2_emissions_emitted(self, specific_co2_emissions_emitting):
+        self.specific_co2_emissions_emitting = specific_co2_emissions_emitting
+
+    def get_specific_co2_emissions_emitted(self):
+        return self.specific_co2_emissions_emitting
+
+    def set_total_co2_emissions_emitted(self, total_co2_emissions_emitted):
+        self.total_co2_emissions_emitted = total_co2_emissions_emitted
+
+    def get_total_co2_emissions_emitted(self):
+        return self.total_co2_emissions_emitted
+
+    def set_specific_co2_emissions_purchase(self, specific_co2_emissions_purchase):
+        self.specific_co2_emissions_purchase = specific_co2_emissions_purchase
+
+    def get_specific_co2_emissions_purchase(self):
+        return self.specific_co2_emissions_purchase
+
+    def set_total_co2_emissions_purchase(self, total_co2_emissions_purchase):
+        self.total_co2_emissions_purchase = total_co2_emissions_purchase
+
+    def get_total_co2_emissions_purchase(self):
+        return self.specific_co2_emissions_purchase
+
+    def set_specific_co2_emissions_sale(self, specific_co2_emissions_sale):
+        self.specific_co2_emissions_sale = specific_co2_emissions_sale
+
+    def get_specific_co2_emissions_sale(self):
+        return self.specific_co2_emissions_sale
+
+    def set_total_co2_emissions_sale(self, total_co2_emissions_sale):
+        self.total_co2_emissions_sale = total_co2_emissions_sale
+
+    def get_total_co2_emissions_sale(self):
+        return self.total_co2_emissions_sale
+
+    def set_total_co2_emissions_generation(self, total_co2_emissions_generation):
+        self.total_co2_emissions_generation = total_co2_emissions_generation
+
+    def get_total_co2_emissions_generation(self):
+        return self.total_co2_emissions_generation
+
+    def set_total_co2_emissions_storage(self, total_co2_emissions_storage):
+        self.total_co2_emissions_storage = total_co2_emissions_storage
+
+    def get_total_co2_emissions_storage(self):
+        return self.total_co2_emissions_storage
+
+    def set_total_co2_emissions_production(self, total_co2_emissions_production):
+        self.total_co2_emissions_production = total_co2_emissions_production
+
+    def get_total_co2_emissions_production(self):
+        return self.total_co2_emissions_production
+
     def set_default(self, status):  # todo: remove
         self.default_commodity = status
 
@@ -221,7 +287,18 @@ class Commodity:
             discharged_quantity=self.discharged_quantity, total_storage_costs=self.total_storage_costs,
             standby_quantity=self.standby_quantity, consumed_quantity=self.consumed_quantity,
             produced_quantity=self.produced_quantity, total_production_costs=self.total_production_costs,
-            generated_quantity=self.generated_quantity, total_generation_costs=self.total_generation_costs)
+            generated_quantity=self.generated_quantity, total_generation_costs=self.total_generation_costs,
+            specific_co2_emissions_available=self.specific_co2_emissions_available,
+            total_co2_emissions_available=self.total_co2_emissions_available,
+            specific_co2_emissions_emitted=self.specific_co2_emissions_emitting,
+            total_co2_emissions_emitted=self.total_co2_emissions_emitted,
+            specific_co2_emissions_purchase=self.specific_co2_emissions_purchase,
+            total_co2_emissions_purchase=self.total_co2_emissions_purchase,
+            specific_co2_emissions_sale=self.specific_co2_emissions_sale,
+            total_co2_emissions_sale=self.total_co2_emissions_sale,
+            total_co2_emissions_generation=self.total_co2_emissions_generation,
+            total_co2_emissions_storage=self.total_co2_emissions_storage,
+            total_co2_emissions_production=self.total_co2_emissions_production)
 
     def __init__(self, name, commodity_unit, energy_content=None, final_commodity=False,
                  custom_commodity=False, emittable=False, available=False,
@@ -233,7 +310,12 @@ class Commodity:
                  charged_quantity=0., discharged_quantity=0., total_storage_costs=0.,
                  standby_quantity=0., consumed_quantity=0.,
                  produced_quantity=0., total_production_costs=0.,
-                 generated_quantity=0., total_generation_costs=0.,):
+                 generated_quantity=0., total_generation_costs=0.,
+                 specific_co2_emissions_available=0., total_co2_emissions_available=0.,
+                 specific_co2_emissions_emitted=0., total_co2_emissions_emitted=0.,
+                 specific_co2_emissions_purchase=0., total_co2_emissions_purchase=0.,
+                 specific_co2_emissions_sale=0., total_co2_emissions_sale=0.,
+                 total_co2_emissions_generation=0., total_co2_emissions_storage=0., total_co2_emissions_production=0.):
 
         """
 
@@ -324,3 +406,16 @@ class Commodity:
 
         self.generated_quantity = generated_quantity
         self.total_generation_costs = total_generation_costs
+
+        self.specific_co2_emissions_available = specific_co2_emissions_available
+        self.specific_co2_emissions_emitting = specific_co2_emissions_emitted
+        self.specific_co2_emissions_purchase = specific_co2_emissions_purchase
+        self.specific_co2_emissions_sale = specific_co2_emissions_sale
+
+        self.total_co2_emissions_available = total_co2_emissions_available
+        self.total_co2_emissions_emitted = total_co2_emissions_emitted
+        self.total_co2_emissions_purchase = total_co2_emissions_purchase
+        self.total_co2_emissions_sale = total_co2_emissions_sale
+        self.total_co2_emissions_generation = total_co2_emissions_generation
+        self.total_co2_emissions_storage = total_co2_emissions_storage
+        self.total_co2_emissions_production = total_co2_emissions_production

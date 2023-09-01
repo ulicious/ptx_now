@@ -46,6 +46,70 @@ class Component:
     def get_fixed_capacity(self):
         return self.fixed_capacity
 
+    def set_installation_co2_emissions(self, installation_co2_emissions):
+        self.installation_co2_emissions = installation_co2_emissions
+
+    def get_installation_co2_emissions(self):
+        return self.installation_co2_emissions
+
+    def set_total_installation_co2_emissions(self, total_installation_co2_emissions):
+        self.total_installation_co2_emissions = total_installation_co2_emissions
+
+        self.calculate_total_co2_emissions()
+
+    def get_total_installation_co2_emissions(self):
+        return self.total_installation_co2_emissions
+
+    def set_fixed_co2_emissions(self, fixed_yearly_co2_emissions):
+        self.fixed_co2_emissions = fixed_yearly_co2_emissions
+
+    def get_fixed_co2_emissions(self):
+        return self.fixed_co2_emissions
+
+    def set_total_fixed_co2_emissions(self, total_fixed_co2_emissions):
+        self.total_fixed_co2_emissions = total_fixed_co2_emissions
+
+        self.calculate_total_co2_emissions()
+
+    def get_total_fixed_co2_emissions(self):
+        return self.total_fixed_co2_emissions
+
+    def set_variable_co2_emissions(self, variable_co2_emissions):
+        self.variable_co2_emissions = variable_co2_emissions
+
+    def get_variable_co2_emissions(self):
+        return self.variable_co2_emissions
+
+    def set_total_variable_co2_emissions(self, total_variable_co2_emissions):
+        self.total_variable_co2_emissions = total_variable_co2_emissions
+
+        self.calculate_total_co2_emissions()
+
+    def get_total_variable_co2_emissions(self):
+        return self.total_variable_co2_emissions
+
+    def set_disposal_co2_emissions(self, disposal_co2_emissions):
+        self.disposal_co2_emissions = disposal_co2_emissions
+
+    def get_disposal_co2_emissions(self):
+        return self.disposal_co2_emissions
+
+    def set_total_disposal_co2_emissions(self, total_disposal_co2_emissions):
+        self.total_disposal_co2_emissions = total_disposal_co2_emissions
+
+        self.calculate_total_co2_emissions()
+
+    def get_total_disposal_co2_emissions(self):
+        return self.total_disposal_co2_emissions
+
+    def calculate_total_co2_emissions(self):
+        self.total_co2_emissions = \
+            self.get_total_installation_co2_emissions() + self.get_total_fixed_co2_emissions() \
+            + self.get_total_variable_co2_emissions() + self.get_total_disposal_co2_emissions()
+
+    def get_total_co2_emissions(self):
+        return self.total_co2_emissions
+
     def set_final(self, status):
         self.final_unit = status
 
@@ -91,12 +155,26 @@ class Component:
                          fixed_om=self.fixed_om, variable_om=self.variable_om,
                          has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
                          investment=self.investment, annualized_investment=self.annualized_investment,
-                         total_fixed_costs=self.total_fixed_costs, total_variable_costs=self.total_variable_costs)
+                         total_fixed_costs=self.total_fixed_costs, total_variable_costs=self.total_variable_costs,
+                         installation_co2_emissions=self.installation_co2_emissions,
+                         total_installation_co2_emissions=self.total_installation_co2_emissions,
+                         fixed_co2_emissions=self.fixed_co2_emissions,
+                         total_fixed_co2_emissions=self.total_fixed_co2_emissions,
+                         variable_co2_emissions=self.variable_co2_emissions,
+                         total_variable_co2_emissions=self.total_variable_co2_emissions,
+                         disposal_co2_emissions=self.disposal_co2_emissions,
+                         total_disposal_co2_emissions=self.total_disposal_co2_emissions,
+                         total_co2_emissions=self.total_co2_emissions)
 
-    def __init__(self, name, lifetime, fixed_om, variable_om, capex=None,
-                 final_unit=False, custom_unit=False,
+    def __init__(self, name, lifetime, fixed_om, variable_om, capex=0.,
                  has_fixed_capacity=False, fixed_capacity=0.,
-                 investment=0., annualized_investment=0., total_fixed_costs=0., total_variable_costs=0.):
+                 investment=0., annualized_investment=0., total_fixed_costs=0., total_variable_costs=0.,
+                 installation_co2_emissions=0., total_installation_co2_emissions=0.,
+                 fixed_co2_emissions=0., total_fixed_co2_emissions=0.,
+                 variable_co2_emissions=0., total_variable_co2_emissions=0.,
+                 disposal_co2_emissions=0., total_disposal_co2_emissions=0.,
+                 total_co2_emissions=0.,
+                 final_unit=False, custom_unit=False):
 
         """
         Defines basic component class
@@ -106,6 +184,7 @@ class Component:
         :param fixed_om: [float] - fixed operation and maintenance
         :param variable_om: [float] - variable operation and maintenance
         :param capex: [float] - Capex
+        :param specific_co2_footprint [float]: CO2 footprint per capacity
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
@@ -116,6 +195,11 @@ class Component:
         self.custom_unit = bool(custom_unit)
 
         self.capex = float(capex)
+
+        self.installation_co2_emissions = float(installation_co2_emissions)
+        self.fixed_co2_emissions = fixed_co2_emissions
+        self.variable_co2_emissions = variable_co2_emissions
+        self.disposal_co2_emissions = float(disposal_co2_emissions)
 
         self.lifetime = int(lifetime)
         self.fixed_om = float(fixed_om)
@@ -128,6 +212,17 @@ class Component:
         self.annualized_investment = annualized_investment
         self.total_fixed_costs = total_fixed_costs
         self.total_variable_costs = total_variable_costs
+
+        self.installation_co2_emissions = float(installation_co2_emissions)
+        self.fixed_co2_emissions = fixed_co2_emissions
+        self.variable_co2_emissions = variable_co2_emissions
+        self.disposal_co2_emissions = float(disposal_co2_emissions)
+
+        self.total_installation_co2_emissions = float(total_installation_co2_emissions)
+        self.total_fixed_co2_emissions = float(total_fixed_co2_emissions)
+        self.total_variable_co2_emissions = float(total_variable_co2_emissions)
+        self.total_disposal_co2_emissions = float(total_disposal_co2_emissions)
+        self.total_co2_emissions = float(total_co2_emissions)
 
 
 class ConversionComponent(Component):
@@ -378,6 +473,10 @@ class ConversionComponent(Component):
 
         return ConversionComponent(name=name, lifetime=self.lifetime,
                                    fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
+                                   installation_co2_emissions=self.installation_co2_emissions,
+                                   fixed_co2_emissions=self.fixed_co2_emissions,
+                                   variable_co2_emissions=self.variable_co2_emissions,
+                                   disposal_co2_emissions=self.disposal_co2_emissions,
                                    capex_basis=self.capex_basis, scalable=self.scalable,
                                    base_investment=self.base_investment, base_capacity=self.base_capacity,
                                    economies_of_scale=self.economies_of_scale,
@@ -397,6 +496,8 @@ class ConversionComponent(Component):
                                    total_startup_costs=self.total_startup_costs)
 
     def __init__(self, name, lifetime=1, fixed_om=0., variable_om=0., capex=0.,
+                 installation_co2_emissions=0., fixed_co2_emissions=0., variable_co2_emissions=0.,
+                 disposal_co2_emissions=0.,
                  capex_basis='input', scalable=False, base_investment=0., base_capacity=0., economies_of_scale=0.,
                  max_capacity_economies_of_scale=0., ramp_down=1., ramp_up=1.,
                  shut_down_ability=False, start_up_time=0., start_up_costs=0,
@@ -436,8 +537,13 @@ class ConversionComponent(Component):
         :param custom_unit: [boolean] - if unit is custom
         """
 
-        super().__init__(name, lifetime, fixed_om, variable_om, capex, final_unit, custom_unit,
-                         has_fixed_capacity, fixed_capacity)
+        super().__init__(name=name, lifetime=lifetime, fixed_om=fixed_om, variable_om=variable_om, capex=capex,
+                         has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
+                         installation_co2_emissions=installation_co2_emissions,
+                         fixed_co2_emissions=fixed_co2_emissions,
+                         variable_co2_emissions=variable_co2_emissions,
+                         disposal_co2_emissions=disposal_co2_emissions,
+                         final_unit=final_unit, custom_unit=custom_unit)
 
         self.component_type = 'conversion'
         self.scalable = bool(scalable)
@@ -547,6 +653,10 @@ class StorageComponent(Component):
     def __copy__(self):
         return StorageComponent(name=self.name, lifetime=self.lifetime,
                                 fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
+                                installation_co2_emissions=self.installation_co2_emissions,
+                                fixed_co2_emissions=self.fixed_co2_emissions,
+                                variable_co2_emissions=self.variable_co2_emissions,
+                                disposal_co2_emissions=self.disposal_co2_emissions,
                                 charging_efficiency=self.charging_efficiency,
                                 discharging_efficiency=self.discharging_efficiency,
                                 min_soc=self.min_soc, max_soc=self.max_soc,
@@ -559,6 +669,8 @@ class StorageComponent(Component):
                  charging_efficiency=1., discharging_efficiency=1., min_soc=0., max_soc=1.,
                  leakage=0., ratio_capacity_p=1., has_fixed_capacity=False, fixed_capacity=0.,
                  charged_quantity=0., discharged_quantity=0.,
+                 installation_co2_emissions=0., fixed_co2_emissions=0., variable_co2_emissions=0.,
+                 disposal_co2_emissions=0.,
                  final_unit=False, custom_unit=False):
 
         """
@@ -579,8 +691,13 @@ class StorageComponent(Component):
         :param custom_unit: [boolean] - if not default component
         """
 
-        super().__init__(name, lifetime, fixed_om, variable_om, capex,
-                         final_unit, custom_unit, has_fixed_capacity, fixed_capacity)
+        super().__init__(name=name, lifetime=lifetime, fixed_om=fixed_om, variable_om=variable_om, capex=capex,
+                         has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
+                         installation_co2_emissions=installation_co2_emissions,
+                         fixed_co2_emissions=fixed_co2_emissions,
+                         variable_co2_emissions=variable_co2_emissions,
+                         disposal_co2_emissions=disposal_co2_emissions,
+                         final_unit=final_unit, custom_unit=custom_unit)
 
         self.component_type = 'storage'
 
@@ -676,6 +793,10 @@ class GenerationComponent(Component):
     def __copy__(self):
         return GenerationComponent(name=self.name, lifetime=self.lifetime,
                                    fixed_om=self.fixed_om, variable_om=self.variable_om, capex=self.capex,
+                                   installation_co2_emissions=self.installation_co2_emissions,
+                                   fixed_co2_emissions=self.fixed_co2_emissions,
+                                   variable_co2_emissions=self.variable_co2_emissions,
+                                   disposal_co2_emissions=self.disposal_co2_emissions,
                                    generated_commodity=self.generated_commodity,
                                    curtailment_possible=self.curtailment_possible,
                                    has_fixed_capacity=self.has_fixed_capacity, fixed_capacity=self.fixed_capacity,
@@ -693,10 +814,10 @@ class GenerationComponent(Component):
                  curtailment_possible=True,
                  uses_ppa=False, ppa_price=0., subsidies=0.,
                  has_fixed_capacity=False, fixed_capacity=0.,
-                 final_unit=False, custom_unit=False,
                  potential_generation_quantity=0., potential_capacity_factor=0., potential_LCOE=0.,
-                 generated_quantity=0., actual_capacity_factor=0., actual_LCOE=0.,
-                 curtailment=0.,):
+                 generated_quantity=0., actual_capacity_factor=0., actual_LCOE=0., curtailment=0.,
+                 installation_co2_emissions=0., fixed_co2_emissions=0., variable_co2_emissions=0.,
+                 disposal_co2_emissions=0., final_unit=False, custom_unit=False):
 
         """
         Class of Generator component
@@ -710,8 +831,13 @@ class GenerationComponent(Component):
         :param final_unit: [boolean] - if part of the final optimization problem
         :param custom_unit: [boolean] - if not default component
         """
-        super().__init__(name, lifetime, fixed_om, variable_om, capex,
-                         final_unit, custom_unit, has_fixed_capacity, fixed_capacity)
+        super().__init__(name=name, lifetime=lifetime, fixed_om=fixed_om, variable_om=variable_om, capex=capex,
+                         has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
+                         installation_co2_emissions=installation_co2_emissions,
+                         fixed_co2_emissions=fixed_co2_emissions,
+                         variable_co2_emissions=variable_co2_emissions,
+                         disposal_co2_emissions=disposal_co2_emissions,
+                         final_unit=final_unit, custom_unit=custom_unit)
 
         self.component_type = 'generator'
 

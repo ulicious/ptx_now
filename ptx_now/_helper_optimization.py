@@ -86,3 +86,4 @@ def anticipate_bigM(pm_object):
             bigM_per_capacity[component_name] = hourly_demand * (1 / efficiency_chain[generated_commodity]) * 10
 
     return bigM_per_capacity
+

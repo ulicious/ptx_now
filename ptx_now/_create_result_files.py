@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-from _helpers_analysis import create_linear_system_of_equations
+from _helpers_analysis import create_linear_system_of_equations, create_linear_system_of_equations_emissions
 from _helpers_gui import save_current_parameters_and_options
 
 import plotly.graph_objects as go
@@ -185,9 +185,11 @@ def _create_result_files(pm_object, path_results):
     def analyze_components():
 
         columns = ['Capacity [input]', 'Capacity Unit [input]', 'Investment [per input]',
-                   'Capacity [output]', 'Capacity Unit [output]', 'Investment [per output]', 'Full-load Hours',
+                   'Capacity [output]', 'Capacity Unit [output]', 'Investment [per output]', 'Capacity Factor',
                    'Total Investment', 'Annuity', 'Fixed Operation and Maintenance',
-                   'Variable Operation and Maintenance', 'Start-Up Costs']
+                   'Variable Operation and Maintenance', 'Start-Up Costs',
+                   'Installation CO2 Emissions', 'Fixed Yearly CO2 Emissions', 'Variable Yearly CO2 Emissions',
+                   'Disposal CO2 Emissions']
 
         capacity_df = pd.DataFrame(columns=columns)
         for component_object in pm_object.get_final_components_objects():
@@ -304,12 +306,28 @@ def _create_result_files(pm_object, path_results):
             capacity_df.loc[component_name, 'Fixed Operation and Maintenance'] = fixed_om
             capacity_df.loc[component_name, 'Variable Operation and Maintenance'] = variable_om
 
+            capacity_df.loc[component_name, 'Installation CO2 Emissions'] = component_object.get_total_installation_co2_emissions()
+            capacity_df.loc[component_name, 'Fixed Yearly CO2 Emissions'] = component_object.get_total_fixed_co2_emissions()
+            capacity_df.loc[component_name, 'Variable Yearly CO2 Emissions'] = component_object.get_total_variable_co2_emissions()
+            capacity_df.loc[component_name, 'Disposal CO2 Emissions'] = component_object.get_total_disposal_co2_emissions()
+
+            # todo: Laufzeit der Anlage muss geklärt werden
+            capacity_df.loc[component_name, 'Total Yearly CO2 Emissions'] \
+                = component_object.get_total_installation_co2_emissions() / 20 \
+                + component_object.get_total_fixed_co2_emissions() \
+                + component_object.get_total_variable_co2_emissions() \
+                + component_object.get_total_disposal_co2_emissions() / 20
+
         capacity_df.to_excel(new_result_folder + '/2_components.xlsx')
 
         # Calculate efficiency
         total_energy_input = 0
         total_energy_output = 0
         total_demand = 0
+
+        demanded_commodity = None
+        demanded_commodity_unit = None
+
         for commodity_object in pm_object.get_final_commodities_objects():
             energy_content = commodity_object.get_energy_content()
 
@@ -330,11 +348,23 @@ def _create_result_files(pm_object, path_results):
 
             total_demand += commodity_object.get_demanded_quantity()
 
+            if commodity_object.is_demanded():
+                demanded_commodity = commodity_object.get_name()
+                demanded_commodity_unit = commodity_object.get_unit()
+
         efficiency = str(round(total_energy_output / total_energy_input, 4))
 
-        index_overview = ['Annual Production', 'Total Investment', 'Total Fix Costs', 'Total Variable Costs',
-                          'Annual Costs', 'Production Costs per Unit', 'Efficiency',
-                          'Production Costs per Unit Objective Function']
+        index_overview = ['Annual Production [' + demanded_commodity_unit + ' ' + demanded_commodity + ']',
+                          'Total Investment [' + pm_object.get_monetary_unit() + ']',
+                          'Total Fix Costs [' + pm_object.get_monetary_unit() + ']',
+                          'Total Variable Costs [' + pm_object.get_monetary_unit() + ']',
+                          'Total Annual Costs [' + pm_object.get_monetary_unit() + ']',
+                          'Production Costs per Unit [' + pm_object.get_monetary_unit() + ' / ' + demanded_commodity_unit + ' ' + demanded_commodity + ']',
+                          'Total Fixed Annual CO2 Emissions [t CO2]',
+                          'Total Variable Annual CO2 Emissions [t CO2]',
+                          'Total Annual CO2 Emissions [t CO2]',
+                          'CO2 Emissions per Unit [' + 't CO2 / ' + demanded_commodity_unit + ' ' + demanded_commodity + ']',
+                          'Efficiency', 'Production Costs per Unit Objective Function']
 
         total_production = total_demand
         total_investment = capacity_df['Total Investment'].sum()
@@ -348,14 +378,29 @@ def _create_result_files(pm_object, path_results):
         variable_costs += sum(component_object.get_total_variable_costs()
                               for component_object in pm_object.get_final_components_objects())
 
+        fixed_co2_emissions \
+            = capacity_df['Installation CO2 Emissions'].sum() + capacity_df['Fixed Yearly CO2 Emissions'].sum() \
+            + capacity_df['Disposal CO2 Emissions'].sum()
+
+        variable_co2_emissions = capacity_df['Variable Yearly CO2 Emissions'].sum()
+        for commodity_object in pm_object.get_final_commodities_objects():
+            variable_co2_emissions += commodity_object.get_total_co2_emissions_available()
+            variable_co2_emissions += commodity_object.get_total_co2_emissions_purchase()
+            variable_co2_emissions += commodity_object.get_total_co2_emissions_sale()
+
         annual_costs = fix_costs + variable_costs
         production_costs_per_unit = annual_costs / total_production
+
+        annual_co2_emissions = fixed_co2_emissions + variable_co2_emissions
+        co2_emissions_per_unit = annual_co2_emissions / total_production
 
         production_costs_per_unit_obj = objective_function_value / total_production
 
         results_overview = pd.Series([total_production, total_investment,
-                                      fix_costs, variable_costs, annual_costs, production_costs_per_unit, efficiency,
-                                      production_costs_per_unit_obj])
+                                      fix_costs, variable_costs, annual_costs, production_costs_per_unit,
+                                      fixed_co2_emissions, variable_co2_emissions, annual_co2_emissions,
+                                      co2_emissions_per_unit,
+                                      efficiency, production_costs_per_unit_obj])
         results_overview.index = index_overview
 
         results_overview.to_excel(new_result_folder + '/1_results_overview.xlsx')
@@ -840,6 +885,7 @@ def _create_result_files(pm_object, path_results):
 
     create_assumptions_file()
     create_linear_system_of_equations(pm_object, new_result_folder)
+    create_linear_system_of_equations_emissions(pm_object, new_result_folder)
     analyze_components()
     analyze_generation()
     analyze_total_costs()

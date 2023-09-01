@@ -102,23 +102,48 @@ class GeneralAssumptionsFrame:
 
         newWindow.mainloop()
 
+    def update_optimization_type(self):
+
+        self.pm_object.set_optimization_type(self.optimization_type_var.get())
+
+        self.parent.pm_object_copy = self.pm_object
+        self.parent.update_widgets()
+
     def initiate_frame(self):
 
         i = 0
+
+        optimization_type_frame = ttk.Frame(self.frame)
+        optimization_type_frame.grid_columnconfigure(0, weight=1, uniform="a")
+        optimization_type_frame.grid_columnconfigure(1, weight=1, uniform="a")
+        optimization_type_frame.grid_columnconfigure(2, weight=1, uniform="a")
+
+        ttk.Label(optimization_type_frame, text='Optimization type').grid(column=0, row=0, sticky='w')
+        ttk.Radiobutton(optimization_type_frame, text='Minimize production costs', variable=self.optimization_type_var,
+                        value='economical', command=self.update_optimization_type).grid(column=0, row=1, sticky='w')
+        ttk.Radiobutton(optimization_type_frame, text='Minimize CO2', variable=self.optimization_type_var,
+                        value='ecological', command=self.update_optimization_type).grid(column=1, row=1, sticky='w')
+        ttk.Radiobutton(optimization_type_frame, text='Multiobjective', variable=self.optimization_type_var,
+                        value='multiobjective', command=self.update_optimization_type).grid(column=2, row=1, sticky='w')
+
+        optimization_type_frame.grid(row=i, column=0, columnspan=2, sticky='ew')
+
+        i += 1
+
         ttk.Label(self.frame, text='WACC [%]').grid(column=0, row=i, sticky='w')
-        ttk.Label(self.frame, text=round(self.pm_object.get_wacc() * 100, 2)).grid(column=1, columnspan=2, row=i, sticky='w')
+        ttk.Label(self.frame, text=round(self.pm_object.get_wacc() * 100, 2)).grid(column=1, row=i, sticky='w')
 
         i += 1
 
         ttk.Label(self.frame, text='Monetary Unit').grid(column=0, row=i, sticky='w')
-        ttk.Label(self.frame, text=self.pm_object.get_monetary_unit()).grid(column=1, columnspan=2, row=i, sticky='w')
+        ttk.Label(self.frame, text=self.pm_object.get_monetary_unit()).grid(column=1, row=i, sticky='w')
 
         i += 1
 
         if self.pm_object.get_uses_representative_periods():
-            ttk.Label(self.frame, text='Representative Periods used').grid(columnspan=2, row=i, sticky='w')
+            ttk.Label(self.frame, text='Representative Periods used').grid(row=i, sticky='w')
         else:
-            ttk.Label(self.frame, text='Continuous Time Series used').grid(columnspan=2, row=i, sticky='w')
+            ttk.Label(self.frame, text='Continuous Time Series used').grid(row=i, sticky='w')
 
         i += 1
 
@@ -135,7 +160,7 @@ class GeneralAssumptionsFrame:
                                                command=self.adjust_component_value)
         self.adjust_values_button.grid(row=0, column=0, sticky='ew')
 
-        button_frame.grid(row=i, column=0, columnspan=3, sticky='ew')
+        button_frame.grid(row=i, column=0, columnspan=2, sticky='ew')
 
     def __init__(self, interface, parent, frame, pm_object):
 
@@ -148,6 +173,9 @@ class GeneralAssumptionsFrame:
 
         self.adjust_values_button = ttk.Button()
         self.default_values_ga_button = ttk.Button()
+
+        self.optimization_type_var = StringVar()
+        self.optimization_type_var.set(self.pm_object.get_optimization_type())
 
         self.initiate_frame()
         self.frame.pack(fill="both", expand=True)

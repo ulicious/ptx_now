@@ -5,10 +5,10 @@ from pyomo.core import *
 from _create_result_files import check_integer_variables
 
 
-def _transfer_results_to_parameter_object(pm_object, solver):
+def _transfer_results_to_parameter_object(pm_object, model_type):
     all_variables_dict = {}
 
-    if solver != 'gurobi':
+    if model_type != 'gurobi':
         # access instance to get results from variables
 
         for v in pm_object.instance.component_objects(Var, active=True):
@@ -47,7 +47,7 @@ def _transfer_results_to_parameter_object(pm_object, solver):
 
     # transfer results to parameter object
     annuity_factor = pm_object.get_annuity_factor()
-    component_parameters = pm_object.get_all_component_parameters()
+    component_parameters = pm_object.get_all_technical_component_parameters()
     fixed_om = component_parameters[1]
     variable_om = component_parameters[2]
     weightings = pm_object.get_weightings_time_series()
@@ -58,16 +58,32 @@ def _transfer_results_to_parameter_object(pm_object, solver):
 
         component.set_fixed_capacity(all_variables_dict['nominal_cap'][c])
 
+        installation_co2_emissions = component.get_installation_co2_emissions()
+        fixed_co2_emissions = component.get_fixed_co2_emissions()
+        disposal_co2_emissions = component.get_disposal_co2_emissions()
+
         if all_variables_dict['investment'][c] > 0:
             component.set_investment(all_variables_dict['investment'][c])
             component.set_annualized_investment(
                 all_variables_dict['investment'][c] * annuity_factor[c])
             component.set_total_fixed_costs(
                 all_variables_dict['investment'][c] * fixed_om[c])
+
+            component.set_total_installation_co2_emissions(
+                all_variables_dict['nominal_cap'][c] * installation_co2_emissions)
+            component.set_total_fixed_co2_emissions(
+                all_variables_dict['nominal_cap'][c] * fixed_co2_emissions)
+            component.set_total_disposal_co2_emissions(
+                all_variables_dict['nominal_cap'][c] * disposal_co2_emissions)
         else:
             component.set_investment(0)
             component.set_annualized_investment(0)
             component.set_total_fixed_costs(0)
+
+            component.set_total_installation_co2_emissions(0)
+            component.set_total_disposal_co2_emissions(0)
+
+        variable_co2_emissions = component.get_variable_co2_emissions()
 
         if component.get_component_type() == 'conversion':
 
@@ -93,6 +109,18 @@ def _transfer_results_to_parameter_object(pm_object, solver):
                                                         + total_variable_costs
                                                         + total_start_up_costs)
 
+            total_variable_co2_emissions = \
+                sum(all_variables_dict['mass_energy_component_out_commodities'][(c, main_output, cl, t)]
+                    * variable_co2_emissions * weightings[cl]
+                    for cl in range(pm_object.get_number_clusters()) for t in range(pm_object.get_covered_period()))
+
+            commodity_object.set_total_co2_emissions_production(
+                commodity_object.get_total_co2_emissions_production()
+                + all_variables_dict['nominal_cap'][c] * installation_co2_emissions
+                + all_variables_dict['nominal_cap'][c] * fixed_co2_emissions
+                + total_variable_co2_emissions
+                + all_variables_dict['nominal_cap'][c] * disposal_co2_emissions)
+
         elif component.get_component_type() == 'storage':
             commodity_object = pm_object.get_commodity(component.get_name())
             total_variable_costs = \
@@ -104,6 +132,18 @@ def _transfer_results_to_parameter_object(pm_object, solver):
                                                      + all_variables_dict['investment'][c] * annuity_factor[c]
                                                      + all_variables_dict['investment'][c] * fixed_om[c]
                                                      + total_variable_costs)
+
+            total_variable_co2_emissions = \
+                sum(all_variables_dict['mass_energy_storage_in_commodities'][(c, cl, t)]
+                    * variable_co2_emissions * weightings[cl]
+                    for cl in range(pm_object.get_number_clusters()) for t in range(pm_object.get_covered_period()))
+
+            commodity_object.set_total_co2_emissions_storage(
+                commodity_object.get_total_co2_emissions_storage()
+                + all_variables_dict['nominal_cap'][c] * installation_co2_emissions
+                + all_variables_dict['nominal_cap'][c] * fixed_co2_emissions
+                + total_variable_co2_emissions
+                + all_variables_dict['nominal_cap'][c] * disposal_co2_emissions)
 
         else:
             generated_commodity = component.get_generated_commodity()
@@ -135,7 +175,20 @@ def _transfer_results_to_parameter_object(pm_object, solver):
                                                         + all_variables_dict['investment'][c] * fixed_om[c]
                                                         + total_variable_costs)
 
+            total_variable_co2_emissions = \
+                sum(all_variables_dict['mass_energy_generation'][(c, generated_commodity, cl, t)]
+                    * variable_co2_emissions * weightings[cl]
+                    for cl in range(pm_object.get_number_clusters()) for t in range(pm_object.get_covered_period()))
+
+            commodity_object.set_total_co2_emissions_generation(
+                commodity_object.get_total_co2_emissions_generation()
+                + all_variables_dict['nominal_cap'][c] * installation_co2_emissions
+                + all_variables_dict['nominal_cap'][c] * fixed_co2_emissions
+                + total_variable_co2_emissions
+                + all_variables_dict['nominal_cap'][c] * disposal_co2_emissions)
+
         component.set_total_variable_costs(total_variable_costs)
+        component.set_total_variable_co2_emissions(total_variable_co2_emissions)
 
     # Operational results
     purchase_price_dict = pm_object.get_purchase_price_time_series()
@@ -183,6 +236,11 @@ def _transfer_results_to_parameter_object(pm_object, solver):
             commodity_object = pm_object.get_commodity(commodity)
             cluster = k[1]
 
+            specific_co2_emissions_available = commodity_object.get_specific_co2_emissions_available()
+            specific_co2_emissions_emitted = commodity_object.get_specific_co2_emissions_emitted()
+            specific_co2_emissions_purchase = commodity_object.get_specific_co2_emissions_purchase()
+            specific_co2_emissions_sale = commodity_object.get_specific_co2_emissions_sale()
+
             # get time series from variables
             if variable_dict[k] is None:
                 continue
@@ -201,9 +259,17 @@ def _transfer_results_to_parameter_object(pm_object, solver):
                 commodity_object.set_available_quantity(commodity_object.get_available_quantity()
                                                         + variable_dict[k] * weightings[cluster])
 
+                commodity_object.set_total_co2_emissions_available(commodity_object.get_total_co2_emissions_available()
+                                                                   + variable_dict[k] * weightings[cluster]
+                                                                   * specific_co2_emissions_available)
+
             if variable == 'mass_energy_emitted':
                 commodity_object.set_emitted_quantity(commodity_object.get_emitted_quantity()
                                                       + variable_dict[k] * weightings[cluster])
+
+                commodity_object.set_total_co2_emissions_emitted(commodity_object.get_total_co2_emissions_emitted()
+                                                                 + variable_dict[k] * weightings[cluster]
+                                                                 * specific_co2_emissions_emitted)
 
             if variable == 'mass_energy_purchase_commodity':
                 commodity_object.set_purchased_quantity(commodity_object.get_purchased_quantity()
@@ -215,6 +281,10 @@ def _transfer_results_to_parameter_object(pm_object, solver):
                                                     * weightings[cluster]
                                                     * purchase_price_dict[k])
 
+                commodity_object.set_total_co2_emissions_purchase(commodity_object.get_total_co2_emissions_purchase()
+                                                                  + variable_dict[k] * weightings[cluster]
+                                                                  * specific_co2_emissions_purchase)
+
             if variable == 'mass_energy_sell_commodity':
                 commodity_object.set_sold_quantity(commodity_object.get_purchased_quantity()
                                                    + variable_dict[k] * weightings[cluster])
@@ -222,6 +292,10 @@ def _transfer_results_to_parameter_object(pm_object, solver):
                 commodity_object.set_selling_revenue(commodity_object.get_selling_revenue()
                                                      + variable_dict[k] * weightings[cluster]
                                                      * sell_price_dict[k])
+
+                commodity_object.set_total_co2_emissions_sale(commodity_object.get_total_co2_emissions_sale()
+                                                              + variable_dict[k] * weightings[cluster]
+                                                              * specific_co2_emissions_sale)
 
             if variable == 'mass_energy_demand':
                 commodity_object.set_demanded_quantity(commodity_object.get_demanded_quantity()

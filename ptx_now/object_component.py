@@ -47,13 +47,13 @@ class Component:
         return self.fixed_capacity
 
     def set_installation_co2_emissions(self, installation_co2_emissions):
-        self.installation_co2_emissions = installation_co2_emissions
+        self.installation_co2_emissions = float(installation_co2_emissions)
 
     def get_installation_co2_emissions(self):
         return self.installation_co2_emissions
 
     def set_total_installation_co2_emissions(self, total_installation_co2_emissions):
-        self.total_installation_co2_emissions = total_installation_co2_emissions
+        self.total_installation_co2_emissions = float(total_installation_co2_emissions)
 
         self.calculate_total_co2_emissions()
 
@@ -61,13 +61,13 @@ class Component:
         return self.total_installation_co2_emissions
 
     def set_fixed_co2_emissions(self, fixed_yearly_co2_emissions):
-        self.fixed_co2_emissions = fixed_yearly_co2_emissions
+        self.fixed_co2_emissions = float(fixed_yearly_co2_emissions)
 
     def get_fixed_co2_emissions(self):
         return self.fixed_co2_emissions
 
     def set_total_fixed_co2_emissions(self, total_fixed_co2_emissions):
-        self.total_fixed_co2_emissions = total_fixed_co2_emissions
+        self.total_fixed_co2_emissions = float(total_fixed_co2_emissions)
 
         self.calculate_total_co2_emissions()
 
@@ -75,13 +75,13 @@ class Component:
         return self.total_fixed_co2_emissions
 
     def set_variable_co2_emissions(self, variable_co2_emissions):
-        self.variable_co2_emissions = variable_co2_emissions
+        self.variable_co2_emissions = float(variable_co2_emissions)
 
     def get_variable_co2_emissions(self):
         return self.variable_co2_emissions
 
     def set_total_variable_co2_emissions(self, total_variable_co2_emissions):
-        self.total_variable_co2_emissions = total_variable_co2_emissions
+        self.total_variable_co2_emissions = float(total_variable_co2_emissions)
 
         self.calculate_total_co2_emissions()
 
@@ -89,13 +89,13 @@ class Component:
         return self.total_variable_co2_emissions
 
     def set_disposal_co2_emissions(self, disposal_co2_emissions):
-        self.disposal_co2_emissions = disposal_co2_emissions
+        self.disposal_co2_emissions = float(disposal_co2_emissions)
 
     def get_disposal_co2_emissions(self):
         return self.disposal_co2_emissions
 
     def set_total_disposal_co2_emissions(self, total_disposal_co2_emissions):
-        self.total_disposal_co2_emissions = total_disposal_co2_emissions
+        self.total_disposal_co2_emissions = float(total_disposal_co2_emissions)
 
         self.calculate_total_co2_emissions()
 
@@ -132,19 +132,19 @@ class Component:
         return self.investment
 
     def set_annualized_investment(self, annualized_investment):
-        self.annualized_investment = annualized_investment
+        self.annualized_investment = float(annualized_investment)
 
     def get_annualized_investment(self):
         return self.annualized_investment
 
     def set_total_fixed_costs(self, total_fixed_costs):
-        self.total_fixed_costs = total_fixed_costs
+        self.total_fixed_costs = float(total_fixed_costs)
 
     def get_total_fixed_costs(self):
         return self.total_fixed_costs
 
     def set_total_variable_costs(self, total_variable_costs):
-        self.total_variable_costs = total_variable_costs
+        self.total_variable_costs = float(total_variable_costs)
 
     def get_total_variable_costs(self):
         return self.total_variable_costs
@@ -196,11 +196,6 @@ class Component:
 
         self.capex = float(capex)
 
-        self.installation_co2_emissions = float(installation_co2_emissions)
-        self.fixed_co2_emissions = fixed_co2_emissions
-        self.variable_co2_emissions = variable_co2_emissions
-        self.disposal_co2_emissions = float(disposal_co2_emissions)
-
         self.lifetime = int(lifetime)
         self.fixed_om = float(fixed_om)
         self.variable_om = float(variable_om)
@@ -208,14 +203,14 @@ class Component:
         self.has_fixed_capacity = bool(has_fixed_capacity)
         self.fixed_capacity = float(fixed_capacity)
 
-        self.investment = investment
-        self.annualized_investment = annualized_investment
-        self.total_fixed_costs = total_fixed_costs
-        self.total_variable_costs = total_variable_costs
+        self.investment = float(investment)
+        self.annualized_investment = float(annualized_investment)
+        self.total_fixed_costs = float(total_fixed_costs)
+        self.total_variable_costs = float(total_variable_costs)
 
         self.installation_co2_emissions = float(installation_co2_emissions)
-        self.fixed_co2_emissions = fixed_co2_emissions
-        self.variable_co2_emissions = variable_co2_emissions
+        self.fixed_co2_emissions = float(fixed_co2_emissions)
+        self.variable_co2_emissions = float(variable_co2_emissions)
         self.disposal_co2_emissions = float(disposal_co2_emissions)
 
         self.total_installation_co2_emissions = float(total_installation_co2_emissions)

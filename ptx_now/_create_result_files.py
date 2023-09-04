@@ -470,7 +470,7 @@ def _create_result_files(pm_object, path_results):
 
                     potential_generation = sum(
                         generator_profile.loc[generator_profile.index[t + cl*pm_object.get_covered_period()]] * weightings[cl]
-                        for cl in range(pm_object.get_number_clusters()) for t in pm_object.get_covered_period)
+                        for cl in range(pm_object.get_number_clusters()) for t in range(pm_object.get_covered_period()))
                     generation_df.loc[generator_name, 'Potential Generation'] = 0
                     generation_df.loc[generator_name, 'Potential Full-load Hours'] = potential_generation
 

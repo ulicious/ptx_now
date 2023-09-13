@@ -1,4 +1,3 @@
-import tkinter as tk
 from tkinter import ttk
 from tkinter import *
 import random
@@ -196,9 +195,9 @@ class ComponentParametersFrame:
         # Toplevel widget
         newWindow.title('Adjust Component Parameters')
 
-        tk.Checkbutton(newWindow, text='Scalable?',
-                       variable=self.scalable_var,
-                       command=activate_scale_no_scale).grid(row=0, column=0, columnspan=2, sticky='w')
+        ttk.Checkbutton(newWindow, text='Scalable?',
+                        variable=self.scalable_var,
+                        command=activate_scale_no_scale).grid(row=0, column=0, columnspan=2, sticky='w')
 
         if self.component_object.is_scalable():
             status_scale = NORMAL
@@ -273,64 +272,64 @@ class ComponentParametersFrame:
         disposal_co2_var.set('Disposal CO2 emissions [t CO2 / ' + capacity_unit + ']')
 
         ttk.Label(newWindow, textvariable=capex_unit_var).grid(row=2, column=0, sticky='w')
-        entry_capex_var = ttk.Entry(newWindow, text=self.label_capex_value_str, state=status_no_scale)
-        entry_capex_var.grid(row=2, column=1, sticky='w')
+        entry_capex_var = ttk.Entry(newWindow, textvariable=self.label_capex_value_str, state=status_no_scale)
+        entry_capex_var.grid(row=2, column=1, sticky='ew')
 
         label_base_investment = ttk.Label(newWindow, text='Base Investment [' + self.monetary_unit + ']')
         label_base_investment.grid(column=0, row=3, sticky='w')
         label_base_investment_value = ttk.Entry(newWindow,
-                                                text=self.label_base_investment_value_str,
+                                                textvariable=self.label_base_investment_value_str,
                                                 state=status_scale)
-        label_base_investment_value.grid(column=1, row=3, sticky='w')
+        label_base_investment_value.grid(column=1, row=3, sticky='ew')
 
         label_base_capacity = ttk.Label(newWindow, textvariable=base_capacity_var)
         label_base_capacity.grid(column=0, row=4, sticky='w')
-        label_base_capacity_value = ttk.Entry(newWindow, text=self.label_base_capacity_value_str, state=status_scale)
-        label_base_capacity_value.grid(column=1, row=4, sticky='w')
+        label_base_capacity_value = ttk.Entry(newWindow, textvariable=self.label_base_capacity_value_str, state=status_scale)
+        label_base_capacity_value.grid(column=1, row=4, sticky='ew')
 
         label_scaling_factor = ttk.Label(newWindow, text='Scaling factor')
         label_scaling_factor.grid(column=0, row=5, sticky='w')
         label_scaling_factor_value = ttk.Entry(newWindow,
-                                               text=self.label_scaling_factor_value_str,
+                                               textvariable=self.label_scaling_factor_value_str,
                                                state=status_scale)
-        label_scaling_factor_value.grid(column=1, row=5, sticky='w')
+        label_scaling_factor_value.grid(column=1, row=5, sticky='ew')
 
         label_max_capacity_eoc = ttk.Label(newWindow, textvariable=max_capacity_var)
         label_max_capacity_eoc.grid(column=0, row=6, sticky='w')
         label_max_capacity_eoc_value = ttk.Entry(newWindow,
-                                                 text=self.label_max_capacity_eoc_value_str,
+                                                 textvariable=self.label_max_capacity_eoc_value_str,
                                                  state=status_scale)
-        label_max_capacity_eoc_value.grid(column=1, row=6, sticky='w')
+        label_max_capacity_eoc_value.grid(column=1, row=6, sticky='ew')
 
         ttk.Label(newWindow, text='Lifetime [Years]').grid(row=7, column=0, sticky='w')
-        entry_lifetime = ttk.Entry(newWindow, text=self.label_lifetime_value_str)
-        entry_lifetime.grid(row=7, column=1, sticky='w')
+        entry_lifetime = ttk.Entry(newWindow, textvariable=self.label_lifetime_value_str)
+        entry_lifetime.grid(row=7, column=1, sticky='ew')
 
         ttk.Label(newWindow, text='Fixed O&M [%]').grid(row=8, column=0, sticky='w')
-        entry_fixed_om = ttk.Entry(newWindow, text=self.label_fixed_om)
-        entry_fixed_om.grid(row=8, column=1, sticky='w')
+        entry_fixed_om = ttk.Entry(newWindow, textvariable=self.label_fixed_om)
+        entry_fixed_om.grid(row=8, column=1, sticky='ew')
 
         text_variable_om = 'Variable O&M [' + self.pm_object.get_monetary_unit() + ' / ' + unit_output \
                            + ' ' + self.component_object.get_main_output() + ']'
         ttk.Label(newWindow, text=text_variable_om).grid(row=9, column=0, sticky='w')
-        entry_variable_om = ttk.Entry(newWindow, text=self.label_variable_om)
-        entry_variable_om.grid(row=9, column=1, sticky='w')
+        entry_variable_om = ttk.Entry(newWindow, textvariable=self.label_variable_om)
+        entry_variable_om.grid(row=9, column=1, sticky='ew')
 
         ttk.Label(newWindow, text='Minimal power [%]').grid(row=10, column=0, sticky='w')
-        entry_min_capacity = ttk.Entry(newWindow, text=self.label_min_capacity_value_str)
-        entry_min_capacity.grid(row=10, column=1, sticky='w')
+        entry_min_capacity = ttk.Entry(newWindow, textvariable=self.label_min_capacity_value_str)
+        entry_min_capacity.grid(row=10, column=1, sticky='ew')
 
         ttk.Label(newWindow, text='Maximal power [%]').grid(row=11, column=0, sticky='w')
-        entry_max_capacity = ttk.Entry(newWindow, text=self.label_max_capacity_value_str)
-        entry_max_capacity.grid(row=11, column=1, sticky='w')
+        entry_max_capacity = ttk.Entry(newWindow, textvariable=self.label_max_capacity_value_str)
+        entry_max_capacity.grid(row=11, column=1, sticky='ew')
 
         ttk.Label(newWindow, text='Ramp down [%/h]').grid(row=12, column=0, sticky='w')
-        entry_ramp_down = ttk.Entry(newWindow, text=self.label_ramp_down_value_str)
-        entry_ramp_down.grid(row=12, column=1, sticky='w')
+        entry_ramp_down = ttk.Entry(newWindow, textvariable=self.label_ramp_down_value_str)
+        entry_ramp_down.grid(row=12, column=1, sticky='ew')
 
         ttk.Label(newWindow, text='Ramp up [%/h]').grid(row=13, column=0, sticky='w')
-        entry_ramp_up = ttk.Entry(newWindow, text=self.label_ramp_up_value_str)
-        entry_ramp_up.grid(row=13, column=1, sticky='w')
+        entry_ramp_up = ttk.Entry(newWindow, textvariable=self.label_ramp_up_value_str)
+        entry_ramp_up.grid(row=13, column=1, sticky='ew')
 
         ttk.Checkbutton(newWindow, text='Shut down possible?',
                        variable=self.shut_down_ability_var,
@@ -342,14 +341,14 @@ class ComponentParametersFrame:
             shut_down_state = DISABLED
 
         ttk.Label(newWindow, text='Cold Start up Time [h]').grid(row=15, column=0, sticky='w')
-        entry_start_up_time = ttk.Entry(newWindow, text=self.label_start_up_time_value_str, state=shut_down_state)
-        entry_start_up_time.grid(row=15, column=1, sticky='w')
+        entry_start_up_time = ttk.Entry(newWindow, textvariable=self.label_start_up_time_value_str, state=shut_down_state)
+        entry_start_up_time.grid(row=15, column=1, sticky='ew')
 
         cold_start_up_var = StringVar()
         cold_start_up_var.set('Cold Start up Costs [' + self.monetary_unit + '/' + capacity_unit + ']')
         ttk.Label(newWindow, textvariable=cold_start_up_var).grid(row=16, column=0, sticky='w')
-        entry_start_up_costs = ttk.Entry(newWindow, text=self.label_start_up_costs_value_str, state=shut_down_state)
-        entry_start_up_costs.grid(row=16, column=1, sticky='w')
+        entry_start_up_costs = ttk.Entry(newWindow, textvariable=self.label_start_up_costs_value_str, state=shut_down_state)
+        entry_start_up_costs.grid(row=16, column=1, sticky='ew')
 
         # Hot standby ability
         if self.hot_standby_ability_var.get():
@@ -367,23 +366,23 @@ class ComponentParametersFrame:
             commodities.append(s.get_name())
 
         ttk.Label(newWindow, text='Hot Standby Input Commodity').grid(row=18, column=0, sticky='w')
-        hot_standby_combobox = ttk.Combobox(newWindow, text='', values=commodities, state=state_hot_standby_combobox)
+        hot_standby_combobox = ttk.Combobox(newWindow, textvariable='', values=commodities, state=state_hot_standby_combobox)
         hot_standby_combobox.set(self.hot_standby_commodity_var.get())
-        hot_standby_combobox.grid(row=18, column=1, sticky='w')
+        hot_standby_combobox.grid(row=18, column=1, sticky='ew')
 
         ttk.Label(newWindow, text='Hot Standby Hourly Demand').grid(row=19, column=0, sticky='w')
-        hot_standby_entry = ttk.Entry(newWindow, text=self.hot_standby_demand_var, state=state_hot_standby)
-        hot_standby_entry.grid(row=19, column=1, sticky='w')
+        hot_standby_entry = ttk.Entry(newWindow, textvariable=self.hot_standby_demand_var, state=state_hot_standby)
+        hot_standby_entry.grid(row=19, column=1, sticky='ew')
 
         ttk.Label(newWindow, text='Hot Standby Startup Time [h]').grid(row=20, column=0, sticky='w')
-        hot_standby_startup_time_entry = ttk.Entry(newWindow, text=self.hot_standby_demand_startup_time,
+        hot_standby_startup_time_entry = ttk.Entry(newWindow, textvariable=self.hot_standby_demand_startup_time,
                                                    state=state_hot_standby)
-        hot_standby_startup_time_entry.grid(row=20, column=1, sticky='w')
+        hot_standby_startup_time_entry.grid(row=20, column=1, sticky='ew')
 
         # Number of units of same type in system
-        tk.Label(newWindow, text='Number of units in system').grid(row=21, column=0, sticky='w')
-        entry_number_units = ttk.Entry(newWindow, text=self.label_number_parallel_units_str)
-        entry_number_units.grid(row=21, column=1, sticky='w')
+        ttk.Label(newWindow, text='Number of units in system').grid(row=21, column=0, sticky='w')
+        entry_number_units = ttk.Entry(newWindow, textvariable=self.label_number_parallel_units_str)
+        entry_number_units.grid(row=21, column=1, sticky='ew')
 
         if self.has_fixed_capacity_var.get():
             state_fixed_capacity = NORMAL
@@ -395,33 +394,37 @@ class ComponentParametersFrame:
 
         ttk.Checkbutton(newWindow, textvariable=fixed_capacity_var, variable=self.has_fixed_capacity_var,
                         command=activate_fixed_capacity).grid(row=22, column=0, columnspan=2, sticky='w')
-        entry_fixed_capacity = ttk.Entry(newWindow, text=self.fixed_capacity_var, state=state_fixed_capacity)
-        entry_fixed_capacity.grid(row=22, column=1, sticky='w')
+        entry_fixed_capacity = ttk.Entry(newWindow, textvariable=self.fixed_capacity_var, state=state_fixed_capacity)
+        entry_fixed_capacity.grid(row=22, column=1, sticky='ew')
 
-        tk.Label(newWindow, textvariable=installation_co2_var).grid(row=23, column=0, sticky='w')
-        entry_installation_co2 = ttk.Entry(newWindow, text=self.label_installation_co2_emissions)
-        entry_installation_co2.grid(row=23, column=1, sticky='w')
+        ttk.Label(newWindow, textvariable=installation_co2_var).grid(row=23, column=0, sticky='w')
+        entry_installation_co2 = ttk.Entry(newWindow, textvariable=self.label_installation_co2_emissions)
+        entry_installation_co2.grid(row=23, column=1, sticky='ew')
 
-        tk.Label(newWindow, textvariable=fixed_co2_var).grid(row=25, column=0, sticky='w')
-        entry_fixed_co2 = ttk.Entry(newWindow, text=self.label_fixed_co2_emissions)
-        entry_fixed_co2.grid(row=25, column=1, sticky='w')
+        ttk.Label(newWindow, textvariable=fixed_co2_var).grid(row=25, column=0, sticky='w')
+        entry_fixed_co2 = ttk.Entry(newWindow, textvariable=self.label_fixed_co2_emissions)
+        entry_fixed_co2.grid(row=25, column=1, sticky='ew')
 
-        tk.Label(newWindow, textvariable=variable_co2_var).grid(row=26, column=0, sticky='w')
-        entry_variable_co2 = ttk.Entry(newWindow, text=self.label_variable_co2_emissions)
-        entry_variable_co2.grid(row=26, column=1, sticky='w')
+        ttk.Label(newWindow, textvariable=variable_co2_var).grid(row=26, column=0, sticky='w')
+        entry_variable_co2 = ttk.Entry(newWindow, textvariable=self.label_variable_co2_emissions)
+        entry_variable_co2.grid(row=26, column=1, sticky='ew')
 
-        tk.Label(newWindow, textvariable=disposal_co2_var).grid(row=27, column=0, sticky='w')
-        entry_disposal_co2 = ttk.Entry(newWindow, text=self.label_disposal_co2_emissions)
-        entry_disposal_co2.grid(row=27, column=1, sticky='w')
+        ttk.Label(newWindow, textvariable=disposal_co2_var).grid(row=27, column=0, sticky='w')
+        entry_disposal_co2 = ttk.Entry(newWindow, textvariable=self.label_disposal_co2_emissions)
+        entry_disposal_co2.grid(row=27, column=1, sticky='ew')
 
-        button = ttk.Button(newWindow, text='Adjust values', command=get_value_and_kill_window)
-        button.grid(row=28, column=0, sticky='ew')
+        button_frame = ttk.Frame(newWindow)
 
-        button = ttk.Button(newWindow, text='Cancel', command=newWindow.destroy)
-        button.grid(row=28, column=1, sticky='ew')
+        button = ttk.Button(button_frame, text='Adjust values', command=get_value_and_kill_window)
+        button.grid(row=0, column=0, sticky='ew')
 
-        newWindow.grid_columnconfigure(0, weight=1, uniform='a')
-        newWindow.grid_columnconfigure(1, weight=1, uniform='a')
+        button = ttk.Button(button_frame, text='Cancel', command=newWindow.destroy)
+        button.grid(row=0, column=1, sticky='ew')
+
+        button_frame.grid_columnconfigure(0, weight=1, uniform='a')
+        button_frame.grid_columnconfigure(1, weight=1, uniform='a')
+
+        button_frame.grid(row=28, columnspan=2, sticky='ew')
 
         newWindow.mainloop()
 
@@ -494,7 +497,7 @@ class ComponentParametersFrame:
         self.component_object = self.pm_object.get_component(component)
         self.monetary_unit = self.pm_object.get_monetary_unit()
 
-        self.frame = tk.Frame(super_frame)
+        self.frame = ttk.Frame(super_frame)
 
         if self.component != '':
 
@@ -1156,7 +1159,7 @@ class ConversionFrame:
 
             coefficient_entry_var = DoubleVar()
             coefficient_entry_var.set(coefficient_to_adjust)
-            tk.Label(adjust_input_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
+            ttk.Label(adjust_input_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
             coefficient_entry = Entry(adjust_input_window, text=coefficient_entry_var)
             coefficient_entry.grid(row=7, column=0, columnspan=3, sticky='ew')
 
@@ -1267,7 +1270,7 @@ class ConversionFrame:
 
             coefficient_entry_var = DoubleVar()
             coefficient_entry_var.set(coefficient_to_adjust)
-            tk.Label(adjust_output_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
+            ttk.Label(adjust_output_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
             coefficient_entry = Entry(adjust_output_window, text=coefficient_entry_var)
             coefficient_entry.grid(row=7, column=0, columnspan=3, sticky='ew')
 
@@ -1433,7 +1436,7 @@ class ConversionFrame:
 
             coefficient_entry_var = DoubleVar()
             coefficient_entry_var.set(1.0)
-            tk.Label(add_input_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
+            ttk.Label(add_input_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
             coefficient_entry = Entry(add_input_window, text=coefficient_entry_var)
             coefficient_entry.grid(row=7, column=0, columnspan=1, sticky='ew')
 
@@ -1532,7 +1535,7 @@ class ConversionFrame:
 
             coefficient_entry_var = DoubleVar()
             coefficient_entry_var.set(1.0)
-            tk.Label(add_output_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
+            ttk.Label(add_output_window, text='Coefficient').grid(row=6, column=0, columnspan=3, sticky='ew')
             coefficient_entry = Entry(add_output_window, text=coefficient_entry_var)
             coefficient_entry.grid(row=7, column=0, columnspan=3, sticky='ew')
 

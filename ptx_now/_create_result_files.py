@@ -553,8 +553,8 @@ def _create_result_files(pm_object, path_results):
                 if component_object.get_uses_ppa():
 
                     cost_distribution.loc[component_name + ' PPA Costs', 'Total'] \
-                        = component_object.get_generated_quantity() * component_object.get_ppa_price()
-                    total_costs += component_object.get_generated_quantity() * component_object.get_ppa_price()
+                        = component_object.get_potential_generation_quantity() * component_object.get_ppa_price()
+                    total_costs += component_object.get_potential_generation_quantity() * component_object.get_ppa_price()
 
         for commodity_object in pm_object.get_final_commodities_objects():
             commodity_name = commodity_object.get_name()

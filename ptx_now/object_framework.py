@@ -710,7 +710,7 @@ class ParameterObject:
         return specific_co2_emissions_per_capacity, fixed_yearly_co2_emissions,\
             variable_co2_emissions, disposal_co2_emissions
 
-    def calculate_economies_of_scale_steps(self, component_object, plot=False):
+    def calculate_economies_of_scale_steps(self, component_object):
 
         component_name = component_object.get_name()
 
@@ -747,29 +747,34 @@ class ParameterObject:
         intercept = {(component_name, 0): 0}
 
         # Find capacities at beginning/end of steps
+        capacity_scaling_factor = 1
+        if base_capacity <= 100:
+            capacity_scaling_factor = 10
+
         capacities = {}
         investments = {}
         for i in range(integer_steps):
             investment = i * delta_investment_per_step
             investments[i] = investment
             capacity = (investment / base_investment) ** (1 / economies_of_scale) * base_capacity
-            capacities[i] = capacity
+
+            capacities[i] = capacity * capacity_scaling_factor
 
         for i in range(integer_steps):
             if i == integer_steps - 1:
                 continue
 
-            upper_bound[(component_name, i + 1)] = capacities[i + 1]
-            lower_bound[(component_name, i + 1)] = capacities[i]
+            upper_bound[(component_name, i + 1)] = capacities[i + 1] / capacity_scaling_factor
+            lower_bound[(component_name, i + 1)] = capacities[i] / capacity_scaling_factor
 
             y_value = np.zeros([len(range(int(capacities[i]), int(capacities[i + 1])))])
             x_value = np.zeros([len(range(int(capacities[i]), int(capacities[i + 1])))]).reshape((-1, 1))
 
             k = 0
             for j in range(int(capacities[i]), int(capacities[i + 1])):
-                x_value[k] = j
+                x_value[k] = j / capacity_scaling_factor
                 if x_value[k] != 0:
-                    y_value[k] = base_investment * (j / base_capacity) ** economies_of_scale
+                    y_value[k] = base_investment * (j / capacity_scaling_factor / base_capacity) ** economies_of_scale
                 else:
                     y_value[k] = 0
                 k += 1
@@ -782,15 +787,15 @@ class ParameterObject:
         investment = integer_steps * delta_investment_per_step
         capacity = (investment / base_investment) ** (1 / economies_of_scale) * base_capacity
         upper_bound[(component_name, integer_steps)] = math.inf
-        lower_bound[(component_name, integer_steps)] = capacities[integer_steps - 1]
+        lower_bound[(component_name, integer_steps)] = capacities[integer_steps - 1] / capacity_scaling_factor
 
         y_value = np.zeros([len(range(int(capacities[integer_steps - 1]), int(capacity)))])
         x_value = np.zeros([len(range(int(capacities[integer_steps - 1]), int(capacity)))]).reshape((-1, 1))
         k = 0
         for j in range(int(capacities[integer_steps - 1]), int(capacity)):
-            x_value[k] = j
+            x_value[k] = j / capacity_scaling_factor
             if x_value[k] != 0:
-                y_value[k] = base_investment * (j / base_capacity) ** economies_of_scale
+                y_value[k] = base_investment * (j / capacity_scaling_factor / base_capacity) ** economies_of_scale
             else:
                 y_value[k] = 0
             k += 1
@@ -798,42 +803,6 @@ class ParameterObject:
             model = LinearRegression().fit(x_value, y_value)
             coefficient[(component_name, integer_steps)] = model.coef_[0]
             intercept[(component_name, integer_steps)] = model.intercept_
-
-        if plot:
-            plt.figure()
-            y = []
-            x = []
-
-            x_value_absolut = np.zeros([len(range(0, int(max_capacity_economies_of_scale)))])
-            y_value_absolut = np.zeros([len(range(0, int(max_capacity_economies_of_scale)))])
-            for i in range(int(max_capacity_economies_of_scale)):
-                if i == 0:
-                    y_value_absolut[i] = 0
-                else:
-                    y_value_absolut[i] = base_investment * (i / base_capacity) ** economies_of_scale
-
-                x_value_absolut[i] = i
-
-            for i in [*intercept.keys()]:
-
-                low = int(lower_bound[i])
-                if upper_bound[i] == math.inf:
-                    up = int(lower_bound[i] * 1.2)
-                else:
-                    up = int(upper_bound[i])
-
-                for capacity in range(low, up):
-                    y.append(intercept[i] + capacity * coefficient[i])
-                    x.append(capacity)
-
-            plt.plot(x, y, marker='', color='red', linewidth=2)
-            plt.plot(x_value_absolut, y_value_absolut, marker='', color='olive', linewidth=2)
-
-            plt.title(component_object.get_name())
-            plt.xlabel('Capacity')
-            plt.ylabel('Total investment in €')
-
-            plt.show()
 
         return lower_bound, upper_bound, coefficient, intercept
 
@@ -1104,13 +1073,20 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    purchase_price_curve = profile.loc[:, commodity_name + '_Purchase_Price']
+                    if commodity_name + '_Purchase_Price' in profile.columns:
+                        purchase_price_curve = profile.loc[:, commodity_name + '_Purchase_Price']
 
-                    ind = 0
-                    for cl in range(self.get_number_clusters()):
-                        for t in range(self.get_covered_period()):
-                            purchase_price_dict.update({(commodity_name, cl, t): float(purchase_price_curve.loc[purchase_price_curve.index[ind]])})
-                            ind += 1
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                purchase_price_dict.update({(commodity_name, cl, t): float(purchase_price_curve.loc[purchase_price_curve.index[ind]])})
+                                ind += 1
+                    else:
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                purchase_price_dict.update({(commodity_name, cl, t): 0})
+                                ind += 1
 
         return purchase_price_dict
 
@@ -1134,13 +1110,22 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    purchase_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Purchase_Specific_CO2_Emissions']
+                    if commodity_name + '_Purchase_Specific_CO2_Emissions' in profile.columns:
 
-                    ind = 0
-                    for cl in range(self.get_number_clusters()):
-                        for t in range(self.get_covered_period()):
-                            purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(purchase_specific_co2_emissions_curve.loc[purchase_specific_co2_emissions_curve.index[ind]])})
-                            ind += 1
+                        purchase_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Purchase_Specific_CO2_Emissions']
+
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(purchase_specific_co2_emissions_curve.loc[purchase_specific_co2_emissions_curve.index[ind]])})
+                                ind += 1
+
+                    else:
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): 0})
+                                ind += 1
 
         return purchase_specific_co2_emissions_dict
 
@@ -1163,13 +1148,22 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    sale_price_curve = profile.loc[:, commodity_name + '_Selling_Price']
+                    if commodity_name + '_Selling_Price' in profile.columns:
 
-                    ind = 0
-                    for cl in range(self.get_number_clusters()):
-                        for t in range(self.get_covered_period()):
-                            sell_price_dict.update({(commodity_name, cl, t): float(sale_price_curve.loc[sale_price_curve.index[ind]])})
-                            ind += 1
+                        sale_price_curve = profile.loc[:, commodity_name + '_Selling_Price']
+
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                sell_price_dict.update({(commodity_name, cl, t): float(sale_price_curve.loc[sale_price_curve.index[ind]])})
+                                ind += 1
+
+                    else:
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                sell_price_dict.update({(commodity_name, cl, t): 0})
+                                ind += 1
 
         return sell_price_dict
 
@@ -1192,13 +1186,23 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    sale_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Selling_Specific_CO2_Emissions']
+                    if commodity_name + '_Selling_Specific_CO2_Emissions' in profile.columns:
+                        # If this would be necessary, it would have been caught already when checking the optimizaton problem
 
-                    ind = 0
-                    for cl in range(self.get_number_clusters()):
-                        for t in range(self.get_covered_period()):
-                            sale_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(sale_specific_co2_emissions_curve.loc[sale_specific_co2_emissions_curve.index[ind]])})
-                            ind += 1
+                        sale_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Selling_Specific_CO2_Emissions']
+
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                sale_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(sale_specific_co2_emissions_curve.loc[sale_specific_co2_emissions_curve.index[ind]])})
+                                ind += 1
+
+                    else:
+                        ind = 0
+                        for cl in range(self.get_number_clusters()):
+                            for t in range(self.get_covered_period()):
+                                sale_specific_co2_emissions_dict.update({(commodity_name, cl, t): 0})
+                                ind += 1
 
         return sale_specific_co2_emissions_dict
 

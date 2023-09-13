@@ -221,6 +221,14 @@ class OptimizationPyomoModel:
 
         attach_shut_down_component_parameters_to_optimization_problem()
 
+        def attach_commodity_price_parameters_to_optimization_problem():
+            self.model.purchase_price = Param(self.model.PURCHASABLE_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
+                                              initialize=self.purchase_price_dict)
+            self.model.selling_price = Param(self.model.SALEABLE_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
+                                             initialize=self.sell_price_dict)
+
+        attach_commodity_price_parameters_to_optimization_problem()
+
     def attach_economic_variables(self):
 
         # Investment of each component
@@ -711,12 +719,19 @@ class OptimizationPyomoModel:
                                                   rule=restart_costs_rule)
 
         def calculate_investment_components_rule(m, c):
-            if c not in m.SCALABLE_COMPONENTS:
-                return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+            if c not in m.GENERATORS:
+                if c not in m.SCALABLE_COMPONENTS:
+                    return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+                else:
+                    return m.investment[c] == sum(m.nominal_cap_pre[c, i] * m.capex_pre_var[c, i]
+                                                  + m.capex_pre_fix[c, i] * m.capacity_binary[c, i]
+                                                  for i in m.INTEGER_STEPS)
             else:
-                return m.investment[c] == sum(m.nominal_cap_pre[c, i] * m.capex_pre_var[c, i]
-                                              + m.capex_pre_fix[c, i] * m.capacity_binary[c, i]
-                                              for i in m.INTEGER_STEPS)
+                generator_component = self.pm_object.get_component(c)
+                if generator_component.get_uses_ppa():
+                    return m.investment[c] == 0
+                else:
+                    return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
 
         self.model.calculate_investment_components_con = Constraint(self.model.COMPONENTS,
                                                                     rule=calculate_investment_components_rule)
@@ -726,26 +741,24 @@ class OptimizationPyomoModel:
     def attach_economic_objective_function(self):
 
         def objective_function(m):
-            return (sum(m.investment[c] * m.ANF[c] for c in m.COMPONENTS)
-                    + sum(m.investment[c] * m.fixed_om[c] for c in m.COMPONENTS)
+            return (sum(m.investment[c] * (m.ANF[c] + m.fixed_om[c]) for c in m.COMPONENTS)
                     + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_om[s] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
-                    + sum(
-                        m.mass_energy_component_out_commodities[
-                            c, self.pm_object.get_component(c).get_main_output(), cl, t]
+                    + sum(m.mass_energy_component_out_commodities[c, self.pm_object.get_component(c).get_main_output(), cl, t]
                         * m.variable_om[c] * m.weightings[cl] for t in m.TIME
                         for cl in m.CLUSTERS for c in m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
                           * m.variable_om[g] * m.weightings[cl]
                           for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
-                    + sum(m.mass_energy_purchase[me, cl, t] * m.purchase_price[me, cl, t] * m.weightings[cl]
-                          for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES if
-                          me in self.purchasable_commodities)
-                    - sum(m.mass_energy_sell[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
-                          for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES if
-                          me in self.saleable_commodities)
-                    + sum(m.status_off_switch_off[c, cl, t] * m.weightings[cl] * m.start_up_costs[c]
-                          for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS))
+                    + sum(m.mass_energy_purchase_commodity[me, cl, t] * m.purchase_price[me, cl, t] * m.weightings[cl]
+                          for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES)
+                    + sum(m.mass_energy_sell_commodity[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
+                          for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES)
+                    + sum(m.nominal_cap[g] * m.generation_profiles[g, cl, t] * m.weightings[cl] * self.pm_object.get_component(g).get_ppa_price()
+                          for g in m.GENERATORS if self.pm_object.get_component(g).get_uses_ppa()
+                          for t in m.TIME for cl in m.CLUSTERS)
+                    + sum(m.restart_costs[c, cl, t] for t in m.TIME for cl in m.CLUSTERS
+                          for c in m.SHUT_DOWN_COMPONENTS))
 
         self.model.obj = Objective(rule=objective_function, sense=minimize)
 
@@ -1026,7 +1039,7 @@ class OptimizationPyomoModel:
         self.model = ConcreteModel()
         self.model.TIME = RangeSet(0, self.pm_object.get_covered_period() - 1)
         self.model.CLUSTERS = RangeSet(0, self.pm_object.get_number_clusters() - 1)
-        self.model.INTEGER_STEPS = RangeSet(0, self.pm_object.integer_steps)
+        self.model.INTEGER_STEPS = RangeSet(0, self.pm_object.integer_steps - 1)
 
         bigM_capacity = anticipate_bigM(self.pm_object)
         self.model.M = Param(self.all_components, initialize=bigM_capacity)

@@ -34,7 +34,7 @@ def anticipate_bigM(pm_object):
         if commodity_object.is_demanded():
             demand = commodity_object.get_demand()
             if commodity_object.is_total_demand():
-                hourly_demand = demand / 8760
+                hourly_demand = demand / pm_object.get_covered_period()
                 total_demand = demand
             else:
                 hourly_demand = demand
@@ -47,6 +47,10 @@ def anticipate_bigM(pm_object):
         generated_commodity = component_object.get_generated_commodity()
 
         efficiency_chain[generated_commodity] = 1
+
+    for commodity_object in pm_object.get_final_commodities_objects():
+        if (commodity_object.is_available()) | (commodity_object.is_purchasable()):
+            efficiency_chain[commodity_object.get_name()] = 1
 
     in_to_out_conversions = pm_object.get_main_input_to_output_conversions()[2]
     components_to_process = pm_object.get_final_conversion_components_names()

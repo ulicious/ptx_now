@@ -300,7 +300,7 @@ def create_linear_system_of_equations(pm_object, new_result_folder):
                     = commodity_object.get_selling_revenue()
                 if commodity_object.get_sold_quantity() > 0:
                     revenue\
-                        = commodity_object.get_selling_revenue[commodity] / commodity_object.get_sold_quantity[commodity]
+                        = commodity_object.get_selling_revenue() / commodity_object.get_sold_quantity()
                     commodities_and_costs.loc[
                         commodity, 'Average Selling Revenue / Disposal Costs per sold/disposed Unit'] \
                         = revenue
@@ -310,7 +310,7 @@ def create_linear_system_of_equations(pm_object, new_result_folder):
                         = 0
 
                 total_variable_costs\
-                    = commodity_object.get_purchase_costs() - commodity_object.get_selling_revenue()  # todo: + oder -?
+                    = commodity_object.get_purchase_costs() + commodity_object.get_selling_revenue()
                 commodities_and_costs.loc[commodity, 'Total Variable Costs'] = total_variable_costs
 
                 commodities_and_costs.loc[commodity, 'Total Generation Costs']\
@@ -824,7 +824,7 @@ def create_linear_system_of_equations_emissions(pm_object, new_result_folder):
                     = commodity_object.get_total_co2_emissions_sale()
                 if commodity_object.get_sold_quantity() > 0:
                     revenue\
-                        = commodity_object.get_selling_revenue[commodity] / commodity_object.get_sold_quantity[commodity]
+                        = commodity_object.get_selling_revenue() / commodity_object.get_sold_quantity()
                     commodities_and_emissions.loc[
                         commodity, 'Average Emissions Sold per sold/disposed Unit'] \
                         = revenue
@@ -834,7 +834,7 @@ def create_linear_system_of_equations_emissions(pm_object, new_result_folder):
                         = 0
 
                 total_variable_emissions\
-                    = commodity_object.get_total_co2_emissions_purchase() - commodity_object.get_total_co2_emissions_sale()  # todo: + oder -?
+                    = commodity_object.get_total_co2_emissions_purchase() - commodity_object.get_total_co2_emissions_sale()
                 commodities_and_emissions.loc[commodity, 'Total Variable Emissions'] = total_variable_emissions
 
                 commodities_and_emissions.loc[commodity, 'Total Generation Emissions']\

@@ -8,6 +8,7 @@ from pyomo.core import *
 
 from optimization_pyomo_model import OptimizationPyomoModel
 from optimization_gurobi_model import OptimizationGurobiModel
+from optimization_highs_model import OptimizationHighsModel
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
@@ -22,39 +23,59 @@ def optimize_single_profile_not_multi_objective(optimization_type, pm_object_cop
 
     optimization_model_pyomo = OptimizationPyomoModel
     optimization_model_gurobi = OptimizationGurobiModel
+    optimization_model_highs = OptimizationHighsModel
+
+    if True:
+
+        now = time.time()
+        optimization_problem = optimization_model_pyomo(pm_object_copy_pyomo, solver)
+        optimization_problem.prepare(optimization_type=optimization_type)
+        optimization_problem.optimize()
+
+        pyomo_time_optimization = time.time() - now
+        now = time.time()
+
+        pm_object_copy_gurobi.set_objective_function_value(optimization_problem.objective_function_value)
+        pyomo_ofv = optimization_problem.objective_function_value
+        pm_object_copy_gurobi.set_instance(optimization_problem.instance)
+        pm_object_copy_gurobi.process_results(path_results, optimization_problem.model_type)
+
+        pyomo_time_analysis = time.time() - now
+
+    if True:
+
+        now = time.time()
+        optimization_problem = optimization_model_gurobi(pm_object_copy_pyomo, solver)
+        optimization_problem.prepare(optimization_type=optimization_type)
+        optimization_problem.optimize()
+
+        gurobi_time_optimization = time.time() - now
+        now = time.time()
+
+        pm_object_copy_gurobi.set_objective_function_value(optimization_problem.objective_function_value)
+        gurobi_ofv = optimization_problem.objective_function_value
+        pm_object_copy_gurobi.set_instance(optimization_problem.instance)
+        pm_object_copy_gurobi.process_results(path_results, optimization_problem.model_type)
+
+        gurobi_time_analysis = time.time() - now
 
     now = time.time()
-    optimization_problem = optimization_model_pyomo(pm_object_copy_pyomo, solver)
+    optimization_problem = optimization_model_highs(pm_object_copy_pyomo, solver)
     optimization_problem.prepare(optimization_type=optimization_type)
     optimization_problem.optimize()
 
-    pyomo_time_optimization = time.time() - now
+    highs_time_optimization = time.time() - now
     now = time.time()
 
-    pm_object_copy_pyomo.set_objective_function_value(optimization_problem.instance.obj())
-    pyomo_ofv = optimization_problem.instance.obj()
+    pm_object_copy_pyomo.set_objective_function_value(optimization_problem.objective_function_value)
+    highs_ofv = optimization_problem.objective_function_value
     pm_object_copy_pyomo.set_instance(optimization_problem.instance)
     pm_object_copy_pyomo.process_results(path_results, optimization_problem.model_type)
-    pyomo_time_analysis = time.time() - now
+    highs_time_analysis = time.time() - now
 
-    now = time.time()
-    optimization_problem = optimization_model_gurobi(pm_object_copy_pyomo, solver)
-    optimization_problem.prepare(optimization_type=optimization_type)
-    optimization_problem.optimize()
-
-    gurobi_time_optimization = time.time() - now
-    now = time.time()
-
-    pm_object_copy_gurobi.set_objective_function_value(optimization_problem.model.objVal)
-    gurobi_ofv = optimization_problem.model.objVal
-    pm_object_copy_gurobi.set_instance(optimization_problem.instance)
-    pm_object_copy_gurobi.process_results(path_results, optimization_problem.model_type)
-
-    gurobi_time_analysis = time.time() - now
-
-    print('Comparison OFV: Pyomo: ' + str(pyomo_ofv) + ' | Gurobi: ' + str(gurobi_ofv))
-    print('Comparison Time Optimization: Pyomo: ' + str(pyomo_time_optimization) + ' | Gurobi: ' + str(gurobi_time_optimization))
-    print('Comparison Time Analysis: Pyomo: ' + str(pyomo_time_analysis) + ' | Gurobi: ' + str(gurobi_time_analysis))
+    print('Comparison OFV: highs: ' + str(highs_ofv) + ' | Gurobi: ' + str(gurobi_ofv) + ' | Pyomo: ' + str(pyomo_ofv))
+    print('Comparison Time Optimization: highs: ' + str(highs_time_optimization) + ' | Gurobi: ' + str(gurobi_time_optimization) + ' | Pyomo: ' + str(pyomo_time_optimization))
+    print('Comparison Time Analysis: highs: ' + str(highs_time_analysis) + ' | Gurobi: ' + str(gurobi_time_analysis) + ' | Pyomo: ' + str(pyomo_time_analysis))
 
 
 def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
@@ -218,7 +239,9 @@ def optimize_multi_profiles_no_multi_optimization(optimization_type, pm_object_c
     pm_object_copy_gurobi.set_profile_data(path_data_before)
 
     result_df = pd.DataFrame(results_gurobi, index=filenames)
-    result_df.to_excel(path_results + '/' + pm_object_copy_gurobi.get_project_name() + 'xlsx')
+
+    dt_string = datetime.now().strftime("%Y%m%d_%H%M%S")
+    result_df.to_excel(path_results + dt_string + '_' + pm_object_copy_gurobi.get_project_name() + '.xlsx')
 
 
 def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
@@ -248,7 +271,6 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
     path_mo_result = path_results + dt_string + '_' + pm_object_copy_gurobi.get_project_name() + '/'
     os.mkdir(path_mo_result)
 
-    results_per_profile = {}
     for f in filenames:
 
         pm_object_copy_gurobi.set_profile_data(path_data_before + '/' + f)
@@ -300,6 +322,14 @@ def optimize_no_profile(optimization_type, pm_object_copy_pyomo, pm_object_copy_
                         solver, path_results):
 
     optimization_problem = OptimizationGurobiModel(pm_object_copy_gurobi, solver)
+    optimization_problem.prepare(optimization_type=optimization_type)
+    optimization_problem.optimize()
+
+    # pm_object_copy_gurobi.set_objective_function_value(optimization_problem.objective_function_value)
+    # pm_object_copy_gurobi.set_instance(optimization_problem.instance)
+    # pm_object_copy_gurobi.process_results(path_results, optimization_problem.model_type)
+
+    optimization_problem = OptimizationHighsModel(pm_object_copy_gurobi, solver)
     optimization_problem.prepare(optimization_type=optimization_type)
     optimization_problem.optimize()
 

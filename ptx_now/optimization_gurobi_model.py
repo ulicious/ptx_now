@@ -554,7 +554,7 @@ class OptimizationGurobiModel:
             + sum(self.mass_energy_purchase_commodity[me, cl, t] * self.purchase_price_dict[me, cl, t]
                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
                   for me in self.purchasable_commodities if me in self.purchasable_commodities)
-            - sum(self.mass_energy_sell_commodity[me, cl, t] * self.sell_price_dict[me, cl, t]
+            + sum(self.mass_energy_sell_commodity[me, cl, t] * self.sell_price_dict[me, cl, t]
                   * self.weightings_dict[cl]
                   for t in self.time for cl in self.clusters for me in self.saleable_commodities
                   if me in self.saleable_commodities)

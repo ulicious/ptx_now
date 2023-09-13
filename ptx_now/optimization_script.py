@@ -2,7 +2,7 @@ import pandas as pd
 
 from _helper_optimization import clone_components_which_use_parallelization
 from optimization_types import optimize_single_profile_not_multi_objective, optimize_single_profile_multi_objective,\
-    optimize_multi_profiles_no_multi_optimization, multi_profiles_multi_objective
+    optimize_multi_profiles_no_multi_optimization, multi_profiles_multi_objective, optimize_no_profile
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
@@ -50,8 +50,8 @@ def optimize(pm_object, path_data, path_results, solver):
 
             # todo: multiple cases like above
 
-            optimize_single_profile_not_multi_objective(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
-                                                        solver, path_results)
+            optimize_no_profile(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
+                                solver, path_results)
 
     else:
         if profile_needed:
@@ -71,8 +71,8 @@ def optimize(pm_object, path_data, path_results, solver):
 
             # todo: multiple cases
 
-            optimize_single_profile_not_multi_objective(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
-                                                        solver, path_results)
+            optimize_no_profile(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
+                                solver, path_results)
 
     print('Optimization completed.')
 

@@ -97,10 +97,11 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
         multi_objective_optimization_problem.prepare(optimization_type='multiobjective', eps_value_ecologic=eps)
         multi_objective_optimization_problem.optimize()
 
-        return multi_objective_optimization_problem.objective_function_value
+        return multi_objective_optimization_problem.economic_objective_function_value, \
+            multi_objective_optimization_problem.ecologic_objective_function_value
 
     num_cores = min(120, multiprocessing.cpu_count() - 1)
-    number_intervalls = 100
+    number_intervalls = 3
 
     # first calculate economical nadir value
     if False:
@@ -190,14 +191,16 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
         inputs.append((eps_list[i], OptimizationGurobiModel, pm_object_copy_gurobi))
 
     inputs = tqdm(inputs)
-    economic_values = Parallel(n_jobs=num_cores)(delayed(run_multi_objective_optimization_in_parallel)(i) for i in inputs)
+    objective_function_values = Parallel(n_jobs=2)(delayed(run_multi_objective_optimization_in_parallel)(i) for i in inputs)
 
-    for number, element in enumerate(eps_list):
-        value_economic = economic_values[number]
+    for number, element in enumerate(objective_function_values):
+        value_economic = element[0]
+        value_ecologic = element[1]
 
-        objective_function_value_combinations[number] = tuple([value_economic, element])
+        objective_function_value_combinations[number] = tuple([value_economic, value_ecologic])
 
     result_df = pd.DataFrame(objective_function_value_combinations).transpose()
+
     result_df.columns = ['Economic', 'Ecologic']
 
     dt_string = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -216,8 +219,10 @@ def optimize_multi_profiles_no_multi_optimization(optimization_type, pm_object_c
         optimization_problem.optimize()
 
         input_data[0].set_objective_function_value(optimization_problem.objective_function_value)
-        input_data[0].set_instance(optimization_problem.instance)
-        input_data[0].process_results(path_results, optimization_problem.model_type)
+
+        # todo: might get problems as folder names are not unique --> to many at same time
+        # input_data[0].set_instance(optimization_problem.instance)
+        # input_data[0].process_results(path_results, optimization_problem.model_type)
 
         return optimization_problem.objective_function_value
 
@@ -254,10 +259,11 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
         multi_objective_optimization_problem.optimize()
 
         pm_object.set_objective_function_value(multi_objective_optimization_problem.objective_function_value)
-        pm_object.set_instance(multi_objective_optimization_problem.instance)
-        pm_object.process_results(path_results, multi_objective_optimization_problem.model_type)
+        # pm_object.set_instance(multi_objective_optimization_problem.instance)
+        # pm_object.process_results(path_results, multi_objective_optimization_problem.model_type)
 
-        return multi_objective_optimization_problem.objective_function_value
+        return multi_objective_optimization_problem.economic_objective_function_value,\
+            multi_objective_optimization_problem.ecologic_objective_function_value
 
     num_cores = min(120, multiprocessing.cpu_count() - 1)
     number_intervals = 100
@@ -270,6 +276,8 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
     dt_string = datetime.now().strftime("%Y%m%d_%H%M%S")
     path_mo_result = path_results + dt_string + '_' + pm_object_copy_gurobi.get_project_name() + '/'
     os.mkdir(path_mo_result)
+
+    all_pareto_fronts = pd.DataFrame()
 
     for f in filenames:
 
@@ -303,17 +311,23 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
             inputs.append((eps_list[i], OptimizationGurobiModel, pm_object_copy_gurobi))
 
         inputs = tqdm(inputs)
-        economic_values = Parallel(n_jobs=num_cores)(
+        results = Parallel(n_jobs=num_cores)(
             delayed(run_multi_objective_optimization_in_parallel)(i) for i in inputs)
 
-        for number, element in enumerate(eps_list):
-            value_economic = economic_values[number]
+        for number, element in enumerate(results):
+            value_economic = element[0]
+            value_ecologic = element[0]
 
-            objective_function_value_combinations[number] = tuple([value_economic, element])
+            objective_function_value_combinations[number] = tuple([value_economic, value_ecologic])
 
         result_df = pd.DataFrame(objective_function_value_combinations).transpose()
         result_df.columns = ['Economic', 'Ecologic']
         result_df.to_excel(path_mo_result + f)
+
+        all_pareto_fronts[f + ' Economic'] = result_df['Economic']
+        all_pareto_fronts[f + ' Ecologic'] = result_df['Ecologic']
+
+    all_pareto_fronts.to_excel(path_mo_result + 'all_pareto_fronts.xlsx')
 
     pm_object_copy_gurobi.set_profile_data(path_data_before)
 

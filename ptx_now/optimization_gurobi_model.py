@@ -700,6 +700,9 @@ class OptimizationGurobiModel:
 
         self.objective_function_value = self.model.objVal
 
+        self.economic_objective_function_value = self.objective_economic.X
+        self.ecologic_objective_function_value = self.objective_ecologic.X
+
         save_results()
 
     def reset_information(self):
@@ -714,7 +717,10 @@ class OptimizationGurobiModel:
         self.solver = solver
         self.instance = None
         self.pm_object = pm_object
+
         self.objective_function_value = None
+        self.economic_objective_function_value = None
+        self.ecologic_objective_function_value = None
 
         self.model_type = 'gurobi'
 

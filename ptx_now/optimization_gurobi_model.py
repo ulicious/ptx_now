@@ -126,6 +126,9 @@ class OptimizationGurobiModel:
                                                                                         self.time)),
                                                                  lb=0)
 
+        self.objective_economic = self.model.addVar()
+        self.objective_ecologic = self.model.addVar()
+
     def attach_economic_variables(self):
 
         self.investment = self.model.addVars(self.all_components, lb=0)
@@ -530,13 +533,9 @@ class OptimizationGurobiModel:
                                             for i in self.integer_steps),
                                      name='calculate_investment' + name_adding)
 
-    def attach_economic_objective_function(self):
-
-        pm_object = self.pm_object
-
-        # minimize total costs
-        self.model.setObjective(
-            sum(self.investment[c] * (self.annuity_factor_dict[c] + self.fixed_om_dict[c]) for c in self.all_components)
+        self.model.addConstr(self.objective_economic ==
+            sum(self.investment[c] * (self.annuity_factor_dict[c] + self.fixed_om_dict[c]) for c in
+                self.all_components)
             + sum(self.generation_profiles_dict[g, cl, t] * self.nominal_cap[g]
                   * pm_object.get_component(g).get_ppa_price() * self.weightings_dict[cl]
                   for g in self.generator_components if pm_object.get_component(g).get_uses_ppa()
@@ -560,13 +559,9 @@ class OptimizationGurobiModel:
                   if me in self.saleable_commodities)
             + sum(self.restart_costs[c, cl, t]
                   for t in self.time for cl in self.clusters
-                  for c in self.shut_down_components),
-            gp.GRB.MINIMIZE)
+                  for c in self.shut_down_components), name='calculate_economic_objective_function')
 
-    def attach_ecologic_objective_function(self):
-
-        # minimize total emissions
-        self.model.setObjective(
+        self.model.addConstr(self.objective_ecologic ==
             (sum(self.nominal_cap[c]
                  * (self.installation_co2_emissions_dict[c] + self.disposal_co2_emissions_dict[c]) / 20  # m.lifetime[c]
                  for c in self.all_components)
@@ -591,139 +586,42 @@ class OptimizationGurobiModel:
                    for me in self.saleable_commodities)
              - sum(self.mass_energy_emitted[me, cl, t] * self.emitted_specific_CO2_emissions_dict[me, cl, t]
                    * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.emittable_commodities)),
+                   for me in self.emittable_commodities)), name='calculate_ecologic_objective_function')
+
+    def attach_economic_objective_function(self):
+
+        # minimize total costs
+        self.model.setObjective(self.objective_economic,
+            gp.GRB.MINIMIZE)
+
+    def attach_ecologic_objective_function(self):
+
+        # minimize total emissions
+        self.model.setObjective(self.objective_ecologic,
             gp.GRB.MINIMIZE)
 
     def attach_multi_objective_economic_objective_adherence_constraint(self, eps_value_economic):
 
-        pm_object = self.pm_object
-
         # minimize total costs
-        self.model.addConstr(
-            sum(self.investment[c] * (self.annuity_factor_dict[c] + self.fixed_om_dict[c]) for c in self.all_components)
-            + sum(self.generation_profiles_dict[g, cl, t] * self.nominal_cap[g]
-                  * pm_object.get_component(g).get_ppa_price() * self.weightings_dict[cl]
-                  for g in self.generator_components if pm_object.get_component(g).get_uses_ppa()
-                  for cl in self.clusters for t in self.time)
-            + sum(self.mass_energy_storage_in_commodities[s, cl, t] * self.variable_om_dict[s]
-                  * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters for s in self.storage_components)
-            + sum(self.mass_energy_component_out_commodities[c, pm_object.get_component(c).get_main_output(), cl, t]
-                  * self.variable_om_dict[c] * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters for c in self.conversion_components)
-            + sum(self.mass_energy_generation[g, pm_object.get_component(g).get_generated_commodity(), cl, t]
-                  * self.variable_om_dict[g] * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters
-                  for g in self.generator_components if not pm_object.get_component(g).get_uses_ppa())
-            + sum(self.mass_energy_purchase_commodity[me, cl, t] * self.purchase_price_dict[me, cl, t]
-                  * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                  for me in self.purchasable_commodities if me in self.purchasable_commodities)
-            - sum(self.mass_energy_sell_commodity[me, cl, t] * self.sell_price_dict[me, cl, t]
-                  * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters for me in self.saleable_commodities
-                  if me in self.saleable_commodities)
-            + sum(self.restart_costs[c, cl, t]
-                  for t in self.time for cl in self.clusters
-                  for c in self.shut_down_components) + self.slack_economical == eps_value_economic,
+        self.model.addConstr(self.objective_economic + self.slack_economical == eps_value_economic,
             name='economic_value_adherence')
 
     def attach_multi_objective_economic_objective_function(self):
 
-        pm_object = self.pm_object
-
         # minimize total costs
-        self.model.setObjective(
-            sum(self.investment[c] * (self.annuity_factor_dict[c] + self.fixed_om_dict[c]) for c in self.all_components)
-            + sum(self.generation_profiles_dict[g, cl, t] * self.nominal_cap[g]
-                  * pm_object.get_component(g).get_ppa_price() * self.weightings_dict[cl]
-                  for g in self.generator_components if pm_object.get_component(g).get_uses_ppa()
-                  for cl in self.clusters for t in self.time)
-            + sum(self.mass_energy_storage_in_commodities[s, cl, t] * self.variable_om_dict[s]
-                  * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters for s in self.storage_components)
-            + sum(self.mass_energy_component_out_commodities[c, pm_object.get_component(c).get_main_output(), cl, t]
-                  * self.variable_om_dict[c] * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters for c in self.conversion_components)
-            + sum(self.mass_energy_generation[g, pm_object.get_component(g).get_generated_commodity(), cl, t]
-                  * self.variable_om_dict[g] * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters
-                  for g in self.generator_components if not pm_object.get_component(g).get_uses_ppa())
-            + sum(self.mass_energy_purchase_commodity[me, cl, t] * self.purchase_price_dict[me, cl, t]
-                  * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                  for me in self.purchasable_commodities if me in self.purchasable_commodities)
-            - sum(self.mass_energy_sell_commodity[me, cl, t] * self.sell_price_dict[me, cl, t]
-                  * self.weightings_dict[cl]
-                  for t in self.time for cl in self.clusters for me in self.saleable_commodities
-                  if me in self.saleable_commodities)
-            + sum(self.restart_costs[c, cl, t]
-                  for t in self.time for cl in self.clusters
-                  for c in self.shut_down_components) - self.slack_ecological * 0.0001,
+        self.model.setObjective(self.objective_economic - self.slack_ecological * 0.0001,
             gp.GRB.MINIMIZE)
 
     def attach_multi_objective_ecologic_objective_adherence_constraint(self, eps_value_ecologic):
 
         # minimize total costs
-        self.model.addConstr(
-            (sum(self.nominal_cap[c]
-                 * (self.installation_co2_emissions_dict[c] + self.disposal_co2_emissions_dict[c]) / 20  # m.lifetime[c]
-                 for c in self.all_components)
-             + sum(self.nominal_cap[c] * self.fixed_yearly_co2_emissions_dict[c] for c in self.all_components)
-             + sum(self.mass_energy_storage_in_commodities[s, cl, t] * self.variable_co2_emissions_dict[s]
-                   * self.weightings_dict[cl]
-                   for t in self.time for cl in self.clusters for s in self.storage_components)
-             + sum(self.mass_energy_component_out_commodities[
-                       c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                   * self.variable_co2_emissions_dict[c] * self.weightings_dict[cl] for t in self.time for cl in
-                   self.clusters
-                   for c in self.conversion_components)
-             + sum(self.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                   * self.variable_co2_emissions_dict[g] * self.weightings_dict[cl]
-                   for t in self.time for cl in self.clusters for g in self.generator_components)
-             + sum(self.mass_energy_purchase_commodity[me, cl, t] * self.purchase_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.purchasable_commodities)
-             + sum(self.mass_energy_available[me, cl, t] * self.available_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.available_commodities)
-             - sum(self.mass_energy_sell_commodity[me, cl, t] * self.sale_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.saleable_commodities)
-             - sum(self.mass_energy_emitted[me, cl, t] * self.emitted_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.emittable_commodities)) + self.slack_ecological == eps_value_ecologic,
+        self.model.addConstr(self.objective_ecologic + self.slack_ecological == eps_value_ecologic,
             name='ecologic')
 
     def attach_multi_objective_ecologic_objective_function(self):
 
         # minimize total emissions
-        self.model.setObjective(
-            (sum(self.nominal_cap[c]
-                 * (self.installation_co2_emissions_dict[c] + self.disposal_co2_emissions_dict[c]) / 20  # m.lifetime[c]
-                 for c in self.all_components)
-             + sum(self.nominal_cap[c] * self.fixed_yearly_co2_emissions_dict[c] for c in self.all_components)
-             + sum(self.mass_energy_storage_in_commodities[s, cl, t] * self.variable_co2_emissions_dict[s]
-                   * self.weightings_dict[cl]
-                   for t in self.time for cl in self.clusters for s in self.storage_components)
-             + sum(self.mass_energy_component_out_commodities[
-                       c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                   * self.variable_co2_emissions_dict[c] * self.weightings_dict[cl] for t in self.time for cl in
-                   self.clusters
-                   for c in self.conversion_components)
-             + sum(self.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                   * self.variable_co2_emissions_dict[g] * self.weightings_dict[cl]
-                   for t in self.time for cl in self.clusters for g in self.generator_components)
-             + sum(self.mass_energy_purchase_commodity[me, cl, t] * self.purchase_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.purchasable_commodities)
-             + sum(self.mass_energy_available[me, cl, t] * self.available_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.available_commodities)
-             - sum(self.mass_energy_sell_commodity[me, cl, t] * self.sale_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.saleable_commodities)
-             - sum(self.mass_energy_emitted[me, cl, t] * self.emitted_specific_CO2_emissions_dict[me, cl, t]
-                   * self.weightings_dict[cl] for t in self.time for cl in self.clusters
-                   for me in self.emittable_commodities)) - self.slack_economical * 0.0001,
+        self.model.setObjective(self.objective_ecologic - self.slack_economical * 0.0001,
             gp.GRB.MINIMIZE)
 
     def prepare(self, optimization_type, eps_value_economic=None, eps_value_ecologic=None):
@@ -886,7 +784,7 @@ class OptimizationGurobiModel:
             self.mass_energy_storage_out_commodities = self.soc = self.mass_energy_sell_commodity = \
             self.mass_energy_purchase_commodity = self.mass_energy_generation = self.mass_energy_demand = \
             self.mass_energy_hot_standby_demand = self.investment = self.restart_costs = self.slack_economical = \
-            self.slack_ecological = None
+            self.slack_ecological = self.objective_economic = self.objective_ecologic = None
 
         self.continuous_variables = None
         self.binary_variables = None

@@ -591,46 +591,42 @@ class OptimizationGurobiModel:
     def attach_economic_objective_function(self):
 
         # minimize total costs
-        self.model.setObjective(self.objective_economic,
-            gp.GRB.MINIMIZE)
+        self.model.setObjective(self.objective_economic, gp.GRB.MINIMIZE)
 
     def attach_ecologic_objective_function(self):
 
         # minimize total emissions
-        self.model.setObjective(self.objective_ecologic,
-            gp.GRB.MINIMIZE)
+        self.model.setObjective(self.objective_ecologic, gp.GRB.MINIMIZE)
 
     def attach_multi_objective_economic_objective_adherence_constraint(self, eps_value_economic):
 
-        # minimize total costs
         self.model.addConstr(self.objective_economic + self.slack_economical == eps_value_economic,
-            name='economic_value_adherence')
+                             name='economic_value_adherence')
 
     def attach_multi_objective_economic_objective_function(self):
 
         # minimize total costs
-        self.model.setObjective(self.objective_economic - self.slack_ecological * 0.0001,
-            gp.GRB.MINIMIZE)
+        self.model.setObjective(self.objective_economic - self.slack_ecological * 0.0001, gp.GRB.MINIMIZE)
 
     def attach_multi_objective_ecologic_objective_adherence_constraint(self, eps_value_ecologic):
 
         # minimize total costs
-        self.model.addConstr(self.objective_ecologic + self.slack_ecological == eps_value_ecologic,
-            name='ecologic')
+        self.model.addConstr(self.objective_ecologic + self.slack_ecological == eps_value_ecologic, name='ecologic')
 
     def attach_multi_objective_ecologic_objective_function(self):
 
         # minimize total emissions
-        self.model.setObjective(self.objective_ecologic - self.slack_economical * 0.0001,
-            gp.GRB.MINIMIZE)
+        self.model.setObjective(self.objective_ecologic - self.slack_economical * 0.0001, gp.GRB.MINIMIZE)
 
     def prepare(self, optimization_type, eps_value_economic=None, eps_value_ecologic=None):
-        if optimization_type == 'economical':
-            self.attach_technical_variables()
-            self.attach_economic_variables()
 
-            self.attach_technical_constraints()
-            self.attach_economic_constraints()
+        self.attach_technical_variables()
+        self.attach_economic_variables()
+
+        self.attach_technical_constraints()
+        self.attach_economic_constraints()
+
+        if optimization_type == 'economical':
 
             if eps_value_ecologic is not None:
                 self.attach_multi_objective_variables()
@@ -639,11 +635,6 @@ class OptimizationGurobiModel:
             self.attach_economic_objective_function()
 
         elif optimization_type == 'ecological':
-            self.attach_technical_variables()
-            self.attach_economic_variables()
-
-            self.attach_technical_constraints()
-            self.attach_economic_constraints()
 
             if eps_value_economic is not None:
                 self.attach_multi_objective_variables()
@@ -652,13 +643,7 @@ class OptimizationGurobiModel:
             self.attach_ecologic_objective_function()
 
         else:  # multi objective
-            self.attach_technical_variables()
-            self.attach_economic_variables()
-
             self.attach_multi_objective_variables()
-
-            self.attach_technical_constraints()
-            self.attach_economic_constraints()
 
             self.attach_multi_objective_ecologic_objective_adherence_constraint(eps_value_ecologic)
             self.attach_multi_objective_economic_objective_function()

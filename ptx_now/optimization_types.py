@@ -1,5 +1,6 @@
 import os
 import time
+import math
 
 import pandas as pd
 
@@ -116,7 +117,7 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
         ecologic_optimization_problem.optimize()
 
         economic_minimum = economic_optimization_problem.objective_function_value
-        ecologic_nadir = ecologic_optimization_problem.objective_function_value
+        ecologic_minimum = ecologic_optimization_problem.objective_function_value
 
         ecologic_optimization_problem = OptimizationPyomoModel(pm_object_copy_pyomo, solver)
         ecologic_optimization_problem.prepare(optimization_type='ecological', eps_value_economic=economic_minimum)
@@ -127,11 +128,11 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
         # create intervalls of the ecological value and repeat multi objective optimization
         objective_function_value_combinations = {}
         columns = []
-        intervall_objective_function = (ecologic_supremum - ecologic_nadir) / number_intervalls
+        intervall_objective_function = (ecologic_supremum - ecologic_minimum) / number_intervalls
 
         for i in range(0, number_intervalls):
 
-            # eps = ecologic_nadir + i * intervall_objective_function
+            # eps = ecologic_minimum + i * intervall_objective_function
             value_ecologic = eps
             values = []
             columns = ['Economic OFV', 'Ecologic OFV']
@@ -162,7 +163,7 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
 
         pyomo_time = time.time() - pyomo_time
 
-    # first calculate economical nadir value
+    # first calculate economical nadir value # todo: here you get minima of economic and ecologic --> save somewhere
     economic_optimization_problem = OptimizationGurobiModel(pm_object_copy_gurobi, solver)
     economic_optimization_problem.prepare(optimization_type='economical')
     economic_optimization_problem.optimize()
@@ -171,8 +172,9 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
     ecologic_optimization_problem.prepare(optimization_type='ecological')
     ecologic_optimization_problem.optimize()
 
-    economic_minimum = economic_optimization_problem.objective_function_value
-    ecologic_nadir = ecologic_optimization_problem.objective_function_value
+    # economic_minimum = economic_optimization_problem.objective_function_value
+    economic_minimum = math.ceil(economic_optimization_problem.objective_function_value * 100) / 100
+    ecologic_minimum = ecologic_optimization_problem.objective_function_value
 
     ecologic_optimization_problem = OptimizationGurobiModel(pm_object_copy_gurobi, solver)
     ecologic_optimization_problem.prepare(optimization_type='ecological', eps_value_economic=economic_minimum)
@@ -182,17 +184,17 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
 
     # create intervalls of the ecological value and repeat multi objective optimization
     objective_function_value_combinations = {}
-    intervall_objective_function = (ecologic_supremum - ecologic_nadir) / number_intervalls
+    intervall_objective_function = (ecologic_supremum - ecologic_minimum) / number_intervalls
 
     inputs = []
-    eps_list = []
     for i in range(0, number_intervalls):
-        eps_list.append(ecologic_nadir + i * intervall_objective_function)
-        inputs.append((eps_list[i], OptimizationGurobiModel, pm_object_copy_gurobi))
+        eps = ecologic_minimum + i * intervall_objective_function
+        inputs.append((eps, OptimizationGurobiModel, pm_object_copy_gurobi))
 
     inputs = tqdm(inputs)
     objective_function_values = Parallel(n_jobs=2)(delayed(run_multi_objective_optimization_in_parallel)(i) for i in inputs)
 
+    # process results of parallel processing
     for number, element in enumerate(objective_function_values):
         value_economic = element[0]
         value_ecologic = element[1]
@@ -291,24 +293,26 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
         ecologic_optimization_problem.prepare(optimization_type='ecological')
         ecologic_optimization_problem.optimize()
 
-        economic_minimum = economic_optimization_problem.objective_function_value
-        ecologic_nadir = ecologic_optimization_problem.objective_function_value
+        economic_minimum = math.ceil(economic_optimization_problem.economic_objective_function_value * 100) / 100
+        # economic_minimum = economic_optimization_problem.economic_objective_function_value
+        ecologic_minimum = ecologic_optimization_problem.ecologic_objective_function_value
 
         ecologic_optimization_problem = OptimizationGurobiModel(pm_object_copy_gurobi, solver)
         ecologic_optimization_problem.prepare(optimization_type='ecological', eps_value_economic=economic_minimum)
         ecologic_optimization_problem.optimize()
 
-        ecologic_supremum = ecologic_optimization_problem.objective_function_value
+        ecologic_supremum = ecologic_optimization_problem.ecologic_objective_function_value
 
         # create intervalls of the ecological value and repeat multi objective optimization
         objective_function_value_combinations = {}
-        intervall_objective_function = (ecologic_supremum - ecologic_nadir) / number_intervals
+        interval_objective_function = (ecologic_supremum - ecologic_minimum) / number_intervals
 
         inputs = []
-        eps_list = []
         for i in range(0, number_intervals):
-            eps_list.append(ecologic_nadir + i * intervall_objective_function)
-            inputs.append((eps_list[i], OptimizationGurobiModel, pm_object_copy_gurobi))
+            # eps_list.append(math.ceil((ecologic_minimum + i * interval_objective_function) * 100000) / 100000)
+            # eps_list.append(ecologic_minimum + i * interval_objective_function)
+            eps = ecologic_minimum + i * interval_objective_function
+            inputs.append((eps, OptimizationGurobiModel, pm_object_copy_gurobi))
 
         inputs = tqdm(inputs)
         results = Parallel(n_jobs=num_cores)(
@@ -316,7 +320,7 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
 
         for number, element in enumerate(results):
             value_economic = element[0]
-            value_ecologic = element[0]
+            value_ecologic = element[1]
 
             objective_function_value_combinations[number] = tuple([value_economic, value_ecologic])
 

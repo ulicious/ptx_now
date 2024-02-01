@@ -266,7 +266,7 @@ class ComponentParametersFrame:
         fixed_co2_var.set('Fixed CO2 emissions [t CO2 / ' + capacity_unit + ' / a]')
 
         variable_co2_var = StringVar()
-        variable_co2_var.set('Variable CO2 emissions [t CO2 / ' + unit_output + ' ' + commodity_name + ']')
+        variable_co2_var.set('Variable CO2 emissions [t CO2 / ' + unit_output + ' ' + commodity_output + ']')
 
         disposal_co2_var = StringVar()
         disposal_co2_var.set('Disposal CO2 emissions [t CO2 / ' + capacity_unit + ']')

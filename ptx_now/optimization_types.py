@@ -26,7 +26,7 @@ def optimize_single_profile_not_multi_objective(optimization_type, pm_object_cop
     optimization_model_gurobi = OptimizationGurobiModel
     optimization_model_highs = OptimizationHighsModel
 
-    if True:
+    if False:
 
         now = time.time()
         optimization_problem = optimization_model_pyomo(pm_object_copy_pyomo, solver)
@@ -60,23 +60,25 @@ def optimize_single_profile_not_multi_objective(optimization_type, pm_object_cop
 
         gurobi_time_analysis = time.time() - now
 
-    now = time.time()
-    optimization_problem = optimization_model_highs(pm_object_copy_pyomo, solver)
-    optimization_problem.prepare(optimization_type=optimization_type)
-    optimization_problem.optimize()
+    if False:
 
-    highs_time_optimization = time.time() - now
-    now = time.time()
+        now = time.time()
+        optimization_problem = optimization_model_highs(pm_object_copy_pyomo, solver)
+        optimization_problem.prepare(optimization_type=optimization_type)
+        optimization_problem.optimize()
 
-    pm_object_copy_pyomo.set_objective_function_value(optimization_problem.objective_function_value)
-    highs_ofv = optimization_problem.objective_function_value
-    pm_object_copy_pyomo.set_instance(optimization_problem.instance)
-    pm_object_copy_pyomo.process_results(path_results, optimization_problem.model_type)
-    highs_time_analysis = time.time() - now
+        highs_time_optimization = time.time() - now
+        now = time.time()
 
-    print('Comparison OFV: highs: ' + str(highs_ofv) + ' | Gurobi: ' + str(gurobi_ofv) + ' | Pyomo: ' + str(pyomo_ofv))
-    print('Comparison Time Optimization: highs: ' + str(highs_time_optimization) + ' | Gurobi: ' + str(gurobi_time_optimization) + ' | Pyomo: ' + str(pyomo_time_optimization))
-    print('Comparison Time Analysis: highs: ' + str(highs_time_analysis) + ' | Gurobi: ' + str(gurobi_time_analysis) + ' | Pyomo: ' + str(pyomo_time_analysis))
+        pm_object_copy_pyomo.set_objective_function_value(optimization_problem.objective_function_value)
+        highs_ofv = optimization_problem.objective_function_value
+        pm_object_copy_pyomo.set_instance(optimization_problem.instance)
+        pm_object_copy_pyomo.process_results(path_results, optimization_problem.model_type)
+        highs_time_analysis = time.time() - now
+
+        print('Comparison OFV: highs: ' + str(highs_ofv) + ' | Gurobi: ' + str(gurobi_ofv) + ' | Pyomo: ' + str(pyomo_ofv))
+        print('Comparison Time Optimization: highs: ' + str(highs_time_optimization) + ' | Gurobi: ' + str(gurobi_time_optimization) + ' | Pyomo: ' + str(pyomo_time_optimization))
+        print('Comparison Time Analysis: highs: ' + str(highs_time_analysis) + ' | Gurobi: ' + str(gurobi_time_analysis) + ' | Pyomo: ' + str(pyomo_time_analysis))
 
 
 def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
@@ -91,15 +93,17 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
     # todo: check nadir udir correct
 
     def run_multi_objective_optimization_in_parallel(input_local):
-        eps = input_local[0]
-        optimization_model = input_local[1]
-        pm_object = input_local[2]
-        multi_objective_optimization_problem = optimization_model(pm_object, solver)
-        multi_objective_optimization_problem.prepare(optimization_type='multiobjective', eps_value_ecologic=eps)
+        # input: 0: eps; 1: optimization_model; 2: pm_object
+        multi_objective_optimization_problem = input_local[1](input_local[2], solver)
+        multi_objective_optimization_problem.prepare(optimization_type='multiobjective', eps_value_ecologic=input_local[0])
         multi_objective_optimization_problem.optimize()
 
+        capacity, utilization, installation_emissions, disposal_emissions, fixed_emissions, variable_emissions = \
+            multi_objective_optimization_problem.get_multi_objective_results()
+
         return multi_objective_optimization_problem.economic_objective_function_value, \
-            multi_objective_optimization_problem.ecologic_objective_function_value
+            multi_objective_optimization_problem.ecologic_objective_function_value, capacity, utilization, \
+            installation_emissions, disposal_emissions, fixed_emissions, variable_emissions
 
     num_cores = min(120, multiprocessing.cpu_count() - 1)
     number_intervalls = 3
@@ -192,18 +196,63 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
         inputs.append((eps, OptimizationGurobiModel, pm_object_copy_gurobi))
 
     inputs = tqdm(inputs)
-    objective_function_values = Parallel(n_jobs=2)(delayed(run_multi_objective_optimization_in_parallel)(i) for i in inputs)
+    results = Parallel(n_jobs=2)(delayed(run_multi_objective_optimization_in_parallel)(i) for i in inputs)
 
-    # process results of parallel processing
-    for number, element in enumerate(objective_function_values):
+    columns = ['Economic', 'Ecologic']
+    for number, element in enumerate(results):
         value_economic = element[0]
         value_ecologic = element[1]
+        values = [value_economic, value_ecologic]
 
-        objective_function_value_combinations[number] = tuple([value_economic, value_ecologic])
+        value_capacity = element[2]
+        value_utilization = element[3]
+
+        value_installation_emissions = element[4]
+        value_disposal_emissions = element[5]
+        value_fixed_emissions = element[6]
+        value_variable_emissions = element[7]
+
+        for k in list(value_capacity.keys()):
+            values.append(value_capacity[k])
+
+            if k + '_capacity' not in columns:
+                columns.append(k + '_capacity')
+
+        for k in list(value_utilization.keys()):
+            values.append(value_utilization[k])
+
+            if k + '_utilization' not in columns:
+                columns.append(k + '_utilization')
+
+        for k in list(value_installation_emissions.keys()):
+            values.append(value_installation_emissions[k])
+
+            if k + '_installation_emissions' not in columns:
+                columns.append(k + '_installation_emissions')
+
+        for k in list(value_disposal_emissions.keys()):
+            values.append(value_disposal_emissions[k])
+
+            if k + '_disposal_emissions' not in columns:
+                columns.append(k + '_disposal_emissions')
+
+        for k in list(value_fixed_emissions.keys()):
+            values.append(value_fixed_emissions[k])
+
+            if k + '_fixed_emissions' not in columns:
+                columns.append(k + '_fixed_emissions')
+
+        for k in list(value_variable_emissions.keys()):
+            values.append(value_variable_emissions[k])
+
+            if k + '_variable_emissions' not in columns:
+                columns.append(k + '_variable_emissions')
+
+        objective_function_value_combinations[number] = tuple(values)
 
     result_df = pd.DataFrame(objective_function_value_combinations).transpose()
-
-    result_df.columns = ['Economic', 'Ecologic']
+    result_df.columns = columns
+    result_df.to_excel(path_mo_result + f)
 
     dt_string = datetime.now().strftime("%Y%m%d_%H%M%S")
     result_df.to_excel(path_results + dt_string + '_'
@@ -253,19 +302,17 @@ def optimize_multi_profiles_no_multi_optimization(optimization_type, pm_object_c
 
 def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
     def run_multi_objective_optimization_in_parallel(input_local):
-        eps = input_local[0]
-        optimization_model = input_local[1]
-        pm_object = input_local[2]
-        multi_objective_optimization_problem = optimization_model(pm_object, solver)
-        multi_objective_optimization_problem.prepare(optimization_type='multiobjective', eps_value_ecologic=eps)
+        # input: 0: eps; 1: optimization_model; 2: pm_object
+        multi_objective_optimization_problem = input_local[1](input_local[2], solver)
+        multi_objective_optimization_problem.prepare(optimization_type='multiobjective', eps_value_ecologic=input_local[0])
         multi_objective_optimization_problem.optimize()
 
-        pm_object.set_objective_function_value(multi_objective_optimization_problem.objective_function_value)
-        # pm_object.set_instance(multi_objective_optimization_problem.instance)
-        # pm_object.process_results(path_results, multi_objective_optimization_problem.model_type)
+        capacity, utilization, installation_emissions, disposal_emissions, fixed_emissions, variable_emissions = \
+            multi_objective_optimization_problem.get_multi_objective_results()
 
         return multi_objective_optimization_problem.economic_objective_function_value,\
-            multi_objective_optimization_problem.ecologic_objective_function_value
+            multi_objective_optimization_problem.ecologic_objective_function_value, capacity, utilization, \
+            installation_emissions, disposal_emissions, fixed_emissions, variable_emissions
 
     num_cores = min(120, multiprocessing.cpu_count() - 1)
     number_intervals = 100
@@ -309,8 +356,6 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
 
         inputs = []
         for i in range(0, number_intervals):
-            # eps_list.append(math.ceil((ecologic_minimum + i * interval_objective_function) * 100000) / 100000)
-            # eps_list.append(ecologic_minimum + i * interval_objective_function)
             eps = ecologic_minimum + i * interval_objective_function
             inputs.append((eps, OptimizationGurobiModel, pm_object_copy_gurobi))
 
@@ -318,14 +363,60 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
         results = Parallel(n_jobs=num_cores)(
             delayed(run_multi_objective_optimization_in_parallel)(i) for i in inputs)
 
+        columns = ['Economic', 'Ecologic']
         for number, element in enumerate(results):
             value_economic = element[0]
             value_ecologic = element[1]
+            values = [value_economic, value_ecologic]
 
-            objective_function_value_combinations[number] = tuple([value_economic, value_ecologic])
+            value_capacity = element[2]
+            value_utilization = element[3]
+
+            value_installation_emissions = element[4]
+            value_disposal_emissions = element[5]
+            value_fixed_emissions = element[6]
+            value_variable_emissions = element[7]
+
+            for k in list(value_capacity.keys()):
+                values.append(value_capacity[k])
+
+                if k + '_capacity' not in columns:
+                    columns.append(k + '_capacity')
+
+            for k in list(value_utilization.keys()):
+                values.append(value_utilization[k])
+
+                if k + '_utilization' not in columns:
+                    columns.append(k + '_utilization')
+
+            for k in list(value_installation_emissions.keys()):
+                values.append(value_installation_emissions[k])
+
+                if k + '_installation_emissions' not in columns:
+                    columns.append(k + '_installation_emissions')
+
+            for k in list(value_disposal_emissions.keys()):
+                values.append(value_disposal_emissions[k])
+
+                if k + '_disposal_emissions' not in columns:
+                    columns.append(k + '_disposal_emissions')
+
+            for k in list(value_fixed_emissions.keys()):
+                values.append(value_fixed_emissions[k])
+
+                if k + '_fixed_emissions' not in columns:
+                    columns.append(k + '_fixed_emissions')
+
+            for k in list(value_variable_emissions.keys()):
+                values.append(value_variable_emissions[k])
+
+                if k + '_variable_emissions' not in columns:
+                    columns.append(k + '_variable_emissions')
+
+            objective_function_value_combinations[number] = tuple(values)
 
         result_df = pd.DataFrame(objective_function_value_combinations).transpose()
-        result_df.columns = ['Economic', 'Ecologic']
+        result_df.columns = columns
         result_df.to_excel(path_mo_result + f)
 
         all_pareto_fronts[f + ' Economic'] = result_df['Economic']
@@ -347,9 +438,9 @@ def optimize_no_profile(optimization_type, pm_object_copy_pyomo, pm_object_copy_
     # pm_object_copy_gurobi.set_instance(optimization_problem.instance)
     # pm_object_copy_gurobi.process_results(path_results, optimization_problem.model_type)
 
-    optimization_problem = OptimizationHighsModel(pm_object_copy_gurobi, solver)
-    optimization_problem.prepare(optimization_type=optimization_type)
-    optimization_problem.optimize()
+    # optimization_problem = OptimizationHighsModel(pm_object_copy_gurobi, solver)
+    # optimization_problem.prepare(optimization_type=optimization_type)
+    # optimization_problem.optimize()
 
     pm_object_copy_gurobi.set_objective_function_value(optimization_problem.objective_function_value)
     pm_object_copy_gurobi.set_instance(optimization_problem.instance)

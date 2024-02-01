@@ -1039,7 +1039,7 @@ class OptimizationPyomoModel:
         self.model = ConcreteModel()
         self.model.TIME = RangeSet(0, self.pm_object.get_covered_period() - 1)
         self.model.CLUSTERS = RangeSet(0, self.pm_object.get_number_clusters() - 1)
-        self.model.INTEGER_STEPS = RangeSet(0, self.pm_object.integer_steps - 1)
+        self.model.INTEGER_STEPS = RangeSet(0, self.pm_object.integer_steps)
 
         bigM_capacity = anticipate_bigM(self.pm_object)
         self.model.M = Param(self.all_components, initialize=bigM_capacity)

@@ -679,7 +679,7 @@ class OptimizationGurobiModel:
                                      {'storage_discharge_binary': self.storage_discharge_binary},
                                      {'capacity_binary': self.capacity_binary}]
 
-        self.model.Params.LogToConsole = 0
+        # self.model.Params.LogToConsole = 0
         self.model.optimize()
         self.instance = self
 
@@ -689,6 +689,86 @@ class OptimizationGurobiModel:
         self.ecologic_objective_function_value = self.objective_ecologic.X
 
         save_results()
+
+    def get_multi_objective_results(self):
+        specific_installation_emissions = {}
+        installation_emissions = {}
+        specific_disposal_emissions = {}
+        disposal_emissions = {}
+        capacity = {}
+
+        utilization = {}
+        sum_input = {}
+        sum_output = {}
+
+        specific_fixed_emissions = {}
+        fixed_emissions = {}
+
+        specific_variable_emissions = {}
+        variable_emissions = {}
+
+        for k in self.all_components:
+            k_object = self.pm_object.get_component[k]
+
+            specific_installation_emissions[k] = self.installation_co2_emissions_dict[k]
+            specific_disposal_emissions[k] = self.disposal_co2_emissions_dict[k]
+            specific_fixed_emissions[k] = self.fixed_yearly_co2_emissions_dict[k]
+            specific_variable_emissions[k] = self.variable_co2_emissions_dict[k]
+
+            for c in (self.weightings_dict.keys()):
+                for t in self.time:
+
+                    capacity[k] = self.nominal_cap[k].X
+
+                    if k not in list(sum_input.keys()):
+                        sum_input[k] = 0
+
+                    if k not in list(sum_output.keys()):
+                        sum_output[k] = 0
+
+                    if k in self.conversion_components:
+                        main_input = k_object.get_main_input()
+                        sum_input[k] \
+                            += self.mass_energy_component_in_commodities[(k, main_input, c, t)].X * \
+                            self.weightings_dict[c]
+
+                        main_output = k_object.get_main_output()
+                        sum_output[k] \
+                            += self.mass_energy_component_out_commodities[(k, main_output, c, t)].X \
+                            * self.weightings_dict[c]
+
+                    if k in self.generator_components:
+                        produced_commodity = k_object.get_generated_commodity()
+                        sum_output[k] \
+                            += self.mass_energy_generation[(k, produced_commodity, c, t)].X * self.weightings_dict[c]
+
+                    if k in self.storage_components:
+                        sum_input[k] \
+                            += self.mass_energy_storage_in_commodities[(k, c, t)].X * \
+                            self.weightings_dict[c]
+
+                        sum_output[k] \
+                            += self.mass_energy_storage_out_commodities[(k, c, t)].X \
+                            * self.weightings_dict[c]
+
+            if self.nominal_cap[k].X != 0:
+                if k in self.conversion_components:
+                    utilization[k] = sum_input[k] / capacity[k]
+
+                elif k in self.generator_components:
+                    utilization[k] = sum_output[k] / capacity[k]
+
+                else:
+                    utilization[k] = 0
+            else:
+                utilization[k] = 0
+
+            installation_emissions[k] = capacity[k] * specific_installation_emissions[k]
+            disposal_emissions[k] = capacity[k] * specific_disposal_emissions[k]
+            fixed_emissions[k] = capacity[k] * specific_fixed_emissions[k]
+            variable_emissions[k] = sum_output[k] * specific_variable_emissions[k]
+
+        return capacity, utilization, installation_emissions, disposal_emissions, fixed_emissions, variable_emissions
 
     def reset_information(self):
         self.input_tuples, self.input_conversion_tuples, self.input_conversion_tuples_dict, \

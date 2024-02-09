@@ -655,9 +655,11 @@ class OptimizationPyomoModel:
         else:
             def total_storage_balance_rule(m, s):
                 # all goes in = all goes out
-                return sum(m.mass_energy_storage_in_commodities[s, cl, t] for cl in m.CLUSTERS for t in m.TIME) \
+                return sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.weightings[cl]
+                           for cl in m.CLUSTERS for t in m.TIME) \
                     * m.charging_efficiency[s] \
-                    == sum(m.mass_energy_storage_out_commodities[s, cl, t] for cl in m.CLUSTERS for t in m.TIME) \
+                    == sum(m.mass_energy_storage_out_commodities[s, cl, t] * m.weightings[cl]
+                           for cl in m.CLUSTERS for t in m.TIME) \
                     / m.discharging_efficiency[s]
 
             self.model.total_storage_balance_con = Constraint(self.model.STORAGES, rule=total_storage_balance_rule)

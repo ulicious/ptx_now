@@ -442,9 +442,9 @@ class OptimizationGurobiModel:
 
         # instead of first soc = last soc we can also say total in = total out
         for c in self.storage_components:
-            self.model.addConstr(sum(self.mass_energy_storage_in_commodities[c, cl, t]
+            self.model.addConstr(sum(self.mass_energy_storage_in_commodities[c, cl, t] * self.weightings_dict[cl]
                                      for cl in self.clusters for t in self.time) * self.charging_efficiency_dict[c] ==
-                                 sum(self.mass_energy_storage_out_commodities[c, cl, t]
+                                 sum(self.mass_energy_storage_out_commodities[c, cl, t] * self.weightings_dict[cl]
                                      for cl in self.clusters for t in self.time) / self.discharging_efficiency_dict[c],
                                  name='in_storage_equals_out_storage' + name_adding)
 

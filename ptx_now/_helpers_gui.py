@@ -146,7 +146,7 @@ class ComponentInterface(ttk.Frame):
                                               self.pm_object_copy, self.pm_object_original)
         self.parameter_frame.frame.grid(row=1, sticky='ew')
 
-    def set_components_to_default(self):
+    def set_components_to_default(self):  # todo: Wenn commodity gelöscht wird aber als storage angewählt war, ist er immer noch final
         # Set all component parameters and commodities to default
 
         for component in self.pm_object_copy.get_conversion_components_objects():

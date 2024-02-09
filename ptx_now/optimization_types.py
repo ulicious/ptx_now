@@ -26,7 +26,7 @@ def optimize_single_profile_not_multi_objective(optimization_type, pm_object_cop
     optimization_model_gurobi = OptimizationGurobiModel
     optimization_model_highs = OptimizationHighsModel
 
-    if False:
+    if True:
 
         now = time.time()
         optimization_problem = optimization_model_pyomo(pm_object_copy_pyomo, solver)
@@ -36,17 +36,17 @@ def optimize_single_profile_not_multi_objective(optimization_type, pm_object_cop
         pyomo_time_optimization = time.time() - now
         now = time.time()
 
-        pm_object_copy_gurobi.set_objective_function_value(optimization_problem.objective_function_value)
+        pm_object_copy_pyomo.set_objective_function_value(optimization_problem.objective_function_value)
         pyomo_ofv = optimization_problem.objective_function_value
-        pm_object_copy_gurobi.set_instance(optimization_problem.instance)
-        pm_object_copy_gurobi.process_results(path_results, optimization_problem.model_type)
+        pm_object_copy_pyomo.set_instance(optimization_problem.instance)
+        pm_object_copy_pyomo.process_results(path_results, optimization_problem.model_type)
 
         pyomo_time_analysis = time.time() - now
 
     if True:
 
         now = time.time()
-        optimization_problem = optimization_model_gurobi(pm_object_copy_pyomo, solver)
+        optimization_problem = optimization_model_gurobi(pm_object_copy_gurobi, solver)
         optimization_problem.prepare(optimization_type=optimization_type)
         optimization_problem.optimize()
 

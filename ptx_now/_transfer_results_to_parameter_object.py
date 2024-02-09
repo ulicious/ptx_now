@@ -394,7 +394,7 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
 
             if variable == 'mass_energy_generation':
                 commodity_object.set_generated_quantity(commodity_object.get_generated_quantity()
-                                                        + variable_dict[k] * weightings[cluster] * ratio)
+                                                        + variable_dict[k] * weightings[cluster])
 
                 component_object.set_generated_quantity(commodity_object.get_generated_quantity()
                                                         + variable_dict[k] * weightings[cluster])
@@ -422,9 +422,9 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
         path = pm_object.get_path_data() + pm_object.get_profile_data()
 
         if path.split('.')[-1] == 'xlsx':
-            generation_profile = pd.read_excel(path, index_col=0)
+            generation_profiles = pd.read_excel(path, index_col=0)
         else:
-            generation_profile = pd.read_csv(path, index_col=0)
+            generation_profiles = pd.read_csv(path, index_col=0)
 
         for generator in pm_object.get_final_generator_components_names():
 
@@ -433,7 +433,7 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
             generated_commodity = generator_object.get_generated_commodity()
 
             t_range = range(pm_object.get_covered_period() * pm_object.get_number_clusters())
-            generator_profile = generation_profile.iloc[t_range][generator_name]
+            generator_profile = generation_profiles.iloc[t_range][generator_name]
 
             capacity = generator_object.get_fixed_capacity()
 

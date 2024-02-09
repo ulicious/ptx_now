@@ -640,17 +640,27 @@ class OptimizationPyomoModel:
         self.model.storage_balance_con = Constraint(self.model.STORAGES, self.model.CLUSTERS, self.model.TIME,
                                                     rule=storage_balance_rule)
 
-        def last_soc_rule(m, s, cl, t):
-            # first SOC is last SOC + storage activities
-            if t == max(m.TIME):
-                return m.soc[s, cl, 0] == m.soc[s, cl, t] \
-                       + m.mass_energy_storage_in_commodities[s, cl, t] * m.charging_efficiency[s] \
-                       - m.mass_energy_storage_out_commodities[s, cl, t] / m.discharging_efficiency[s]
-            else:
-                return Constraint.Skip
+        if False:
+            def last_soc_rule(m, s, cl, t):
+                # first SOC is last SOC + storage activities
+                if t == max(m.TIME):
+                    return m.soc[s, cl, 0] == m.soc[s, cl, t] \
+                           + m.mass_energy_storage_in_commodities[s, cl, t] * m.charging_efficiency[s] \
+                           - m.mass_energy_storage_out_commodities[s, cl, t] / m.discharging_efficiency[s]
+                else:
+                    return Constraint.Skip
 
-        self.model.last_soc_con = Constraint(self.model.STORAGES, self.model.CLUSTERS, self.model.TIME,
-                                             rule=last_soc_rule)
+            self.model.last_soc_con = Constraint(self.model.STORAGES, self.model.CLUSTERS, self.model.TIME,
+                                                 rule=last_soc_rule)
+        else:
+            def total_storage_balance_rule(m, s):
+                # all goes in = all goes out
+                return sum(m.mass_energy_storage_in_commodities[s, cl, t] for cl in m.CLUSTERS for t in m.TIME) \
+                    * m.charging_efficiency[s] \
+                    == sum(m.mass_energy_storage_out_commodities[s, cl, t] for cl in m.CLUSTERS for t in m.TIME) \
+                    / m.discharging_efficiency[s]
+
+            self.model.total_storage_balance_con = Constraint(self.model.STORAGES, rule=total_storage_balance_rule)
 
         def soc_max_bound_rule(m, s, cl, t):
             return m.soc[s, cl, t] <= m.maximal_soc[s] * m.nominal_cap[s]
@@ -1039,7 +1049,7 @@ class OptimizationPyomoModel:
         self.model = ConcreteModel()
         self.model.TIME = RangeSet(0, self.pm_object.get_covered_period() - 1)
         self.model.CLUSTERS = RangeSet(0, self.pm_object.get_number_clusters() - 1)
-        self.model.INTEGER_STEPS = RangeSet(0, self.pm_object.integer_steps)
+        self.model.INTEGER_STEPS = RangeSet(0, self.pm_object.integer_steps - 1)
 
         bigM_capacity = anticipate_bigM(self.pm_object)
         self.model.M = Param(self.all_components, initialize=bigM_capacity)

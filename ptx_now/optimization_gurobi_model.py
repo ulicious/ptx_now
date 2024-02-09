@@ -399,13 +399,15 @@ class OptimizationGurobiModel:
                                              / self.discharging_efficiency_dict[c],
                                              name='storage_balance' + name_adding)
 
-                    if t == max(self.time):
-                        self.model.addConstr(self.soc[c, cl, 0] == self.soc[c, cl, t]
-                                             + self.mass_energy_storage_in_commodities[c, cl, t]
-                                             * self.charging_efficiency_dict[c]
-                                             - self.mass_energy_storage_out_commodities[c, cl, t]
-                                             / self.discharging_efficiency_dict[c],
-                                             name='last_soc_equals_first_soc' + name_adding)
+                    # first soc = last soc
+                    if False:
+                        if t == max(self.time):
+                            self.model.addConstr(self.soc[c, cl, 0] == self.soc[c, cl, t]
+                                                 + self.mass_energy_storage_in_commodities[c, cl, t]
+                                                 * self.charging_efficiency_dict[c]
+                                                 - self.mass_energy_storage_out_commodities[c, cl, t]
+                                                 / self.discharging_efficiency_dict[c],
+                                                 name='last_soc_equals_first_soc' + name_adding)
 
                     # min max soc
                     self.model.addConstr(self.soc[c, cl, t] <= self.maximal_soc_dict[c] * self.nominal_cap[c],
@@ -437,6 +439,14 @@ class OptimizationGurobiModel:
                     self.model.addConstr(self.mass_energy_storage_out_commodities[c, cl, t]
                                          - self.storage_discharge_binary[c, cl, t] * self.bigM[c] <= 0,
                                          name='deactivate_charging_binary' + name_adding)
+
+        # instead of first soc = last soc we can also say total in = total out
+        for c in self.storage_components:
+            self.model.addConstr(sum(self.mass_energy_storage_in_commodities[c, cl, t]
+                                     for cl in self.clusters for t in self.time) * self.charging_efficiency_dict[c] ==
+                                 sum(self.mass_energy_storage_out_commodities[c, cl, t]
+                                     for cl in self.clusters for t in self.time) / self.discharging_efficiency_dict[c],
+                                 name='in_storage_equals_out_storage' + name_adding)
 
         # commodities with total demand
         for com in self.demanded_commodities:
@@ -708,7 +718,7 @@ class OptimizationGurobiModel:
         variable_emissions = {}
 
         for k in self.all_components:
-            k_object = self.pm_object.get_component[k]
+            k_object = self.pm_object.get_component(k)
 
             specific_installation_emissions[k] = self.installation_co2_emissions_dict[k]
             specific_disposal_emissions[k] = self.disposal_co2_emissions_dict[k]

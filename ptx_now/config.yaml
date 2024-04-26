@@ -1,8 +1,8 @@
-chosen_optimization_setting: 
-optimization_or_visualization: 
-path_data: 
-path_optimize: 
-path_projects: 
-path_result: 
-path_visualization: 
-solver:
+chosen_optimization_setting: custom
+optimization_or_visualization: optimize
+path_data: C:/Users/mt5285/ptx_data/data/
+path_optimize: FT_all_data.yaml
+path_projects: C:/Users/mt5285/ptx_data/projects/
+path_result: C:/Users/mt5285/ptx_data/results/
+path_visualization: 20230908_141018_test_error_Namibia_c1500x-2625_t2030_l168
+solver: gurobi

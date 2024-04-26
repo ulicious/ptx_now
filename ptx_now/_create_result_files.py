@@ -512,11 +512,13 @@ def _create_result_files(pm_object, path_results):
                 total_production += commodity_object.get_demanded_quantity()
 
         cost_distribution = pd.DataFrame()
+        emission_distribution = pd.DataFrame()
         total_costs = 0
-        
+        total_emissions = 0
+
         for component_object in pm_object.get_final_components_objects():
             component_name = component_object.get_name()
-            
+
             if component_name not in pm_object.get_final_components_names():
                 component_name = component_name + ' Storage'
 
@@ -537,10 +539,34 @@ def _create_result_files(pm_object, path_results):
                 total_costs += fixed_om_costs
 
             variable_om_costs = component_object.get_total_variable_costs()
-            if fixed_om_costs != 0:
+            if variable_om_costs != 0:
                 cost_distribution.loc[component_name + ' Variable Operation and Maintenance Costs', 'Total'] = \
                     variable_om_costs
                 total_costs += variable_om_costs
+
+            installation_emissions = component_object.get_installation_co2_emissions()
+            if installation_emissions != 0:
+                emission_distribution.loc[component_name + ' Installation Emissions', 'Total'] = \
+                    installation_emissions
+                total_costs += installation_emissions
+
+            disposal_emissions = component_object.get_disposal_co2_emissions()
+            if disposal_emissions != 0:
+                emission_distribution.loc[component_name + ' Disposal Emissions', 'Total'] = \
+                    disposal_emissions
+                total_costs += disposal_emissions
+
+            fixed_emissions = component_object.get_fixed_co2_emissions()
+            if fixed_emissions != 0:
+                emission_distribution.loc[component_name + ' Fixed Emissions', 'Total'] = \
+                    fixed_emissions
+                total_costs += fixed_emissions
+
+            variable_emissions = component_object.get_variable_co2_emissions()
+            if variable_emissions != 0:
+                emission_distribution.loc[component_name + ' Variable Emissions', 'Total'] = \
+                    variable_emissions
+                total_costs += variable_emissions
 
             if component_object.get_component_type() == 'conversion':
                 if component_object.get_shut_down_ability():
@@ -551,14 +577,13 @@ def _create_result_files(pm_object, path_results):
 
             if component_object.get_component_type() == 'generator':
                 if component_object.get_uses_ppa():
-
                     cost_distribution.loc[component_name + ' PPA Costs', 'Total'] \
                         = component_object.get_potential_generation_quantity() * component_object.get_ppa_price()
                     total_costs += component_object.get_potential_generation_quantity() * component_object.get_ppa_price()
 
         for commodity_object in pm_object.get_final_commodities_objects():
             commodity_name = commodity_object.get_name()
-            
+
             if commodity_object.get_purchased_quantity() != 0:
                 cost_distribution.loc['Purchase Costs ' + commodity_name, 'Total'] \
                     = commodity_object.get_purchase_costs()
@@ -574,14 +599,35 @@ def _create_result_files(pm_object, path_results):
                     = commodity_object.get_selling_revenue()
                 total_costs += commodity_object.get_selling_revenue()
 
+            if commodity_object.get_total_co2_emissions_available() != 0:
+                emission_distribution.loc['Available Emissions ' + commodity_name, 'Total'] \
+                    = commodity_object.get_total_co2_emissions_available()
+                total_emissions += commodity_object.get_total_co2_emissions_available()
+
+            if commodity_object.get_total_co2_emissions_emitted() != 0:
+                emission_distribution.loc['Direct Emissions ' + commodity_name, 'Total'] \
+                    = commodity_object.get_total_co2_emissions_emitted()
+                total_emissions += commodity_object.get_total_co2_emissions_emitted()
+
+            if commodity_object.get_total_co2_emissions_purchase() != 0:
+                emission_distribution.loc['Purchase Emissions ' + commodity_name, 'Total'] \
+                    = commodity_object.get_total_co2_emissions_purchase()
+                total_emissions += commodity_object.get_total_co2_emissions_purchase()
+
+            if commodity_object.get_total_co2_emissions_sale() != 0:
+                emission_distribution.loc['Selling Emissions ' + commodity_name, 'Total'] \
+                    = commodity_object.get_total_co2_emissions_sale()
+                total_emissions += commodity_object.get_total_co2_emissions_sale()
+
         cost_distribution.loc['Total', 'Total'] = total_costs
-
         cost_distribution.loc[:, 'Per Output'] = cost_distribution.loc[:, 'Total'] / total_production
-
         cost_distribution.loc[:, '%'] = cost_distribution.loc[:, 'Total'] / cost_distribution.loc['Total', 'Total']
-
         cost_distribution.to_excel(new_result_folder + '/3_cost_distribution.xlsx')
 
+        emission_distribution.loc['Total', 'Total'] = total_emissions
+        emission_distribution.loc[:, 'Per Output'] = emission_distribution.loc[:, 'Total'] / total_production
+        emission_distribution.loc[:, '%'] = emission_distribution.loc[:, 'Total'] / total_emissions
+        emission_distribution.to_excel(new_result_folder + '/3_emission_distribution.xlsx')
 
     def copy_input_data():
         import shutil

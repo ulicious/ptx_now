@@ -446,7 +446,7 @@ class OptimizationGurobiModel:
                                      for cl in self.clusters for t in self.time) * self.charging_efficiency_dict[c] ==
                                  sum(self.mass_energy_storage_out_commodities[c, cl, t] * self.weightings_dict[cl]
                                      for cl in self.clusters for t in self.time) / self.discharging_efficiency_dict[c],
-                                 name='in_storage_equals_out_storage' + name_adding)
+                                 name='in_storage_equals_out_storage')
 
         # commodities with total demand
         for com in self.demanded_commodities:

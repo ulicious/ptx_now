@@ -76,6 +76,8 @@ class ExtremeCaseBilinear:
 
         dual_model.y_demand_constraint_variable = Var(dual_model.DEMANDED_COMMODITIES, dual_model.CLUSTER,
                                                       bounds=(None, None))
+        dual_model.y_weekly_production_balance_variable = Var(dual_model.DEMANDED_COMMODITIES, dual_model.CLUSTER,
+                                                              bounds=(None, None))
 
         dual_model.y_out_constraint_variable = Var(dual_model.CONVERSION_COMPONENTS,
                                                    dual_model.ME_COMMODITIES, dual_model.TIME, dual_model.CLUSTER,
@@ -262,6 +264,7 @@ class ExtremeCaseBilinear:
         self.dual_model.x_sell_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.TIME,
                                                 self.dual_model.CLUSTER, rule=x_sell_rule)
 
+
         if False:
             def x_demand_rule(dm, s, t, n):
                 if s in self.demanded_commodities:
@@ -277,7 +280,7 @@ class ExtremeCaseBilinear:
             def x_demand_rule(dm, s, t, n):
                 if s in self.demanded_commodities:
                     return - dm.y_balance_constraint_variable[s, t, n] \
-                           + dm.y_demand_constraint_variable[s, n] <= 0
+                           - dm.y_demand_constraint_variable[s, n] <= 0
                 else:
                     return Constraint.Skip
 
@@ -285,13 +288,31 @@ class ExtremeCaseBilinear:
                                                       self.dual_model.CLUSTER,
                                                       rule=x_demand_rule)
 
-            def x_short_demand_rule(dm, s, n):
+            def x_weekly_production_rule(dm, s, n):
                 if s in self.demanded_commodities:
-                    return dm.y_demand_constraint_variable[s, n] <= dm.weightings[n] * 0.25
+                    return dm.y_demand_constraint_variable[s, n] + dm.y_weekly_production_balance_variable[s, n] <= 0
                 else:
                     return Constraint.Skip
-            self.dual_model.x_short_demand_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.CLUSTER,
-                                                            rule=x_short_demand_rule)
+            self.dual_model.x_weekly_production_con = Constraint(self.dual_model.ME_COMMODITIES,
+                                                                 self.dual_model.CLUSTER,
+                                                                 rule=x_weekly_production_rule)
+
+            def x_production_surplus_rule(dm, s, n):
+                if s in self.demanded_commodities:
+                    return - dm.y_weekly_production_balance_variable[s, n] <= 0
+                else:
+                    return Constraint.Skip
+            self.dual_model.x_production_surplus_con = Constraint(self.dual_model.ME_COMMODITIES,
+                                                                  self.dual_model.CLUSTER,
+                                                                  rule=x_production_surplus_rule)
+
+            def x_production_deficit_rule(dm, s, n):
+                if s in self.demanded_commodities:
+                    return - dm.y_weekly_production_balance_variable[s, n] >= - dm.weightings[n] * 0.25
+                else:
+                    return Constraint.Skip
+            self.dual_model.x_production_deficit_con = Constraint(self.dual_model.ME_COMMODITIES, self.dual_model.CLUSTER,
+                                                                  rule=x_production_deficit_rule)
 
         def x_generation_rule(dm, g, s, t, n):
             generated_commodity = self.pm_object.get_component(g).get_generated_commodity()
@@ -477,7 +498,7 @@ class ExtremeCaseBilinear:
                                   s]) * self.optimal_capacities[s]
                              for t in dm.TIME for s in dm.STORAGES if s in self.storage_components for n in dm.CLUSTER)
             if True:
-                return sum(dm.y_demand_constraint_variable[s, n] * dm.total_commodity_demand[s] / (8760 / len(dm.TIME))
+                return sum(- dm.y_demand_constraint_variable[s, n] * dm.total_commodity_demand[s] / (8760 / len(dm.TIME))
                            for s in dm.DEMANDED_COMMODITIES for n in dm.CLUSTER) \
                        + sum((dm.y_conv_cap_ub_constraint_variable[c, t, n] * self.maximal_power_dict[c]
                               - dm.y_conv_cap_lb_constraint_variable[c, t, n] * self.minimal_power_dict[c]

@@ -122,8 +122,12 @@ class SuperProblemRepresentative:
         # Demanded commodities
         self.model.mass_energy_demand = Var(self.model.ME_COMMODITIES, self.model.TIME,
                                             self.model.CLUSTER, self.model.ITERATION, bounds=(0, None))
-        self.model.mass_energy_short_demand = Var(self.model.ME_COMMODITIES, self.model.CLUSTER, self.model.ITERATION,
-                                                  bounds=(0, None))
+        self.model.mass_energy_weekly_production = Var(self.model.ME_COMMODITIES, self.model.CLUSTER, self.model.ITERATION,
+                                                       bounds=(0, None))
+        self.model.mass_energy_weekly_surplus = Var(self.model.ME_COMMODITIES, self.model.CLUSTER,
+                                                    self.model.ITERATION, bounds=(0, None))
+        self.model.mass_energy_weekly_deficit = Var(self.model.ME_COMMODITIES, self.model.CLUSTER, self.model.ITERATION,
+                                                    bounds=(None, 0))
 
         # Hot standby demand
         self.model.mass_energy_hot_standby_demand = Var(self.model.CONVERSION_COMPONENTS, self.model.ME_COMMODITIES,
@@ -275,13 +279,21 @@ class SuperProblemRepresentative:
             model.total_demand_satisfaction_con = Constraint(model.DEMANDED_COMMODITIES, model.ITERATION,
                                                              rule=total_demand_satisfaction_rule)
 
-        else:
-            def total_demand_satisfaction_rule(m, me, cl, i):
+        if True:
+            def weekly_demand_satisfaction_rule(m, me, cl, i):
                 # Sets commodities, which are demanded
-                return m.mass_energy_short_demand[me, cl, i] == m.total_commodity_demand[me] / (8760 / len(m.TIME)) \
-                    - sum(m.mass_energy_demand[me, t, cl, i] for t in m.TIME)
-            model.total_demand_satisfaction_con = Constraint(model.DEMANDED_COMMODITIES, model.CLUSTER, model.ITERATION,
-                                                             rule=total_demand_satisfaction_rule)
+                return m.mass_energy_weekly_production[me, cl, i]  \
+                    == sum(m.mass_energy_demand[me, t, cl, i] for t in m.TIME) \
+                    - m.total_commodity_demand[me] / (8760 / len(m.TIME))
+            model.weekly_demand_satisfaction_con = Constraint(model.DEMANDED_COMMODITIES, model.CLUSTER,
+                                                              model.ITERATION,
+                                                              rule=weekly_demand_satisfaction_rule)
+
+            def balance_weekly_production_rule(m, me, cl, i):
+                return m.mass_energy_weekly_production[me, cl, i] \
+                       == m.mass_energy_weekly_surplus[me, cl, i] + m.mass_energy_weekly_deficit[me, cl, i]
+            model.balance_weekly_production_con = Constraint(model.DEMANDED_COMMODITIES, model.CLUSTER,
+                                                             model.ITERATION, rule=balance_weekly_production_rule)
 
         def _commodity_conversion_output_rule(m, c, me_out, t, n, i):
             # Define ratio between main input and output commodities for all conversion tuples
@@ -474,24 +486,20 @@ class SuperProblemRepresentative:
                 return m.auxiliary_variable >= \
                        + sum(m.mass_energy_storage_in_commodities[c, t, n, i] * m.variable_om[c] * m.weightings[n]
                              for t in m.TIME for n in m.CLUSTER for c in m.STORAGES) \
-                       + sum(
-                    m.mass_energy_component_out_commodities[c, pm_object.get_component(c).get_main_output(), t, n, i]
-                    * m.variable_om[c] * m.weightings[n] for t in m.TIME
-                    for n in m.CLUSTER for c in m.CONVERSION_COMPONENTS) \
+                       + sum(m.mass_energy_component_out_commodities[c, pm_object.get_component(c).get_main_output(), t, n, i]
+                             * m.variable_om[c] * m.weightings[n] for t in m.TIME
+                             for n in m.CLUSTER for c in m.CONVERSION_COMPONENTS) \
                        + sum(m.mass_energy_generation[c, pm_object.get_component(c).get_generated_commodity(), t, n, i]
                              * m.variable_om[c] * m.weightings[n]
                              for t in m.TIME for n in m.CLUSTER for c in m.GENERATORS) \
-                       + sum(
-                    m.mass_energy_purchase_commodity[me, t, n, i] * m.purchase_price[me, n, t] * m.weightings[n]
-                    for t in m.TIME for n in m.CLUSTER
-                    for me in m.ME_COMMODITIES if me in self.purchasable_commodities) \
+                       + sum(m.mass_energy_purchase_commodity[me, t, n, i] * m.purchase_price[me, n, t] * m.weightings[n]
+                             for t in m.TIME for n in m.CLUSTER
+                             for me in m.ME_COMMODITIES if me in self.purchasable_commodities) \
                        - sum(m.mass_energy_sell_commodity[me, t, n, i] * m.selling_price[me, n, t] * m.weightings[n]
                              for t in m.TIME for n in m.CLUSTER
                              for me in m.ME_COMMODITIES if me in self.saleable_commodities) \
-                    + sum(m.mass_energy_short_demand[me, cl, i] * m.weightings[cl] * 0.25
-                          for me in m.TOTAL_DEMANDED_COMMODITIES for cl in m.CLUSTER)
-
-
+                       - sum(m.mass_energy_weekly_deficit[me, cl, i] * m.weightings[cl] * 0.25
+                             for me in m.TOTAL_DEMANDED_COMMODITIES for cl in m.CLUSTER)
         model.define_upper_limit_mu_con = Constraint(model.ITERATION, rule=define_upper_limit_mu_rule)
 
         def objective_function(m):

@@ -86,9 +86,9 @@ def optimize(pm_object, path_data, path_results, solver):
     number_profiles = int(len(all_profiles.columns) / len(nominal[0].keys()))
 
     # choose if only some profiles are used
-    preselect_profiles = True  # todo: delete. Data set should be correct in the first place
+    preselect_profiles = False  # todo: delete. Data set should be correct in the first place
     if preselect_profiles:
-        preselection_profiles = [i for i in range(10)]
+        preselection_profiles = [i for i in range(100)]
         number_profiles = len(preselection_profiles)
 
         selected_profiles = []

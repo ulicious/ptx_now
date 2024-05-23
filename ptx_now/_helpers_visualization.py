@@ -62,12 +62,8 @@ def create_visualization(path):
             components_file = pd.read_excel(p + '2_components.xlsx', index_col=0)
             cost_distribution_file = pd.read_excel(p + '3_cost_distribution.xlsx', index_col=0)
 
-            try:
-                commodities_file = pd.read_excel(p + '4_commodities.xlsx', index_col=0)
-                time_series_file = pd.read_excel(p + '5_time_series_commodities.xlsx', index_col=(0, 1, 2))
-            except:
-                commodities_file = pd.read_excel(p + '4_streams.xlsx', index_col=0)
-                time_series_file = pd.read_excel(p + '5_time_series_streams.xlsx', index_col=(0, 1, 2))
+            commodities_file = pd.read_excel(p + '5_commodities.xlsx', index_col=0)
+            time_series_file = pd.read_excel(p + '4_operations_time_series.xlsx', index_col=(0, 1, 2))
 
             time_series_file = time_series_file.iloc[1:, :]
 
@@ -94,12 +90,12 @@ def create_visualization(path):
 
         def create_overview_table():
 
-            total_investment = "%.2f" % overview_df.loc['Total Investment'].values[0]
-            total_fix_costs = "%.2f" % overview_df.loc['Total Fix Costs'].values[0]
-            total_variable_costs = "%.2f" % overview_df.loc['Total Variable Costs'].values[0]
-            annual_costs = "%.2f" % overview_df.loc['Annual Costs'].values[0]
-            cost_per_unit = "%.2f" % overview_df.loc['Production Costs per Unit'].values[0]
-            efficiency = "%.2f" % (overview_df.loc['Efficiency'].values[0] * 100)
+            total_investment = "%.2f" % overview_df.iloc[1].values[0]
+            total_fix_costs = "%.2f" % overview_df.iloc[2].values[0]
+            total_variable_costs = "%.2f" % overview_df.iloc[3].values[0]
+            annual_costs = "%.2f" % overview_df.iloc[4].values[0]
+            cost_per_unit = "%.2f" % overview_df.iloc[5].values[0]
+            efficiency = "%.2f" % (overview_df.iloc[10].values[0] * 100)
 
             # Table Overview
             tab_overview = pd.DataFrame({
@@ -151,7 +147,7 @@ def create_visualization(path):
                 annuity.append("%.2f" % components_df.loc[component, 'Annuity'])
                 fixed_om.append("%.2f" % components_df.loc[component, 'Fixed Operation and Maintenance'])
                 variable_om.append("%.2f" % components_df.loc[component, 'Variable Operation and Maintenance'])
-                full_load_hours.append("%.2f" % components_df.loc[component, 'Full-load Hours'])
+                full_load_hours.append("%.2f" % components_df.loc[component, 'Capacity Factor'])
 
             local_conversion_components_tab = pd.DataFrame({'': component_list,
                                                       'Capacity': capacity,
@@ -309,7 +305,7 @@ def create_visualization(path):
                 local_commodity_tab.loc[i, 'Sold'] = "%.0f" % commodities_df.loc[i, 'Sold Commodity']
                 local_commodity_tab.loc[i, 'Generated'] = "%.0f" % commodities_df.loc[i, 'Generated Commodity']
                 local_commodity_tab.loc[i, 'Stored'] = "%.0f" % commodities_df.loc[i, 'Stored Commodity']
-                local_commodity_tab.loc[i, 'From Conversion'] = "%.0f" % commodities_df.loc[i, 'Conversed Commodity']
+                local_commodity_tab.loc[i, 'From Conversion'] = "%.0f" % commodities_df.loc[i, 'Produced Commodity']
                 local_commodity_tab.loc[i, 'Total Fixed Costs'] = "%.2f" % commodities_df.loc[i, 'Total Fix Costs'] \
                                                             + monetary_unit
                 local_commodity_tab.loc[i, 'Total Variable Costs'] = "%.2f" % commodities_df.loc[i, 'Total Variable Costs'] \
@@ -336,7 +332,7 @@ def create_visualization(path):
 
         create_assumptions_table()
 
-        annual_production = overview_df.loc['Annual Production'].values[0]
+        annual_production = overview_df.iloc[0].values[0]
         annual_production_unit = time_series_df.loc[['Demand']].loc[:, 'unit'].values[0].split(' / ')[0]
 
         if annual_production_unit in ['kW', 'MW', 'GW', 'TW']:

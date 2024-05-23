@@ -5,13 +5,13 @@ from tkinter import filedialog
 
 import pandas as pd
 
-from general_assumptions_classes_and_methods import GeneralAssumptionsFrame
-from component_classes_and_methods import ComponentFrame, AddNewComponentWindow
-from commodities_classes_and_methods import CommodityFrame
-from storage_classes_and_methods import StorageFrame
-from generators_classes_and_methods import GeneratorFrame
+from gui_general_settings_and_assumptions import GeneralAssumptionsFrame
+from gui_component import ComponentFrame, AddNewComponentWindow
+from gui_commodities import CommodityFrame
+from gui_storages import StorageFrame
+from gui_generators import GeneratorFrame
 
-from components import GenerationComponent, StorageComponent
+from object_component import GenerationComponent, StorageComponent
 
 import random
 
@@ -146,7 +146,7 @@ class ComponentInterface(ttk.Frame):
                                               self.pm_object_copy, self.pm_object_original)
         self.parameter_frame.frame.grid(row=1, sticky='ew')
 
-    def set_components_to_default(self):
+    def set_components_to_default(self):  # todo: Wenn commodity gelöscht wird aber als storage angewählt war, ist er immer noch final
         # Set all component parameters and commodities to default
 
         for component in self.pm_object_copy.get_conversion_components_objects():
@@ -817,7 +817,8 @@ class DataInterface(ttk.Frame):
         self.data_frame = ttk.Frame(self)
 
         if (len(self.pm_object_copy.get_final_generator_components_names()) > 0) \
-                | (self.pm_object_copy.get_commodity_data_needed()):
+                | self.pm_object_copy.get_commodity_data_needed() \
+                | self.pm_object_copy.get_uses_representative_periods():
 
             profiles_data_frame = ttk.Frame(self.data_frame)
 
@@ -1168,11 +1169,12 @@ class SettingWindow:
         self.window.mainloop()
 
 
-def save_current_parameters_and_options(pm_object, path_name):
+def save_current_parameters_and_options(pm_object, path_name, fixed_capacities=None):
 
     case_data = {}
-    case_data['version'] = '0.1.0'
+    case_data['version'] = '0.1.1'
     case_data['project_name'] = pm_object.get_project_name()
+    case_data['optimization_type'] = pm_object.get_optimization_type()
 
     case_data['wacc'] = pm_object.get_wacc()
 
@@ -1190,6 +1192,9 @@ def save_current_parameters_and_options(pm_object, path_name):
 
     for component in pm_object.get_all_components():
 
+        if not component.is_final():
+            continue
+
         case_data['component'][component.get_name()] = {}
 
         case_data['component'][component.get_name()]['component_type'] = component.get_component_type()
@@ -1199,6 +1204,17 @@ def save_current_parameters_and_options(pm_object, path_name):
         case_data['component'][component.get_name()]['lifetime'] = component.get_lifetime()
         case_data['component'][component.get_name()]['fixed_om'] = component.get_fixed_OM()
         case_data['component'][component.get_name()]['variable_om'] = component.get_variable_OM()
+        case_data['component'][component.get_name()]['has_fixed_capacity'] = component.get_has_fixed_capacity()
+
+        if fixed_capacities is not None:
+            case_data['component'][component.get_name()]['fixed_capacity'] = fixed_capacities[component.get_name()]
+        else:
+            case_data['component'][component.get_name()]['fixed_capacity'] = component.get_fixed_capacity()
+
+        case_data['component'][component.get_name()]['installation_co2_emissions'] = component.get_installation_co2_emissions()
+        case_data['component'][component.get_name()]['fixed_co2_emissions'] = component.get_fixed_co2_emissions()
+        case_data['component'][component.get_name()]['variable_co2_emissions'] = component.get_variable_co2_emissions()
+        case_data['component'][component.get_name()]['disposal_co2_emissions'] = component.get_disposal_co2_emissions()
 
         if component.get_component_type() == 'conversion':
 
@@ -1240,17 +1256,15 @@ def save_current_parameters_and_options(pm_object, path_name):
 
             case_data['component'][component.get_name()]['generated_commodity'] = component.get_generated_commodity()
             case_data['component'][component.get_name()]['curtailment_possible'] = component.get_curtailment_possible()
-            case_data['component'][component.get_name()]['has_fixed_capacity'] = component.get_has_fixed_capacity()
-            case_data['component'][component.get_name()]['fixed_capacity'] = component.get_fixed_capacity()
+            case_data['component'][component.get_name()]['uses_ppa'] = component.get_uses_ppa()
+            case_data['component'][component.get_name()]['ppa_price'] = component.get_ppa_price()
 
         elif component.get_component_type() == 'storage':
 
             case_data['component'][component.get_name()]['min_soc'] = component.get_min_soc()
             case_data['component'][component.get_name()]['max_soc'] = component.get_max_soc()
-            case_data['component'][component.get_name()]['initial_soc'] = component.get_initial_soc()
             case_data['component'][component.get_name()]['charging_efficiency'] = component.get_charging_efficiency()
             case_data['component'][component.get_name()]['discharging_efficiency'] = component.get_discharging_efficiency()
-            case_data['component'][component.get_name()]['leakage'] = component.get_leakage()
             case_data['component'][component.get_name()]['ratio_capacity_p'] = component.get_ratio_capacity_p()
 
     case_data['conversions'] = {}
@@ -1310,6 +1324,12 @@ def save_current_parameters_and_options(pm_object, path_name):
         case_data['commodity'][commodity.get_name()]['demand_type'] = commodity.get_demand_type()
 
         case_data['commodity'][commodity.get_name()]['energy_content'] = commodity.get_energy_content()
+
+        # Specific CO2 emissions
+        case_data['commodity'][commodity.get_name()]['specific_co2_emissions_available'] = commodity.get_specific_co2_emissions_available()
+        case_data['commodity'][commodity.get_name()]['specific_co2_emissions_emitted'] = commodity.get_specific_co2_emissions_emitted()
+        case_data['commodity'][commodity.get_name()]['specific_co2_emissions_purchase'] = commodity.get_specific_co2_emissions_purchase()
+        case_data['commodity'][commodity.get_name()]['specific_co2_emissions_sale'] = commodity.get_specific_co2_emissions_sale()
 
     file = open(path_name, "w")
     yaml.dump(case_data, file)

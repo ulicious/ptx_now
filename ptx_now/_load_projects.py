@@ -1,5 +1,5 @@
-from components import ConversionComponent, StorageComponent, GenerationComponent
-from commodity import Commodity
+from object_component import ConversionComponent, StorageComponent, GenerationComponent
+from object_commodity import Commodity
 
 
 def load_project(pm_object, case_data):
@@ -7,18 +7,19 @@ def load_project(pm_object, case_data):
     version = str(case_data['version'])
     if version == '0.0.9':
         pm_object = load_009(pm_object, case_data)
-    elif version == '0.1.0':
-        pm_object = load_010(pm_object, case_data)
+    elif version == '0.1.1':
+        pm_object = load_011(pm_object, case_data)
 
     pm_object.check_commodity_data_needed()
 
     return pm_object
 
 
-def load_010(pm_object, case_data):
+def load_011(pm_object, case_data):
     """ Set general parameters """
 
     pm_object.set_project_name(case_data['project_name'])
+    pm_object.set_optimization_type(case_data['optimization_type'])
 
     pm_object.set_wacc(case_data['wacc'])
 
@@ -40,6 +41,12 @@ def load_010(pm_object, case_data):
         fixed_om = case_data['component'][component]['fixed_om']
         variable_om = case_data['component'][component]['variable_om']
         final_unit = case_data['component'][component]['final']
+        has_fixed_capacity = case_data['component'][component]['has_fixed_capacity']
+        fixed_capacity = case_data['component'][component]['fixed_capacity']
+        installation_co2_emissions = case_data['component'][component]['installation_co2_emissions']
+        fixed_co2_emissions = case_data['component'][component]['fixed_co2_emissions']
+        variable_co2_emissions = case_data['component'][component]['variable_co2_emissions']
+        disposal_co2_emissions = case_data['component'][component]['disposal_co2_emissions']
 
         if case_data['component'][component]['component_type'] == 'conversion':
 
@@ -80,6 +87,11 @@ def load_010(pm_object, case_data):
                                                        hot_standby_ability=hot_standby_ability,
                                                        hot_standby_demand=hot_standby_demand,
                                                        hot_standby_startup_time=hot_standby_startup_time,
+                                                       has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
+                                                       installation_co2_emissions=installation_co2_emissions,
+                                                       fixed_co2_emissions=fixed_co2_emissions,
+                                                       variable_co2_emissions=variable_co2_emissions,
+                                                       disposal_co2_emissions=disposal_co2_emissions,
                                                        final_unit=final_unit, custom_unit=False)
 
             pm_object.add_component(name, conversion_component)
@@ -88,18 +100,20 @@ def load_010(pm_object, case_data):
 
             min_soc = case_data['component'][component]['min_soc']
             max_soc = case_data['component'][component]['max_soc']
-            initial_soc = case_data['component'][component]['initial_soc']
             charging_efficiency = case_data['component'][component]['charging_efficiency']
             discharging_efficiency = case_data['component'][component]['discharging_efficiency']
-            leakage = case_data['component'][component]['leakage']
             ratio_capacity_p = case_data['component'][component]['ratio_capacity_p']
 
             storage_component = StorageComponent(name=name, lifetime=lifetime,
                                                  fixed_om=fixed_om, variable_om=variable_om, capex=capex,
                                                  charging_efficiency=charging_efficiency,
                                                  discharging_efficiency=discharging_efficiency,
-                                                 min_soc=min_soc, max_soc=max_soc, initial_soc=initial_soc,
-                                                 leakage=leakage, ratio_capacity_p=ratio_capacity_p,
+                                                 min_soc=min_soc, max_soc=max_soc, ratio_capacity_p=ratio_capacity_p,
+                                                 has_fixed_capacity=has_fixed_capacity, fixed_capacity=fixed_capacity,
+                                                 installation_co2_emissions=installation_co2_emissions,
+                                                 fixed_co2_emissions=fixed_co2_emissions,
+                                                 variable_co2_emissions=variable_co2_emissions,
+                                                 disposal_co2_emissions=disposal_co2_emissions,
                                                  final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, storage_component)
 
@@ -107,9 +121,8 @@ def load_010(pm_object, case_data):
             generated_commodity = case_data['component'][component]['generated_commodity']
 
             curtailment_possible = case_data['component'][component]['curtailment_possible']
-
-            has_fixed_capacity = case_data['component'][component]['has_fixed_capacity']
-            fixed_capacity = case_data['component'][component]['fixed_capacity']
+            uses_ppa = case_data['component'][component]['uses_ppa']
+            ppa_price = case_data['component'][component]['ppa_price']
 
             generator = GenerationComponent(name=name, lifetime=lifetime, fixed_om=fixed_om, variable_om=variable_om,
                                             capex=capex,
@@ -117,6 +130,11 @@ def load_010(pm_object, case_data):
                                             curtailment_possible=curtailment_possible,
                                             has_fixed_capacity=has_fixed_capacity,
                                             fixed_capacity=fixed_capacity,
+                                            uses_ppa=uses_ppa, ppa_price=ppa_price,
+                                            installation_co2_emissions=installation_co2_emissions,
+                                            fixed_co2_emissions=fixed_co2_emissions,
+                                            variable_co2_emissions=variable_co2_emissions,
+                                            disposal_co2_emissions=disposal_co2_emissions,
                                             final_unit=final_unit, custom_unit=False)
             pm_object.add_component(name, generator)
 
@@ -157,14 +175,24 @@ def load_010(pm_object, case_data):
         demand = case_data['commodity'][c]['demand']
         demand_type = case_data['commodity'][c]['demand_type']
 
+        specific_co2_emissions_available = case_data['commodity'][c]['specific_co2_emissions_available']
+        specific_co2_emissions_emitted = case_data['commodity'][c]['specific_co2_emissions_emitted']
+        specific_co2_emissions_purchase = case_data['commodity'][c]['specific_co2_emissions_purchase']
+        specific_co2_emissions_sale = case_data['commodity'][c]['specific_co2_emissions_sale']
+
         energy_content = case_data['commodity'][c]['energy_content']
 
         commodity = Commodity(name=name, commodity_unit=commodity_unit, energy_content=energy_content,
-                        final_commodity=final_commodity,
-                        available=available, purchasable=purchasable, saleable=saleable, emittable=emittable,
-                        demanded=demanded, total_demand=total_demand, demand_type=demand_type, demand=demand,
-                        purchase_price=purchase_price, purchase_price_type=purchase_price_type,
-                        sale_price=selling_price, sale_price_type=selling_price_type)
+                              final_commodity=final_commodity,
+                              available=available, purchasable=purchasable, saleable=saleable, emittable=emittable,
+                              demanded=demanded, total_demand=total_demand, demand_type=demand_type, demand=demand,
+                              purchase_price=purchase_price, purchase_price_type=purchase_price_type,
+                              sale_price=selling_price, sale_price_type=selling_price_type,
+                              specific_co2_emissions_available=specific_co2_emissions_available,
+                              specific_co2_emissions_emitted=specific_co2_emissions_emitted,
+                              specific_co2_emissions_purchase=specific_co2_emissions_purchase,
+                              specific_co2_emissions_sale=specific_co2_emissions_sale
+                              )
         pm_object.add_commodity(name, commodity)
 
     return pm_object

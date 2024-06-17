@@ -3,9 +3,7 @@ import highspy
 
 import gurobipy as gp
 
-import numpy as np
-
-from _helper_optimization import anticipate_bigM
+from ptx_now._helper_optimization import anticipate_bigM
 
 inf = highspy.kHighsInf
 integer_type = highspy.HighsVarType.kInteger
@@ -673,7 +671,6 @@ class OptimizationHighsModel:
 
             for i in self.integer_steps:
                 # activate capacity binary
-                import highspy
 
                 not_zero_values = 2
                 variable_index = [self.index_identifier['capacity_binary'][(sc, i)],

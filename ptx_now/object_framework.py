@@ -483,19 +483,6 @@ class ParameterObject:
             component_name = component_object.get_name()
             capex_var_dict[component_name] = component_object.get_capex()
 
-            if component_object.get_component_type() == 'conversion':
-
-                if component_object.get_capex_basis() == 'output':
-                    i = component_object.get_main_input()
-                    i_coefficient = component_object.get_inputs()[i]
-                    o = component_object.get_main_output()
-                    o_coefficient = component_object.get_outputs()[o]
-                    ratio = o_coefficient / i_coefficient
-                else:
-                    ratio = 1
-
-                capex_var_dict[component_name] = capex_var_dict[component_name] * ratio
-
         return capex_var_dict
 
     def get_component_fixed_capex_parameters(self):
@@ -702,10 +689,11 @@ class ParameterObject:
         disposal_co2_emissions = {}
         for component_object in self.get_final_components_objects():
             component_name = component_object.get_name()
+
             specific_co2_emissions_per_capacity[component_name] = component_object.get_installation_co2_emissions()
+            disposal_co2_emissions[component_name] = component_object.get_disposal_co2_emissions()
             fixed_yearly_co2_emissions[component_name] = component_object.get_fixed_co2_emissions()
             variable_co2_emissions[component_name] = component_object.get_variable_co2_emissions()
-            disposal_co2_emissions[component_name] = component_object.get_disposal_co2_emissions()
 
         return specific_co2_emissions_per_capacity, fixed_yearly_co2_emissions,\
             variable_co2_emissions, disposal_co2_emissions
@@ -997,7 +985,6 @@ class ParameterObject:
         if len(self.get_final_generator_components_objects()) > 0:
 
             path = self.get_path_data() + self.get_profile_data()
-
             if path.split('.')[-1] == 'xlsx':
                 profile = pd.read_excel(path, index_col=0)
 
@@ -1283,11 +1270,12 @@ class ParameterObject:
     def get_operation_time_series(self):
         return self.operation_time_series
 
-    def process_results(self, path_results, model_type):
+    def process_results(self, model_type, path_results=None, create_results=True):
 
         _transfer_results_to_parameter_object(self, model_type)
 
-        _create_result_files(self, path_results)
+        if create_results:
+            _create_result_files(self, path_results)
 
     def set_objective_function_value(self, objective_function_value):
         self.objective_function_value = objective_function_value

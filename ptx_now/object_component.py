@@ -455,6 +455,46 @@ class ConversionComponent(Component):
         return self.annualized_investment + self.total_fixed_costs + self.total_variable_costs \
             + self.total_startup_costs
 
+    def get_capex(self):
+        if self.get_capex_basis() == 'output':
+            i = self.get_main_input()
+            i_coefficient = self.get_inputs()[i]
+            o = self.get_main_output()
+            o_coefficient = self.get_outputs()[o]
+            ratio = o_coefficient / i_coefficient
+        else:
+            ratio = 1
+
+        return self.capex * ratio
+
+    def get_installation_co2_emissions(self):
+        ratio = 1
+        if self.get_component_type() == 'conversion':
+            if self.get_capex_basis() == 'output':
+                i = self.get_main_input()
+                i_coefficient = self.get_inputs()[i]
+                o = self.get_main_output()
+                o_coefficient = self.get_outputs()[o]
+                ratio = o_coefficient / i_coefficient
+            else:
+                ratio = 1
+
+        return self.installation_co2_emissions * ratio
+
+    def get_disposal_co2_emissions(self):
+        ratio = 1
+        if self.get_component_type() == 'conversion':
+            if self.get_capex_basis() == 'output':
+                i = self.get_main_input()
+                i_coefficient = self.get_inputs()[i]
+                o = self.get_main_output()
+                o_coefficient = self.get_outputs()[o]
+                ratio = o_coefficient / i_coefficient
+            else:
+                ratio = 1
+
+        return self.disposal_co2_emissions * ratio
+
     def __copy__(self, name=None):
 
         if name is None:

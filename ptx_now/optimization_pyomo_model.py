@@ -2,7 +2,7 @@ from pyomo.core import *
 from pyomo.core import Binary
 import pyomo.environ as pyo
 
-from ptx_now._helper_optimization import anticipate_bigM
+from _helper_optimization import anticipate_bigM
 
 
 class OptimizationPyomoModel:

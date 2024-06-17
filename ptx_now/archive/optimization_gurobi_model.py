@@ -1,6 +1,6 @@
 import itertools
 import gurobipy as gp
-from _helper_optimization import anticipate_bigM, clone_components_which_use_parallelization
+from ptx_now._helper_optimization import anticipate_bigM
 
 
 class OptimizationGurobiModel:

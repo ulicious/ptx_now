@@ -1,17 +1,8 @@
 import pandas as pd
 
-from _helper_optimization import clone_components_which_use_parallelization
+from ptx_now._helper_optimization import clone_components_which_use_parallelization
 from optimization_types import optimize_single_profile_not_multi_objective, optimize_single_profile_multi_objective,\
     optimize_multi_profiles_no_multi_optimization, multi_profiles_multi_objective, optimize_no_profile
-
-from joblib import Parallel, delayed
-from tqdm import tqdm
-import multiprocessing
-from copy import deepcopy
-
-from os import walk
-
-import time
 
 idx = pd.IndexSlice
 

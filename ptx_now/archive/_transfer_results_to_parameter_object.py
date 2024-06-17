@@ -391,7 +391,7 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
                 commodity_object.set_generated_quantity(commodity_object.get_generated_quantity()
                                                         + variable_dict[k] * weightings[cluster])
 
-                component_object.set_generated_quantity(commodity_object.get_generated_quantity()
+                component_object.set_generated_quantity(component_object.get_generated_quantity()
                                                         + variable_dict[k] * weightings[cluster])
 
             if variable == 'mass_energy_hot_standby_demand':

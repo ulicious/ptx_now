@@ -1,0 +1,30 @@
+Index: ptx_now/dual_model_gurobi.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/ptx_now/dual_model_gurobi.py b/ptx_now/dual_model_gurobi.py
+--- a/ptx_now/dual_model_gurobi.py	
++++ b/ptx_now/dual_model_gurobi.py	(date 1718282779036)
+@@ -363,8 +363,8 @@
+                                        for g in self.generator_components for t in self.time for p in self.profiles)
+                                  + sum((self.y_soc_ub_constraint_variable[s, t, n] * self.maximal_soc_dict[s]
+                                         - self.y_soc_lb_constraint_variable[s, t, n] * self.minimal_soc_dict[s]
+-                                        + self.y_soc_charge_limit_constraint_variable[s, t, n] * self.ratio_capacity_power_dict[s]
+-                                        + self.y_soc_discharge_limit_constraint_variable[s, t, n] * self.ratio_capacity_power_dict[s]) * self.optimal_capacities[s]
++                                        + self.y_soc_charge_limit_constraint_variable[s, t, n] / self.ratio_capacity_power_dict[s]
++                                        + self.y_soc_discharge_limit_constraint_variable[s, t, n] / self.ratio_capacity_power_dict[s]) * self.optimal_capacities[s]
+                                        for t in self.time for s in self.storage_components for n in self.clusters),
+                                     gp.GRB.MAXIMIZE)
+ 
+@@ -387,8 +387,8 @@
+                       for g in self.generator_components for t in self.time for p in self.profiles)
+                 + sum((self.y_soc_ub_constraint_variable[s, t, n] * self.maximal_soc_dict[s]
+                        - self.y_soc_lb_constraint_variable[s, t, n] * self.minimal_soc_dict[s]
+-                       + self.y_soc_charge_limit_constraint_variable[s, t, n] * self.ratio_capacity_power_dict[s]
+-                       + self.y_soc_discharge_limit_constraint_variable[s, t, n] * self.ratio_capacity_power_dict[s]) *
++                       + self.y_soc_charge_limit_constraint_variable[s, t, n] / self.ratio_capacity_power_dict[s]
++                       + self.y_soc_discharge_limit_constraint_variable[s, t, n] / self.ratio_capacity_power_dict[s]) *
+                       self.optimal_capacities[s]
+                       for t in self.time for s in self.storage_components for n in self.clusters),
+                 gp.GRB.MAXIMIZE)

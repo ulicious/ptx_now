@@ -79,17 +79,12 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
 
         if all_variables_dict['investment'][c] > 0:
             component.set_investment(all_variables_dict['investment'][c])
-            component.set_annualized_investment(
-                all_variables_dict['investment'][c] * annuity_factor[c])
-            component.set_total_fixed_costs(
-                all_variables_dict['investment'][c] * fixed_om[c])
+            component.set_annualized_investment(all_variables_dict['investment'][c] * annuity_factor[c])
+            component.set_total_fixed_costs(all_variables_dict['investment'][c] * fixed_om[c])
 
-            component.set_total_installation_co2_emissions(
-                all_variables_dict['nominal_cap'][c] * installation_co2_emissions)
-            component.set_total_fixed_co2_emissions(
-                all_variables_dict['nominal_cap'][c] * fixed_co2_emissions)
-            component.set_total_disposal_co2_emissions(
-                all_variables_dict['nominal_cap'][c] * disposal_co2_emissions)
+            component.set_total_installation_co2_emissions(all_variables_dict['nominal_cap'][c] * installation_co2_emissions)
+            component.set_total_fixed_co2_emissions(all_variables_dict['nominal_cap'][c] * fixed_co2_emissions)
+            component.set_total_disposal_co2_emissions(all_variables_dict['nominal_cap'][c] * disposal_co2_emissions)
         else:
             component.set_investment(0)
             component.set_annualized_investment(0)

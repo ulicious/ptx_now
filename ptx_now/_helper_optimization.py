@@ -91,3 +91,16 @@ def anticipate_bigM(pm_object):
 
     return bigM_per_capacity
 
+
+def multi_processing_optimization_country(args):  # 0: pm_object, 1: path to file
+
+    input_data, path_data_before, optimization_model_global, solver, optimization_type = args
+
+    input_data[0].set_profile_data(path_data_before + '/' + input_data[1])
+
+    optimization_problem = optimization_model_global(input_data[0], solver)
+    optimization_problem.prepare(optimization_type=optimization_type)
+    optimization_problem.optimize()
+
+    return optimization_problem.economic_objective_function_value, optimization_problem.ecologic_objective_function_value
+

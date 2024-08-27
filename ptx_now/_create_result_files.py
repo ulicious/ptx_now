@@ -55,7 +55,7 @@ def check_integer_variables(all_variables_dict, pm_object):
     for key in [*time_depending_variables.keys()]:
         time_depending_variables_df.loc[key] = time_depending_variables[key]
 
-    if True:
+    if False:
         # Only for maintenance
 
         if len(time_depending_variables_df.index) > 0:
@@ -515,10 +515,10 @@ def _create_result_files(pm_object, path_results):
         emission_distribution = pd.DataFrame()
         total_costs = 0
         total_emissions = 0
-
+        
         for component_object in pm_object.get_final_components_objects():
             component_name = component_object.get_name()
-
+            
             if component_name not in pm_object.get_final_components_names():
                 component_name = component_name + ' Storage'
 
@@ -577,13 +577,14 @@ def _create_result_files(pm_object, path_results):
 
             if component_object.get_component_type() == 'generator':
                 if component_object.get_uses_ppa():
+
                     cost_distribution.loc[component_name + ' PPA Costs', 'Total'] \
                         = component_object.get_potential_generation_quantity() * component_object.get_ppa_price()
                     total_costs += component_object.get_potential_generation_quantity() * component_object.get_ppa_price()
 
         for commodity_object in pm_object.get_final_commodities_objects():
             commodity_name = commodity_object.get_name()
-
+            
             if commodity_object.get_purchased_quantity() != 0:
                 cost_distribution.loc['Purchase Costs ' + commodity_name, 'Total'] \
                     = commodity_object.get_purchase_costs()

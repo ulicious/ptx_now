@@ -422,9 +422,7 @@ class OptimizationGurobiModel:
                                          name='max_soc' + name_adding)
 
                     self.model.addConstr(self.mass_energy_storage_out_commodities[c, cl, t]
-                                         / self.discharging_efficiency_dict[c]
-                                         <= self.nominal_cap[c]
-                                         / self.ratio_capacity_power_dict[c],
+                                         <= self.nominal_cap[c] / self.ratio_capacity_power_dict[c],
                                          name='min_soc' + name_adding)
 
                     # storage binary --> don't allow charge and discharge at same time

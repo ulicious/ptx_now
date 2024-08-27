@@ -548,25 +548,25 @@ def _create_result_files(pm_object, path_results):
             if installation_emissions != 0:
                 emission_distribution.loc[component_name + ' Installation Emissions', 'Total'] = \
                     installation_emissions
-                total_costs += installation_emissions
+                total_emissions += installation_emissions
 
             disposal_emissions = component_object.get_disposal_co2_emissions()
             if disposal_emissions != 0:
                 emission_distribution.loc[component_name + ' Disposal Emissions', 'Total'] = \
                     disposal_emissions
-                total_costs += disposal_emissions
+                total_emissions += disposal_emissions
 
             fixed_emissions = component_object.get_fixed_co2_emissions()
             if fixed_emissions != 0:
                 emission_distribution.loc[component_name + ' Fixed Emissions', 'Total'] = \
                     fixed_emissions
-                total_costs += fixed_emissions
+                total_emissions += fixed_emissions
 
             variable_emissions = component_object.get_variable_co2_emissions()
             if variable_emissions != 0:
                 emission_distribution.loc[component_name + ' Variable Emissions', 'Total'] = \
                     variable_emissions
-                total_costs += variable_emissions
+                total_emissions += variable_emissions
 
             if component_object.get_component_type() == 'conversion':
                 if component_object.get_shut_down_ability():

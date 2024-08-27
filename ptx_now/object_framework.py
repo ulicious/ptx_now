@@ -484,7 +484,6 @@ class ParameterObject:
             capex_var_dict[component_name] = component_object.get_capex()
 
             if component_object.get_component_type() == 'conversion':
-
                 if component_object.get_capex_basis() == 'output':
                     i = component_object.get_main_input()
                     i_coefficient = component_object.get_inputs()[i]
@@ -702,10 +701,20 @@ class ParameterObject:
         disposal_co2_emissions = {}
         for component_object in self.get_final_components_objects():
             component_name = component_object.get_name()
-            specific_co2_emissions_per_capacity[component_name] = component_object.get_installation_co2_emissions()
+
+            ratio = 1
+            if component_object.get_component_type == 'conversion':
+                if component_object.get_capex_basis() == 'output':
+                    i = component_object.get_main_input()
+                    i_coefficient = component_object.get_inputs()[i]
+                    o = component_object.get_main_output()
+                    o_coefficient = component_object.get_outputs()[o]
+                    ratio = o_coefficient / i_coefficient
+
+            specific_co2_emissions_per_capacity[component_name] = component_object.get_installation_co2_emissions() * ratio
             fixed_yearly_co2_emissions[component_name] = component_object.get_fixed_co2_emissions()
             variable_co2_emissions[component_name] = component_object.get_variable_co2_emissions()
-            disposal_co2_emissions[component_name] = component_object.get_disposal_co2_emissions()
+            disposal_co2_emissions[component_name] = component_object.get_disposal_co2_emissions() * ratio
 
         return specific_co2_emissions_per_capacity, fixed_yearly_co2_emissions,\
             variable_co2_emissions, disposal_co2_emissions

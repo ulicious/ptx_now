@@ -8,16 +8,14 @@ from dual_model import ExtremeCaseBilinear
 # from dual_model_gurobi import GurobiDualProblem
 from old_dual import GurobiDualProblem
 from dual_model_gurobi_no_uncertainty import GurobiDualProblem as dual_no_uncertainty
+from primal_model_fixed_cluster_gurobi import GurobiPrimalProblemFixedCluster
 
 import parameters
 
 
-def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, weighting,
-                      all_profiles, number_profiles, path_results, costs_missing_product):
-
-    now = time.time()
-
-    times = {}
+def run_decomposition(pm_object, solver, input_profiles, number_cluster, worst_case_cluster, weighting,
+                      all_profiles, number_profiles, path_results, costs_missing_product,
+                      input_profiles_clusters, input_profiles_iteration, weightings_cluster, weighting_iteration):
 
     tolerance = 0.01
     UB = float('inf')
@@ -33,6 +31,9 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
 
     _, total_demand = pm_object.get_demand_time_series()
     time_start = time.time()
+
+    times = pd.DataFrame(columns=['first', 'second', 'total'])
+
     first = True
     while True:
         if False:
@@ -49,7 +50,7 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
             print(capacities_new)
             LB = sup_problem.obj_value
 
-            total_costs_LB = LB / total_demand['FT']
+            total_costs_LB = LB / total_demand[parameters.energy_carrier]
             print('Production costs first stage: ' + str(total_costs_LB))
 
             # sub_problem = ExtremeCaseBilinear(pm_object, solver, capacities_new, input_profiles, all_profiles,
@@ -63,52 +64,31 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
             print('___________________________')
 
         if True:
-            time_new = time.time()
-            sup_problem = GurobiPrimalProblem(pm_object, solver, input_profiles, worst_case_cluster, weighting,
+            time_first = time.time()
+            sup_problem = GurobiPrimalProblem(pm_object, solver, input_profiles, number_cluster, weighting,
                                               iteration, costs_missing_product, parameters.demand_type)
             sup_problem.prepare()
             sup_problem.optimize()
             objective_function_value = sup_problem.objective_function_value
             capacities_new = sup_problem.get_results()
 
+            print(capacities_new)
+            print(objective_function_value)
+
+            # capacities_new = {'CO2 Kompressor': 3.134161860499101, 'CO2 compressed': 15602.782744204125, 'DAC': 25.547455661062124, 'Electricity': 977.9138269588296, 'H2 Dekompressor': 373.44098900350417, 'H2 Kompressor': 2.342820523119248, 'Hydrogen': 0.0, 'Hydrogen compressed': 7128.717595882437, 'Solar': 1209.4290051812418, 'Synthesis Island': 255.49163060992328, 'Wind': 712.6491659286404, 'electrolyzer': 485.0818491690336}
+
+            times.at[iteration, 'first'] = (time.time() - time_first) / 60
+            time_second = time.time()
+
             if first:
                 not_robust_capacities = capacities_new
                 first = False
 
-            # if len(input_profiles.keys()) > 1:
-            #     for k in input_profiles.keys():
-            #
-            #         test_profiles = {0: input_profiles[k]}
-            #         test_iteration = 0
-            #
-            #         test = GurobiPrimalProblem(pm_object, solver, test_profiles, worst_case_cluster, weighting,
-            #                                    test_iteration, costs_missing_product, parameters.demand_type)
-            #         test.prepare()
-            #         test.optimize()
-            #         print(test.auxiliary_variable_value)
-
-            print(objective_function_value)
-            print(capacities_new)
-
             capacities[iteration] = capacities_new
-
-            total_electricity = 0
-            for cl in range(worst_case_cluster+1):
-                for t in range(pm_object.get_covered_period()):
-                    total_electricity += sup_problem.mass_energy_purchase_commodity['Electricity', cl, t, iteration].X * weighting[cl]
-            print(total_electricity * parameters.electricity_price)
-
-            # test = dual_no_uncertainty(pm_object, solver, capacities[0], input_profiles[iteration], all_profiles,
-            #                            worst_case_cluster, weighting, number_profiles, costs_missing_product,
-            #                            parameters.demand_type)
-            # test.optimize()
-            #
-            # print('sup: ' + str(sup_problem.auxiliary_variable_value))
-            # print('sub: ' + str(test.objective_function_value))
 
             LB = objective_function_value
 
-            total_costs_LB = LB / total_demand['FT']
+            total_costs_LB = LB / total_demand[parameters.energy_carrier]
             print('Production costs first stage: ' + str(total_costs_LB))
 
             sub_problem = GurobiDualProblem(pm_object, solver, capacities_new, input_profiles[iteration], all_profiles,
@@ -116,40 +96,20 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
                                             parameters.demand_type, **kwargs)
             sub_problem.optimize()
 
+            times.at[iteration, 'second'] = (time.time() - time_second) / 60
+            times.at[iteration, 'total'] = (time.time() - time_first) / 60
+
+            times.at[iteration, 'primal_cont_vars'] = sup_problem.num_cont_vars
+            times.at[iteration, 'dual_cont_vars'] = sub_problem.num_cont_vars
+            times.at[iteration, 'dual_bin_vars'] = sub_problem.num_bin_vars
+
             UB = min(UB, sup_problem.objective_function_value - sup_problem.auxiliary_variable_value + sub_problem.objective_function_value)
-            print('Time Iteration [m]: ' + str((time.time() - time_new) / 60))
+            print('Time Iteration [m]: ' + str((time.time() - time_first) / 60))
 
-            print(sum(sub_problem.y_demand_constraint_variable[s].X * sub_problem.total_demand_dict[s]
-                for s in sub_problem.demanded_commodities))
-
-            print(sum((sub_problem.y_conv_cap_ub_constraint_variable[c, t, n].X * sub_problem.maximal_power_dict[c]
-                 - sub_problem.y_conv_cap_lb_constraint_variable[c, t, n].X * sub_problem.minimal_power_dict[c]
-                 + sub_problem.y_conv_cap_ramp_up_constraint_variable[c, t, n].X * sub_problem.ramp_up_dict[c]
-                 + sub_problem.y_conv_cap_ramp_down_constraint_variable[c, t, n].X * sub_problem.ramp_down_dict[c])
-                * sub_problem.optimal_capacities[c]
-                for t in sub_problem.time for c in sub_problem.conversion_components for n in sub_problem.clusters))
-
-            print(sum(sub_problem.y_generation_constraint_variable_active[
-                    g, sub_problem.pm_object.get_component(g).get_generated_commodity(), t, n].X
-                * sub_problem.optimal_capacities[g] * sub_problem.generation_profiles_certain_dict[g, t, n]
-                for n in sub_problem.clusters if n < max(sub_problem.clusters) for t in sub_problem.time for g in
-                sub_problem.generator_components))
-
-            print(sum(sub_problem.auxiliary_variable[g, sub_problem.pm_object.get_component(g).get_generated_commodity(), t, p].X
-                for g in sub_problem.generator_components for t in sub_problem.time for p in sub_problem.profiles))
-
-            print(sum((sub_problem.y_soc_ub_constraint_variable[s, t, n].X * sub_problem.maximal_soc_dict[s]
-                 - sub_problem.y_soc_lb_constraint_variable[s, t, n].X * sub_problem.minimal_soc_dict[s]
-                 + sub_problem.y_soc_charge_limit_constraint_variable[s, t, n].X / sub_problem.ratio_capacity_power_dict[s]
-                 + sub_problem.y_soc_discharge_limit_constraint_variable[s, t, n].X / sub_problem.ratio_capacity_power_dict[
-                     s]) *
-                sub_problem.optimal_capacities[s]
-                for t in sub_problem.time for s in sub_problem.storage_components for n in sub_problem.clusters))
-
-        total_costs_UB = UB / total_demand['FT']
+        total_costs_UB = UB / total_demand[parameters.energy_carrier]
         total_costs_dict['UB'][iteration] = total_costs_UB
 
-        total_costs_LB = LB / total_demand['FT']
+        total_costs_LB = LB / total_demand[parameters.energy_carrier]
         total_costs_dict['LB'][iteration] = total_costs_LB
 
         print('Iteration number: ' + str(iteration))
@@ -166,8 +126,6 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
 
         # if -tolerance <= difference <= tolerance:
         if difference <= tolerance:
-
-            print(path_results + 'capacity.xlsx')
 
             first = True
             for k in [*capacities.keys()]:
@@ -199,11 +157,8 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
                         total_costs_df[k] = pd.DataFrame.from_dict(total_costs_dict[k], orient='index')
                 total_costs_df.to_excel(path_results + 'total_costs.xlsx')
 
-            times[iteration] = (time.time() - time_new) / 60
-            times['total'] = (time.time() - time_start) / 60
-
-            times_df = pd.DataFrame(times.values(), index=[*times.keys()])
-            times_df.to_excel(path_results + 'times.xlsx')
+            times.at['final', 'total'] = (time.time() - time_start) / 60
+            times.to_excel(path_results + 'times.xlsx')
 
             print('optimization successful')
             print('time needed: ' + str((time.time() - time_start) / 60) + ' minutes')
@@ -211,7 +166,6 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
             break
 
         else:
-            times[iteration] = (time.time() - time_new) / 60
 
             iteration += 1
             input_profiles[iteration] = {}
@@ -221,6 +175,9 @@ def run_decomposition(pm_object, solver, input_profiles, worst_case_cluster, wei
 
             input_profiles[iteration]['Wind'][worst_case_cluster] = sub_problem.chosen_profiles['Wind']
             input_profiles[iteration]['Solar'][worst_case_cluster] = sub_problem.chosen_profiles['Solar']
+
+            # input_profiles_iteration['Wind'][iteration] = sub_problem.chosen_profiles['Wind']
+            # input_profiles_iteration['Solar'][iteration] = sub_problem.chosen_profiles['Solar']
 
             # chosen_profile = None
             # for p in range(number_profiles):

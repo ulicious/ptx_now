@@ -316,15 +316,16 @@ class GurobiDualProblem:
 
                     name_addition = str(t) + '_' + str(p) + '_' + g
 
-                    com = self.pm_object.get_component(g).get_generated_commodity()
+                    com = self.pm_object.get_component(g).get_generated_commodity() # todo: max value with FT and if it changes with increase big M
                     self.model.addConstr(self.auxiliary_variable[g, com, t, p]
                                          <= self.y_generation_constraint_variable_active[g, com, t, max(self.clusters)] * self.generation_profiles_uncertain_dict[g, p, t] * self.optimal_capacities[g]
-                                         + (1 - self.weighting_profiles_binary[p]) * 10000000,
+                                         + (1 - self.weighting_profiles_binary[p]) * 100 * self.generation_profiles_uncertain_dict[g, p, t] * self.optimal_capacities[g],
                                          name='auxiliary_activation_' + name_addition)
 
-        self.model.addConstr(sum(self.generation_profiles_uncertain_dict['Solar', p, t] * self.weighting_profiles_binary[p]
-                                 for t in self.time for p in self.profiles) >= 0,
-                             name='minimal_capacity_factor_solar')
+        for g in self.generator_components:
+            self.model.addConstr(sum(self.generation_profiles_uncertain_dict[g, p, t] * self.weighting_profiles_binary[p]
+                                     for t in self.time for p in self.profiles) >= 0,
+                                 name='minimal_capacity_factor_' + g)
 
         self.model.addConstr(sum(self.generation_profiles_uncertain_dict['Wind', p, t] * self.weighting_profiles_binary[p]
                                  for t in self.time for p in self.profiles) >= 0,
@@ -400,6 +401,18 @@ class GurobiDualProblem:
                       for t in self.time for s in self.storage_components for n in self.clusters),
                 gp.GRB.MAXIMIZE)
 
+        # self.bigM_test_var \
+        #     = self.model.addVar(lb=-gp.GRB.INFINITY, ub=0, name='big m test')
+        #
+        # for g in self.generator_components:
+        #     com = self.pm_object.get_component(g).get_generated_commodity()
+        #     self.model.addConstr(self.bigM_test_var
+        #                          >= sum(self.y_generation_constraint_variable_active[g, com, t, max(self.clusters)]
+        #                                 for t in self.time),
+        #                          name='big m test')
+        #
+        # self.model.setObjective(self.bigM_test_var, gp.GRB.MINIMIZE)
+
     def optimize(self):
 
         self.attach_variables()
@@ -441,16 +454,40 @@ class GurobiDualProblem:
                                          {'chosen_profile_variable': self.chosen_profile_variable},
                                          {'objective': self.objective}]
 
+            self.num_cont_vars = self.model.NumVars - self.model.NumBinVars
+            self.num_bin_vars = self.model.NumBinVars
+
+            p = None
             for p in self.profiles:
                 if self.weighting_profiles_binary[p].X == 1:
                     pos_wind = self.data.columns[p*2]
                     pos_solar = self.data.columns[p*2+1]
 
-                    print(p)
+                    print('profile: ' + str(p))
                     self.chosen_profiles = {'Wind': self.data[pos_wind],
                                             'Solar': self.data[pos_solar]}
 
-        # self.model.Params.LogToConsole = 0
+                    break
+
+            import math
+            max_value = {'Wind': math.inf,
+                         'Solar': math.inf}
+
+            for k in self.y_generation_constraint_variable_active.keys():
+                # if k[3] != max(self.clusters):
+
+                g = k[0]
+                t = k[2]
+
+                value = self.y_generation_constraint_variable_active[k].X * self.generation_profiles_uncertain_dict[g, p, t] * self.optimal_capacities[g]
+
+                if value < max_value[g]:
+                    max_value[g] = value
+
+            for k in max_value.keys():
+                print('max value is: ' + str(max_value[k]) + ' (' + k + ')')
+
+        self.model.Params.LogToConsole = 0
         self.model.Params.Threads = 120
         self.model.optimize()
         self.instance = self
@@ -458,7 +495,7 @@ class GurobiDualProblem:
         self.objective_function_value = self.model.objVal
 
         # print(self.model.getConstrs())
-        self.model.write('/home/localadmin/Dokumente/gurobi.lp')
+        # self.model.write('/home/localadmin/Dokumente/gurobi.lp')
 
         save_results()
 
@@ -618,3 +655,6 @@ class GurobiDualProblem:
             = self.y_soc_constraint_variable = self.y_soc_ub_constraint_variable = self.y_soc_lb_constraint_variable \
             = self.y_soc_charge_limit_constraint_variable = self.y_soc_discharge_limit_constraint_variable \
             = self.auxiliary_variable = self.weighting_profiles_binary = self.chosen_profile_variable = self.objective = None
+
+        self.num_cont_vars = 0
+        self.num_bin_vars = 0

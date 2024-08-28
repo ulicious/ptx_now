@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import shutil
 
+import parameters
+
 
 def connect_profiles(country, length_cluster):
 
@@ -18,15 +20,16 @@ def connect_profiles(country, length_cluster):
     elif country == 'Chile':
         location = 'c-7100x-5300'
 
-    path_raw_data = r'/run/user/1000/gvfs/smb-share:server=iipsrv-file3.iip.kit.edu,share=ssbackup/weatherOut/weatherOut_Uwe/' + country + '/Full_Profiles/2030/'
-    path_clustered_data = r'/run/user/1000/gvfs/smb-share:server=iipsrv-file3.iip.kit.edu,share=ssbackup/weatherOut/weatherOut_Uwe/' + country + '/Clustered_Profiles/2030/' + str(length_cluster) + '/'
-    path_processed_data = r'/run/user/1000/gvfs/smb-share:server=iipsrv-file1.iip.kit.edu,share=synergie/Group_TE/GM_Uwe/PtL_Robust/data/' + country + '/' + str(length_cluster)
+    path_raw_data = parameters.path_profiles + country + '/Full_Profiles/2030/'
+    path_clustered_data = parameters.path_profiles + country + '/Clustered_Profiles/2030/' + str(length_cluster) + '/'
+    path_processed_data = parameters.path_local + country + '/data/data_' + str(length_cluster) + '/'
+    path_country_data = parameters.path_local + country + '/'
 
-    for f in os.listdir(path_clustered_data):
-        if location in f:
-            shutil.copyfile(path_clustered_data + f, path_processed_data + '/representative_data.xlsx')
+    if not os.path.exists(path_processed_data):
+        os.makedirs(path_processed_data)
 
-    all_profile_file = pd.DataFrame()
+    if length_cluster != 8760:
+        shutil.copyfile(path_clustered_data + country + '_' + location + '_t2030_l' + str(length_cluster) + '.xlsx', path_processed_data + '/representative_data.xlsx')
 
     representative_data = pd.DataFrame(index=range(length_cluster))
     profile_data = None
@@ -38,31 +41,56 @@ def connect_profiles(country, length_cluster):
 
         f = country + '_y' + str(year) + '_' + location + '_t2030.csv'
 
+        if not os.path.exists(path_country_data + 'yearly_profiles/'):
+            os.makedirs(path_country_data + 'yearly_profiles/')
+
         current_file = pd.read_csv(path_raw_data + f, index_col=0)
+
+        if length_cluster == 8760:
+            current_file.index = range(len(current_file.index))
+            current_file.to_excel(path_processed_data + '/representative_data.xlsx')
 
         if len(current_file.index) > 8760:
             current_file = current_file.iloc[0:8760]
 
         current_file.index = range(8760)
-        current_file.to_excel(path_processed_data + '/yearly_profiles/' + str(year) + '.xlsx')
+        current_file.to_excel(path_country_data + '/yearly_profiles/' + str(year) + '.xlsx')
 
-        for cluster_index in range(0, 8760, length_cluster):
-            if cluster_index == 0:
-                continue
+        if length_cluster == 8760:
 
             for column in current_file.columns:
 
                 if profile_data is None:
-                    profile_data = np.array(current_file.loc[cluster_index - length_cluster: cluster_index - 1, column].values)
+                    profile_data = np.array(current_file.loc[:, column].values)
                 else:
-                    profile_data = np.c_[profile_data, current_file.loc[cluster_index - length_cluster: cluster_index - 1, column].values]
+                    profile_data = np.c_[profile_data, current_file.loc[:, column].values]
 
                 columns.append(column + '_' + str(column_number))
 
             column_number += 1
 
-        new_columns = [c + '_' + str(ind) for c in current_file.columns]
-        current_file.columns = new_columns
+            current_file['Weighting'] = 1
+            current_file.to_excel(path_processed_data + '/representative_data.xlsx')
+
+        else:
+
+            for cluster_index in range(0, 8760, length_cluster):
+                if cluster_index == 0:
+                    continue
+
+                for column in current_file.columns:
+
+                    if profile_data is None:
+                        profile_data = np.array(current_file.loc[cluster_index - length_cluster: cluster_index - 1, column].values)
+                    else:
+                        profile_data = np.c_[profile_data, current_file.loc[cluster_index - length_cluster: cluster_index - 1, column].values]
+
+                    columns.append(column + '_' + str(column_number))
+
+                column_number += 1
+
+        # new_columns = [c + '_' + str(ind) for c in current_file.columns]
+        # current_file.columns = new_columns
 
         # all_profile_file = pd.concat([all_profile_file, current_file], axis=1)
 
@@ -74,3 +102,10 @@ def connect_profiles(country, length_cluster):
     # all_profile_file.to_excel('P:/Group_TE/GM_Uwe/PtL Robust/yearly_profiles.xlsx')
 
     representative_data.to_excel(path_processed_data + '/all_profiles_with_cluster_length.xlsx')
+
+
+for c in parameters.countries:
+    print(c)
+    for cl in parameters.cluster_lengths:
+        print(cl)
+        connect_profiles(c, cl)

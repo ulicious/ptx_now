@@ -130,9 +130,8 @@ class GurobiPrimalProblem:
                 if commodity_object.is_demanded():
                     equation_lhs.append(-self.mass_energy_demand[com, cl, t, i])
                 if com in self.storage_components:
-                    equation_lhs.append(
-                        self.mass_energy_storage_out_commodities[com, cl, t, i]
-                        - self.mass_energy_storage_in_commodities[com, cl, t, i])
+                    equation_lhs.append(self.mass_energy_storage_out_commodities[com, cl, t, i]
+                                        - self.mass_energy_storage_in_commodities[com, cl, t, i])
                 if com in self.generated_commodities:
                     equation_lhs.append(sum(self.mass_energy_generation[g, com, cl, t, i]
                                             for g in self.generator_components
@@ -376,7 +375,10 @@ class GurobiPrimalProblem:
                                          {'mass_energy_generation': self.mass_energy_generation},
                                          {'mass_energy_demand': self.mass_energy_demand}]
 
-        # self.model.Params.LogToConsole = 0
+            self.num_cont_vars = self.model.NumVars
+
+        self.model.Params.LogToConsole = 0
+        self.model.Params.Threads = 120
         self.model.optimize()
         self.instance = self
 
@@ -464,7 +466,7 @@ class GurobiPrimalProblem:
             self.all_inputs, self.all_outputs = self.pm_object.get_commodity_sets()
 
         # Adjust purchase & selling price
-        if number_clusters > 1:
+        if self.pm_object.get_covered_period() != 8760:
             for t in range(self.pm_object.get_covered_period()):
                 for me in self.purchasable_commodities:
                     self.purchase_price_dict[(me, number_clusters, t)] \
@@ -477,7 +479,12 @@ class GurobiPrimalProblem:
         # Create optimization program
         self.model = gp.Model()
         self.time = range(0, self.pm_object.get_covered_period())
-        self.clusters = range(0, self.pm_object.get_number_clusters() + 1)
+
+        if self.pm_object.get_covered_period() != 8760:
+            self.clusters = range(0, self.pm_object.get_number_clusters() + 1)
+        else:
+            self.clusters = [0]
+
         self.iteration = range(0, iteration+1)
         self.integer_steps = range(0, self.pm_object.integer_steps)
         self.weightings_dict = weightings
@@ -498,3 +505,5 @@ class GurobiPrimalProblem:
             self.mass_energy_hot_standby_demand = self.investment = self.objective_economic = None
 
         self.continuous_variables = None
+
+        self.num_cont_vars = 0

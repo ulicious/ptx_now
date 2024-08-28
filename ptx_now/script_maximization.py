@@ -13,11 +13,20 @@ from primal_model_gurobi_maximization import OptimizationGurobiModel
 import parameters
 
 for country in parameters.countries:
+
+    # get the deterministic costs at 336
+    path_data = parameters.path_local
+    path_data_country = path_data + country + '/'
+    path_results = path_data_country + '/results/' + parameters.energy_carrier + '/' + str(336) + '/'
+
+    total_costs = pd.read_excel(path_results + 'total_costs.xlsx', index_col=0)
+    selling_price = total_costs.at[0, 'LB'] * 1.5
+
     for cluster_length in parameters.cluster_lengths:
 
-        path_data = '/run/user/1000/gvfs/smb-share:server=iipsrv-file1.iip.kit.edu,share=synergie/Group_TE/GM_Uwe/PtL_Robust/data/'
-        path_data_country = path_data + country
-        path_results = path_data_country + '/results_' + str(cluster_length) + '/'
+        print(country)
+        print(cluster_length)
+        path_results = path_data_country + '/results/' + parameters.energy_carrier + '/' + str(cluster_length) + '/'
 
         name_parameters = parameters.framework_name
 
@@ -75,9 +84,10 @@ for country in parameters.countries:
 
         for file in sorted(os.listdir(path_data_country + 'yearly_profiles/')):
             years.append(file.split('.')[0])
+            print(file.split('.')[0])
 
             pm_object_robust.set_profile_data(file)
-            robust_optimization = OptimizationGurobiModel(pm_object_robust, solver, 336, parameters.cost_selling,
+            robust_optimization = OptimizationGurobiModel(pm_object_robust, solver, 336, selling_price,
                                                           parameters.costs_missing, parameters.demand_type)
             robust_optimization.prepare()
             robust_optimization.optimize()
@@ -85,7 +95,7 @@ for country in parameters.countries:
             produced_quantity = 0
             bought_electricity = 0
             for t in robust_optimization.time:
-                produced_quantity += robust_optimization.mass_energy_demand['FT', t].X
+                produced_quantity += robust_optimization.mass_energy_demand[parameters.energy_carrier, t].X
                 bought_electricity += robust_optimization.mass_energy_purchase_commodity['Electricity', t].X
 
             print('robust')
@@ -108,7 +118,7 @@ for country in parameters.countries:
 
             pm_object_not_robust.set_profile_data(file)
             not_robust_optimization = OptimizationGurobiModel(pm_object_not_robust, solver, 336,
-                                                              parameters.cost_selling, parameters.costs_missing,
+                                                              selling_price, parameters.costs_missing,
                                                               parameters.demand_type)
             not_robust_optimization.prepare()
             not_robust_optimization.optimize()
@@ -116,7 +126,7 @@ for country in parameters.countries:
             produced_quantity = 0
             bought_electricity = 0
             for t in not_robust_optimization.time:
-                produced_quantity += not_robust_optimization.mass_energy_demand['FT', t].X
+                produced_quantity += not_robust_optimization.mass_energy_demand[parameters.energy_carrier, t].X
                 bought_electricity += not_robust_optimization.mass_energy_purchase_commodity['Electricity', t].X
 
             print('deterministic')

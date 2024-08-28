@@ -432,6 +432,7 @@ class OptimizationGurobiModel:
                                      {'capacity_binary': self.capacity_binary}]
 
         self.model.Params.LogToConsole = 0
+        self.model.Params.Threads = 120
         self.model.optimize()
         self.instance = self
 

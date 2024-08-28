@@ -2,16 +2,14 @@ import yaml
 import os
 
 import pandas as pd
-from datetime import datetime
 
 from object_framework import ParameterObject
 from _load_projects import load_project
 from script_decomposition import run_decomposition
-from connect_profiles import connect_profiles
 
 import parameters
 
-path_data = '/run/user/1000/gvfs/smb-share:server=iipsrv-file1.iip.kit.edu,share=synergie/Group_TE/GM_Uwe/PtL_Robust/data/'
+path_data = parameters.path_local
 
 name_parameters = parameters.framework_name
 
@@ -25,14 +23,19 @@ for country in parameters.countries:
         print(country)
         print(cluster_length)
 
-        path_data_country = path_data + country + '/'
+        path_country = path_data + country + '/'
+        path_data_country = path_country + 'data/data_' + str(cluster_length) + '/'
 
-        path_results = path_data_country + 'results' + '_' + str(cluster_length) + '/'
+        # create results folders
+        path_results = path_country + 'results/' + parameters.energy_carrier + '/' + str(cluster_length) + '/'
+        if not os.path.exists(path_country + 'results/'):
+            os.makedirs(path_country + 'results/')
+
+        if not os.path.exists(path_country + 'results/' + parameters.energy_carrier + '/'):
+            os.makedirs(path_results)
 
         if not os.path.exists(path_results):
             os.makedirs(path_results)
-
-        connect_profiles(country, cluster_length)
 
         # create pm_object and fill with data
         pm_object = ParameterObject('parameter', integer_steps=10, path_data=path_data_country)
@@ -61,9 +64,11 @@ for country in parameters.countries:
 
         # nominal implements the profiles used in the super problem
         input_profiles = {0: {}}
+        input_profiles_clusters = {}
         for col in representative_profiles.columns:
             if col != 'Weighting':
                 input_profiles[0][col] = {}
+                input_profiles_clusters[col] = {}
 
         for i in range(number_clusters):
             for col in representative_profiles.columns:
@@ -76,35 +81,58 @@ for country in parameters.countries:
 
                     profile.index = range(len(profile.index))
                     input_profiles[0][col][i] = profile
+                    input_profiles_clusters[col][i] = profile
 
-        # Set initial worst case cluster
-        worst_case_cluster = number_clusters
+        # Set initial worst case cluster. It only exists if clusters exist at all
+        if cluster_length != 8760:
+            worst_case_cluster = number_clusters
 
-        input_profiles[0]['Wind'][worst_case_cluster] = input_profiles[0]['Wind'][0]
-        input_profiles[0]['Solar'][worst_case_cluster] = input_profiles[0]['Solar'][0]
+            input_profiles[0]['Wind'][worst_case_cluster] = input_profiles[0]['Wind'][0]
+            input_profiles[0]['Solar'][worst_case_cluster] = input_profiles[0]['Solar'][0]
 
-        # adjust weightings accordingly to include additional worst case cluster
-        weighting = {}
-        for i in range(number_clusters):
-            if number_clusters != 1:
-                weighting_reduction = representative_profiles.at[i * period_length, 'Weighting'] / (8760 / period_length)
-                weighting[i] = representative_profiles.at[i * period_length, 'Weighting'] - weighting_reduction
-            else:
-                weighting[i] = 1
+            input_profiles_iteration = {'Wind': {0: input_profiles[0]['Wind'][0]},
+                                        'Solar': {0: input_profiles[0]['Solar'][0]}}
 
-        weighting[worst_case_cluster] = 1
+            # adjust weightings accordingly to include additional worst case cluster
+            weighting = {}
+            for i in range(number_clusters):
+                if number_clusters != 1:
+                    weighting_reduction = representative_profiles.at[i * period_length, 'Weighting'] / (8760 / period_length)
+                    weighting[i] = representative_profiles.at[i * period_length, 'Weighting'] - weighting_reduction
+                else:
+                    weighting[i] = 1
+
+            weightings_cluster = weighting.copy()
+            weighting_iteration = 1
+
+            weighting[worst_case_cluster] = 1
+        else:
+            weighting = {0: 1}
+            worst_case_cluster = 0
+
+            weightings_cluster = weighting.copy()
+            weighting_iteration = 1
+
+            input_profiles_iteration = {0: {'Wind': input_profiles[0]['Wind'][0],
+                                            'Solar': input_profiles[0]['Solar'][0]}}
+
+            input_profiles_clusters = None
 
         # load all other profiles
         all_profiles = pd.read_excel(path_data_country + 'all_profiles_with_cluster_length.xlsx', index_col=0)
         # used_columns = list(all_profiles.columns[:10]) + ['Wind_165', 'Solar_165', 'Wind_166', 'Solar_166', 'Wind_167', 'Solar_167']
+        # used_columns = ['Wind_1', 'Solar_1']
         # all_profiles = all_profiles[used_columns]
 
         number_profiles = int(len(all_profiles.columns) / len(input_profiles[0].keys()))
         print(number_profiles)
 
-        robust_capacities, not_robust_capacities = run_decomposition(pm_object, solver, input_profiles, worst_case_cluster,
-                                                                     weighting, all_profiles, number_profiles, path_results,
-                                                                     costs_missing_product)
+        robust_capacities, not_robust_capacities = run_decomposition(pm_object, solver, input_profiles, number_clusters,
+                                                                     worst_case_cluster, weighting, all_profiles,
+                                                                     number_profiles, path_results,
+                                                                     costs_missing_product,
+                                                                     input_profiles_clusters, input_profiles_iteration,
+                                                                     weightings_cluster, weighting_iteration)
 
         for c in [*robust_capacities.keys()]:
             case_data['component'][c]['fixed_capacity'] = robust_capacities[c]

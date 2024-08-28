@@ -149,6 +149,9 @@ class Component:
     def get_total_variable_costs(self):
         return self.total_variable_costs
 
+    def get_capex_ratio(self):
+        return 1
+
     def __copy__(self):
         return Component(name=self.name, final_unit=self.final_unit,
                          custom_unit=self.custom_unit, capex=self.capex, lifetime=self.lifetime,
@@ -456,44 +459,25 @@ class ConversionComponent(Component):
             + self.total_startup_costs
 
     def get_capex(self):
+        return self.capex
+
+    def get_installation_co2_emissions(self):
+        return self.installation_co2_emissions
+
+    def get_disposal_co2_emissions(self):
+        return self.disposal_co2_emissions
+
+    def get_capex_ratio(self):
+        # this returns the ratio between input and output if capex basis is output
+        ratio = 1
         if self.get_capex_basis() == 'output':
             i = self.get_main_input()
             i_coefficient = self.get_inputs()[i]
             o = self.get_main_output()
             o_coefficient = self.get_outputs()[o]
             ratio = o_coefficient / i_coefficient
-        else:
-            ratio = 1
 
-        return self.capex * ratio
-
-    def get_installation_co2_emissions(self):
-        ratio = 1
-        if self.get_component_type() == 'conversion':
-            if self.get_capex_basis() == 'output':
-                i = self.get_main_input()
-                i_coefficient = self.get_inputs()[i]
-                o = self.get_main_output()
-                o_coefficient = self.get_outputs()[o]
-                ratio = o_coefficient / i_coefficient
-            else:
-                ratio = 1
-
-        return self.installation_co2_emissions * ratio
-
-    def get_disposal_co2_emissions(self):
-        ratio = 1
-        if self.get_component_type() == 'conversion':
-            if self.get_capex_basis() == 'output':
-                i = self.get_main_input()
-                i_coefficient = self.get_inputs()[i]
-                o = self.get_main_output()
-                o_coefficient = self.get_outputs()[o]
-                ratio = o_coefficient / i_coefficient
-            else:
-                ratio = 1
-
-        return self.disposal_co2_emissions * ratio
+        return ratio
 
     def __copy__(self, name=None):
 

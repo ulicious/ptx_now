@@ -203,6 +203,10 @@ def _create_result_files(pm_object, path_results):
 
             if component_object.get_component_type() == 'conversion':
                 capex_basis = component_object.get_capex_basis()
+                capacity_ratio = component_object.get_capex_ratio()
+
+                if capex_basis == 'output':
+                    capacity = capacity / capacity_ratio
 
                 main_input = component_object.get_main_input()
                 commodity_object_input = pm_object.get_commodity(main_input)
@@ -216,6 +220,7 @@ def _create_result_files(pm_object, path_results):
 
                 inputs = component_object.get_inputs()
                 outputs = component_object.get_outputs()
+                coefficient = outputs[main_output] / inputs[main_input]
 
                 if unit_input == 'MWh':
                     unit_input = 'MW ' + name_commodity
@@ -230,8 +235,6 @@ def _create_result_files(pm_object, path_results):
                     unit_output = 'kW ' + name_commodity_output
                 else:
                     unit_output = unit_output + ' ' + name_commodity_output + ' / h'
-
-                coefficient = outputs[main_output] / inputs[main_input]
 
                 capacity_df.loc[component_name, 'Capacity Basis'] = capex_basis
                 capacity_df.loc[component_name, 'Capacity [input]'] = capacity
@@ -253,7 +256,6 @@ def _create_result_files(pm_object, path_results):
                 if capacity > 0:
                     total_input_component = component_object.get_specific_consumed_commodity(name_commodity)
                     capacity_factor = total_input_component / (capacity * 8760)
-
                 else:
                     capacity_factor = 0
 

@@ -129,7 +129,7 @@ def optimize_single_profile_multi_objective(optimization_type, pm_object_copy_py
 
         return values
 
-    number_intervalls = 100
+    number_intervalls = 5
 
     # first calculate economical nadir value # todo: here you get minima of economic and ecologic --> save somewhere
     economic_optimization_problem = OptimizationGurobiModel(pm_object_copy_gurobi, solver)
@@ -246,7 +246,7 @@ def optimize_multi_profiles_no_multi_optimization(optimization_type, pm_object_c
 
         country_specific_wacc = pd.read_excel('/home/localadmin/Dokumente/country_specific_wacc.xlsx', index_col=0)
 
-        countries = ['Algeria', 'Armenia', 'Azerbaijan', 'Angola', 'Argentina', 'Australia',
+        countries = ['Albania', 'Afghanistan', 'Algeria', 'Armenia', 'Azerbaijan', 'Angola', 'Argentina', 'Australia',
                      'Austria',
                      'Belgium', 'Bhutan', 'Bolivia', 'Botswana', 'Brazil', 'Burundi', 'Bangladesh', 'Belarus', 'Belize',
                      'Benin', 'Bosnia and Herzegovina', 'Bulgaria', 'Burkina Faso', 'Brunei',
@@ -458,37 +458,34 @@ def multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results):
             columns.append(c.get_name() + '_Purchase_Emissions')
             columns.append(c.get_name() + '_Sale_Emissions')
 
+        distances = {}
         for i, r in enumerate(results):
             objective_function_value_combinations[i] = r[:-1]
 
-        if True:
-
-            distances = {}
-
             distances[i] = math.sqrt(r[0] ** 2 + r[1] ** 2)
 
-            print(distances)
+        print(distances)
 
-            distance = math.inf
-            chosen_i = None
-            for k in distances.keys():
-                if distances[k] < distance:
-                    distance = distances[k]
-                    chosen_i = k
+        distance = math.inf
+        chosen_i = None
+        for k in distances.keys():
+            if distances[k] < distance:
+                distance = distances[k]
+                chosen_i = k
 
-            print(distance)
-            print(chosen_i)
+        print(distance)
+        print(chosen_i)
 
-            # optimize that value where minimal distance
-            multi_objective_optimization_problem = OptimizationGurobiModel(pm_object_copy_gurobi, solver)
-            multi_objective_optimization_problem.prepare(optimization_type='multiobjective',
-                                                         eps_value_ecologic=results[chosen_i][-1])
-            multi_objective_optimization_problem.optimize()
+        # optimize that value where minimal distance
+        multi_objective_optimization_problem = OptimizationGurobiModel(pm_object_copy_gurobi, solver)
+        multi_objective_optimization_problem.prepare(optimization_type='multiobjective',
+                                                     eps_value_ecologic=results[chosen_i][-1])
+        multi_objective_optimization_problem.optimize()
 
-            pm_object_copy_local = clone_components_which_use_parallelization(pm_object_copy_gurobi)
-            pm_object_copy_local.set_objective_function_value(multi_objective_optimization_problem.objective_function_value)
-            pm_object_copy_local.set_instance(multi_objective_optimization_problem.instance)
-            pm_object_copy_local.process_results(multi_objective_optimization_problem.model_type, path_results)
+        pm_object_copy_local = clone_components_which_use_parallelization(pm_object_copy_gurobi)
+        pm_object_copy_local.set_objective_function_value(multi_objective_optimization_problem.objective_function_value)
+        pm_object_copy_local.set_instance(multi_objective_optimization_problem.instance)
+        pm_object_copy_local.process_results(multi_objective_optimization_problem.model_type, path_results)
 
         result_df = pd.DataFrame(objective_function_value_combinations).transpose()
         result_df.columns = columns

@@ -966,7 +966,7 @@ class SettingWindow:
             profile_label.grid(row=4, column=1, columnspan=2, sticky='w')
 
             ttk.Label(frame, text='Solver').grid(row=5, column=0, sticky='w')
-            solvers = ['gurobi', 'cplex', 'glpk', 'cbc']
+            solvers = ['gurobi']  # ['gurobi', 'cplex', 'glpk', 'cbc'] # others have not been maintained # todo: adjust
             self.solver_combobox = ttk.Combobox(frame, values=solvers, state='readonly')
             self.solver_combobox.set(self.choose_solver_var.get())
             self.solver_combobox.grid(row=5, column=1, sticky='ew')
@@ -1143,9 +1143,10 @@ class SettingWindow:
                         command=self.radiobutton_optimization_or_visualization_command).grid(row=6, column=0,
                                                                                              sticky='ew')
 
+        # visualization has not been maintained # todo: activate
         ttk.Radiobutton(base_setting_frame, text='Visualize Projects',
                         variable=self.optimize_or_visualize_projects_variable, value='visualize',
-                        command=self.radiobutton_optimization_or_visualization_command).grid(row=6, column=1,
+                        command=self.radiobutton_optimization_or_visualization_command, state=DISABLED).grid(row=6, column=1,
                                                                                              sticky='ew')
 
         ttk.Separator(base_setting_frame).grid(row=7, columnspan=2, sticky='ew')

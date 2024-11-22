@@ -476,6 +476,34 @@ class ParameterObject:
 
         return variable_om
 
+    def get_final_capex(self, lifetime, capex):
+
+        # consider lifetime of investment
+        if lifetime < 20:
+            # if lifetime is shorter, reinvestment is necessary
+            total_investment = 0
+            reinvestment = 0
+            j = 0
+            for j in range(0, 20, int(lifetime)):
+                reinvestment = capex / ((1 + self.get_wacc()) ** j)
+                total_investment += reinvestment
+
+            # consider residual value of component
+            residual_years = 20 - j
+            residual_value = reinvestment * residual_years / lifetime
+
+            return total_investment - residual_value
+
+        elif lifetime > 20:
+            # component lifetime is longer than plant lifetime --> reduce capex by residual value
+
+            residual_value = capex * (lifetime - 20) / lifetime / ((1 + self.get_wacc()) ** 20)
+
+            total_investment = capex - residual_value
+            return total_investment
+        else:
+            return capex
+
     def get_component_variable_capex_parameters(self):
         capex_var_dict = {}
 
@@ -491,7 +519,10 @@ class ParameterObject:
                     o_coefficient = component_object.get_outputs()[o]
                     ratio = o_coefficient / i_coefficient
 
-            capex_var_dict[component_name] = component_object.get_capex() * ratio
+            capex = component_object.get_capex() * ratio
+            lifetime = component_object.get_lifetime()
+
+            capex_var_dict[component_name] = self.get_final_capex(lifetime, capex)
 
         return capex_var_dict
 
@@ -512,7 +543,15 @@ class ParameterObject:
                 lower_bound, upper_bound, coefficient, intercept = \
                     self.calculate_economies_of_scale_steps(component_object)
 
-                capex_var_pre_dict.update(coefficient)
+                lifetime = component_object.get_lifetime()
+
+                new_coefficient = {}
+                for step in coefficient.keys():
+
+                    capex = coefficient[step]
+                    new_coefficient[step] = self.get_final_capex(lifetime, capex)
+
+                capex_var_pre_dict.update(new_coefficient)
 
         return capex_var_pre_dict
 
@@ -524,7 +563,14 @@ class ParameterObject:
                 lower_bound, upper_bound, coefficient, intercept = \
                     self.calculate_economies_of_scale_steps(component_object)
 
-                capex_fix_pre_dict.update(intercept)
+                lifetime = component_object.get_lifetime()
+
+                new_intercept = {}
+                for step in coefficient.keys():
+                    capex = coefficient[step]
+                    new_intercept[step] = self.get_final_capex(lifetime, capex)
+
+                capex_fix_pre_dict.update(new_intercept)
 
         return capex_fix_pre_dict
 

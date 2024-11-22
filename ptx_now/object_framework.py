@@ -745,6 +745,7 @@ class ParameterObject:
         disposal_co2_emissions = {}
         for component_object in self.get_final_components_objects():
             component_name = component_object.get_name()
+            lifetime = component_object.get_lifetime()
 
             ratio = 1
             if component_object.get_component_type() == 'conversion':
@@ -755,8 +756,43 @@ class ParameterObject:
                     o_coefficient = component_object.get_outputs()[o]
                     ratio = o_coefficient / i_coefficient
 
-            specific_co2_emissions_per_capacity[component_name] = component_object.get_installation_co2_emissions() * ratio
-            disposal_co2_emissions[component_name] = component_object.get_disposal_co2_emissions() * ratio
+            installation_emission = component_object.get_installation_co2_emissions() * ratio
+            disposal_emission = component_object.get_disposal_co2_emissions() * ratio
+
+            # consider lifetime of investment
+            if lifetime < 20:
+                # if lifetime is shorter, reinvestment is necessary
+                total_installation_emissions = 0
+                total_disposal_emissions = 0
+                j = 0
+                for j in range(0, 20, int(lifetime)):
+                    total_installation_emissions += installation_emission
+                    total_disposal_emissions += disposal_emission
+
+                # last component was not disposed during current plant lifetime
+                total_disposal_emissions -= disposal_emission
+
+                # consider residual value of component
+                residual_years = 20 - j
+                residual_value = installation_emission * residual_years / lifetime
+
+                total_installation_emissions = total_installation_emissions - residual_value
+
+            elif lifetime > 20:
+                # component lifetime is longer than plant lifetime --> reduce capex by residual value
+
+                residual_value = installation_emission * (lifetime - 20) / lifetime
+
+                total_installation_emissions = installation_emission - residual_value
+
+                # component was not disposed during current plant lifetime
+                total_disposal_emissions = 0
+            else:
+                total_installation_emissions = installation_emission
+                total_disposal_emissions = disposal_emission
+
+            specific_co2_emissions_per_capacity[component_name] = total_installation_emissions
+            disposal_co2_emissions[component_name] = total_disposal_emissions
             fixed_yearly_co2_emissions[component_name] = component_object.get_fixed_co2_emissions()
             variable_co2_emissions[component_name] = component_object.get_variable_co2_emissions()
 

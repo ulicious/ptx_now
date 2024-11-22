@@ -570,7 +570,7 @@ class OptimizationGurobiModel:
                   for c in self.shut_down_components), name='calculate_economic_objective_function')
 
         self.model.addConstr(self.objective_ecologic ==
-            (sum(self.nominal_cap[c] * (self.installation_co2_emissions_dict[c] + self.disposal_co2_emissions_dict[c])
+            (sum(self.nominal_cap[c] * (self.installation_co2_emissions_dict[c] + self.disposal_co2_emissions_dict[c]) / 30
                  for c in self.all_components)
              + sum(self.nominal_cap[c] * self.fixed_yearly_co2_emissions_dict[c] for c in self.all_components)
              + sum(self.mass_energy_storage_in_commodities[s, cl, t] * self.variable_co2_emissions_dict[s]

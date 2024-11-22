@@ -67,18 +67,18 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
     variable_om = component_parameters[2]
     weightings = pm_object.get_weightings_time_series()
 
+    specific_co2_emissions_per_capacity, fixed_yearly_co2_emissions, \
+        variable_co2_emissions, disposal_co2_emissions = pm_object.get_co2_emission_data()
+
     for key in all_variables_dict['nominal_cap']:
         component = pm_object.get_component(key)
         c = key
 
-        # set correct scale between input and output with capex ratio
-        capex_ratio = component.get_capex_ratio()
-
         component.set_fixed_capacity(all_variables_dict['nominal_cap'][c] * component.get_capex_ratio())
 
-        installation_co2_emissions = component.get_installation_co2_emissions() * capex_ratio
-        fixed_co2_emissions = component.get_fixed_co2_emissions() * capex_ratio
-        disposal_co2_emissions = component.get_disposal_co2_emissions() * capex_ratio
+        installation_co2_emissions = specific_co2_emissions_per_capacity[c]
+        fixed_co2_emissions = fixed_yearly_co2_emissions[c]
+        disposal_co2_emissions = disposal_co2_emissions[c]
 
         if all_variables_dict['investment'][c] > 0:
             component.set_investment(all_variables_dict['investment'][c])

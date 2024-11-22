@@ -77,7 +77,7 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
         component.set_fixed_capacity(all_variables_dict['nominal_cap'][c] * component.get_capex_ratio())
 
         installation_co2_emissions = specific_co2_emissions_per_capacity[c] / pm_object.get_facility_lifetime()
-        fixed_co2_emissions = specific_fixed_yearly_co2_emissions[c] / pm_object.get_facility_lifetime()
+        fixed_co2_emissions = specific_fixed_yearly_co2_emissions[c]
         disposal_co2_emissions = specific_disposal_co2_emissions[c] / pm_object.get_facility_lifetime()
 
         if all_variables_dict['investment'][c] > 0:

@@ -315,10 +315,10 @@ def _create_result_files(pm_object, path_results):
 
             # todo: Laufzeit der Anlage muss geklärt werden
             capacity_df.loc[component_name, 'Total Yearly CO2 Emissions'] \
-                = component_object.get_total_installation_co2_emissions() / 20 \
+                = component_object.get_total_installation_co2_emissions() / pm_object.get_facility_lifetime() \
                 + component_object.get_total_fixed_co2_emissions() \
                 + component_object.get_total_variable_co2_emissions() \
-                + component_object.get_total_disposal_co2_emissions() / 20
+                + component_object.get_total_disposal_co2_emissions() / pm_object.get_facility_lifetime()
 
         capacity_df.to_excel(new_result_folder + '/2_components.xlsx')
 

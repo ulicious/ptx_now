@@ -26,6 +26,12 @@ class ParameterObject:
     def get_optimization_type(self):
         return self.optimization_type
 
+    def set_facility_lifetime(self, facility_lifetime):
+        self.facility_lifetime = facility_lifetime
+
+    def get_facility_lifetime(self):
+        return self.facility_lifetime
+
     def set_wacc(self, wacc):
         self.wacc = float(wacc)
 
@@ -479,25 +485,25 @@ class ParameterObject:
     def get_final_capex(self, lifetime, capex):
 
         # consider lifetime of investment
-        if lifetime < 20:
+        if lifetime < self.get_facility_lifetime():
             # if lifetime is shorter, reinvestment is necessary
             total_investment = 0
             reinvestment = 0
             j = 0
-            for j in range(0, 20, int(lifetime)):
+            for j in range(0, self.get_facility_lifetime(), int(lifetime)):
                 reinvestment = capex / ((1 + self.get_wacc()) ** j)
                 total_investment += reinvestment
 
             # consider residual value of component
-            residual_years = 20 - j
+            residual_years = self.get_facility_lifetime() - j
             residual_value = reinvestment * residual_years / lifetime
 
             return total_investment - residual_value
 
-        elif lifetime > 20:
+        elif lifetime > self.get_facility_lifetime():
             # component lifetime is longer than plant lifetime --> reduce capex by residual value
 
-            residual_value = capex * (lifetime - 20) / lifetime / ((1 + self.get_wacc()) ** 20)
+            residual_value = capex * (lifetime - self.get_facility_lifetime()) / lifetime / ((1 + self.get_wacc()) ** self.get_facility_lifetime())
 
             total_investment = capex - residual_value
             return total_investment
@@ -760,12 +766,12 @@ class ParameterObject:
             disposal_emission = component_object.get_disposal_co2_emissions() * ratio
 
             # consider lifetime of investment
-            if lifetime < 20:
+            if lifetime < self.get_facility_lifetime():
                 # if lifetime is shorter, reinvestment is necessary
                 total_installation_emissions = 0
                 total_disposal_emissions = 0
                 j = 0
-                for j in range(0, 20, int(lifetime)):
+                for j in range(0, self.get_facility_lifetime(), int(lifetime)):
                     total_installation_emissions += installation_emission
                     total_disposal_emissions += disposal_emission
 
@@ -773,15 +779,15 @@ class ParameterObject:
                 total_disposal_emissions -= disposal_emission
 
                 # consider residual value of component
-                residual_years = 20 - j
+                residual_years = self.get_facility_lifetime() - j
                 residual_value = installation_emission * residual_years / lifetime
 
                 total_installation_emissions = total_installation_emissions - residual_value
 
-            elif lifetime > 20:
+            elif lifetime > self.get_facility_lifetime():
                 # component lifetime is longer than plant lifetime --> reduce capex by residual value
 
-                residual_value = installation_emission * (lifetime - 20) / lifetime
+                residual_value = installation_emission * (lifetime - self.get_facility_lifetime()) / lifetime
 
                 total_installation_emissions = installation_emission - residual_value
 
@@ -1395,8 +1401,8 @@ class ParameterObject:
         operation_time_series = copy.deepcopy(self.operation_time_series)
 
         return ParameterObject(project_name=self.project_name,
-                               integer_steps=self.integer_steps, wacc=self.wacc,
-                               names_dict=names_dict,
+                               integer_steps=self.integer_steps, facility_lifetime=self.facility_lifetime,
+                               wacc=self.wacc, names_dict=names_dict,
                                commodities=commodities,
                                components=components, profile_data=self.profile_data,
                                single_or_multiple_profiles=self.single_or_multiple_profiles,
@@ -1408,7 +1414,7 @@ class ParameterObject:
                                operation_time_series=operation_time_series,
                                copy_object=True)
 
-    def __init__(self, project_name='', integer_steps=5,
+    def __init__(self, project_name='', integer_steps=5, facility_lifetime=20,
                  wacc=0.07, names_dict=None, commodities=None, components=None,
                  profile_data=False, single_or_multiple_profiles='single',
                  uses_representative_periods=False, representative_periods_length=0,
@@ -1433,6 +1439,7 @@ class ParameterObject:
         if not copy_object:
 
             # Initiate as default values
+            self.facility_lifetime = facility_lifetime
             self.wacc = wacc
 
             self.names_dict = {}

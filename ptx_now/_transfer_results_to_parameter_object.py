@@ -6,20 +6,11 @@ from operator import itemgetter
 from _create_result_files import check_integer_variables
 
 
-def _transfer_results_to_parameter_object(pm_object, model_type):
+def _transfer_results_to_parameter_object(pm_object, solver):
     all_variables_dict = {}
 
-    if model_type == 'pyomo':
-        # access instance to get results from variables
-
-        for v in pm_object.instance.component_objects(Var, active=True):
-
-            variable_dict = v.extract_values()
-            if not bool(variable_dict):
-                continue
-
-            all_variables_dict.update({str(v): variable_dict})
-    elif model_type == 'gurobi':
+    print(solver)
+    if solver == 'gurobi':
         for v in pm_object.instance.binary_variables:
             variable_name = [*v.keys()][0]
 
@@ -46,19 +37,30 @@ def _transfer_results_to_parameter_object(pm_object, model_type):
 
             all_variables_dict.update({variable_name: variable_dict})
 
-    elif model_type == 'highs':
+    else:
+        # access instance to get results from variables
 
-        result_list = pm_object.instance.solution.col_value
+        for v in pm_object.instance.component_objects(Var, active=True):
 
-        for var in [*pm_object.instance.index_identifier.keys()]:
+            variable_dict = v.extract_values()
+            if not bool(variable_dict):
+                continue
 
-            index_list = [*pm_object.instance.index_identifier[var].keys()]
-            var_index_list = [*pm_object.instance.index_identifier[var].values()]
+            all_variables_dict.update({str(v): variable_dict})
 
-            variable_dict = {element: result_list[var_index_list[i]]
-                             for i, element in enumerate(index_list)}
-
-            all_variables_dict.update({var: variable_dict})
+    # elif model_type == 'highs':
+    #
+    #     result_list = pm_object.instance.solution.col_value
+    #
+    #     for var in [*pm_object.instance.index_identifier.keys()]:
+    #
+    #         index_list = [*pm_object.instance.index_identifier[var].keys()]
+    #         var_index_list = [*pm_object.instance.index_identifier[var].values()]
+    #
+    #         variable_dict = {element: result_list[var_index_list[i]]
+    #                          for i, element in enumerate(index_list)}
+    #
+    #         all_variables_dict.update({var: variable_dict})
 
     # transfer results to parameter object
     annuity_factor = pm_object.get_annuity_factor()

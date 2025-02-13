@@ -3,6 +3,7 @@ import gurobipy as gp
 from _helper_optimization import anticipate_bigM, clone_components_which_use_parallelization
 
 
+# noinspection PyTypeChecker
 class OptimizationGurobiModel:
 
     def attach_technical_variables(self):

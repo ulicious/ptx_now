@@ -482,6 +482,10 @@ class GUI:
         self.path_projects = path_projects
         self.path_optimize = path_optimize
         self.working_path = os.getcwd()
+
+        if solver == 'highs':
+            solver = 'appsi_highs'
+
         self.solver = solver
 
         self.root = Tk()

@@ -21,6 +21,8 @@ class GeneralAssumptionsFrame:
 
             self.pm_object.set_wacc(wacc.get() / 100)
 
+            self.pm_object.set_facility_lifetime(int(lifetime.get()))
+
             self.pm_object.set_uses_representative_periods(representative_periods.get())
 
             if rb_variable.get() == 'representative_periods':
@@ -53,6 +55,9 @@ class GeneralAssumptionsFrame:
         wacc = DoubleVar()
         wacc.set(round(self.pm_object.get_wacc()*100, 2))
 
+        lifetime = DoubleVar()
+        lifetime.set(self.pm_object.get_facility_lifetime())
+
         representative_periods = BooleanVar()
         representative_periods.set(self.pm_object.get_uses_representative_periods())
 
@@ -63,10 +68,17 @@ class GeneralAssumptionsFrame:
         else:
             rb_variable.set('covered_period')
 
-        label_period_length = ttk.Label(newWindow, text='WACC [%]')
-        label_period_length.grid(column=0, row=i, sticky='w')
-        entry_period_length = ttk.Entry(newWindow, textvariable=wacc)
-        entry_period_length.grid(column=1, row=i, sticky='w')
+        label_wacc = ttk.Label(newWindow, text='WACC [%]')
+        label_wacc.grid(column=0, row=i, sticky='w')
+        entry_wacc = ttk.Entry(newWindow, textvariable=wacc)
+        entry_wacc.grid(column=1, row=i, sticky='w')
+
+        i += 1
+
+        label_lifetime = ttk.Label(newWindow, text='Lifetime [years]')
+        label_lifetime.grid(column=0, row=i, sticky='w')
+        entry_lifetime = ttk.Entry(newWindow, textvariable=lifetime)
+        entry_lifetime.grid(column=1, row=i, sticky='w')
 
         i += 1
 
@@ -132,6 +144,11 @@ class GeneralAssumptionsFrame:
 
         ttk.Label(self.frame, text='WACC [%]').grid(column=0, row=i, sticky='w')
         ttk.Label(self.frame, text=round(self.pm_object.get_wacc() * 100, 2)).grid(column=1, row=i, sticky='w')
+
+        i += 1
+
+        ttk.Label(self.frame, text='Facility lifetime').grid(column=0, row=i, sticky='w')
+        ttk.Label(self.frame, text=self.pm_object.get_facility_lifetime()).grid(column=1, row=i, sticky='w')
 
         i += 1
 

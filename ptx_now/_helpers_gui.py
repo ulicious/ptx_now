@@ -785,11 +785,7 @@ class DataInterface(ttk.Frame):
         if self.pm_object_copy.get_uses_representative_periods():
             columns.append('Weighting')
 
-        if self.pm_object_copy.get_uses_representative_periods():
-            covered_period = len(pd.read_excel(self.pm_object_copy.get_path_data() + self.pm_object_copy.get_profile_data(),
-                                             index_col=0).index)
-        else:
-            covered_period = self.pm_object_copy.get_covered_period()
+        covered_period = self.pm_object_copy.get_covered_period()
 
         now = datetime.now()
         dt_string = now.strftime("%d%m%Y_%H%M%S")
@@ -966,7 +962,7 @@ class SettingWindow:
             profile_label.grid(row=4, column=1, columnspan=2, sticky='w')
 
             ttk.Label(frame, text='Solver').grid(row=5, column=0, sticky='w')
-            solvers = ['gurobi']  # ['gurobi', 'cplex', 'glpk', 'cbc'] # others have not been maintained # todo: adjust
+            solvers = ['gurobi', 'cplex', 'glpk', 'cbc', 'highs'] # others have not been maintained # todo: adjust
             self.solver_combobox = ttk.Combobox(frame, values=solvers, state='readonly')
             self.solver_combobox.set(self.choose_solver_var.get())
             self.solver_combobox.grid(row=5, column=1, sticky='ew')

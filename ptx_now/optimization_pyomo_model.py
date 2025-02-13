@@ -46,56 +46,56 @@ class OptimizationPyomoModel:
 
         attach_commodity_sets_to_optimization_problem()
 
-    def attach_technical_parameters(self):
-
-        def attach_component_parameters_to_optimization_problem():
-            self.model.min_p = Param(self.model.CONVERSION_COMPONENTS, initialize=self.minimal_power_dict)
-            self.model.max_p = Param(self.model.CONVERSION_COMPONENTS, initialize=self.maximal_power_dict)
-
-            self.model.ramp_up = Param(self.model.CONVERSION_COMPONENTS, initialize=self.ramp_up_dict)
-            self.model.ramp_down = Param(self.model.CONVERSION_COMPONENTS, initialize=self.ramp_down_dict)
-
-            self.model.charging_efficiency = Param(self.model.STORAGES, initialize=self.charging_efficiency_dict)
-            self.model.discharging_efficiency = Param(self.model.STORAGES, initialize=self.discharging_efficiency_dict)
-
-            self.model.minimal_soc = Param(self.model.STORAGES, initialize=self.minimal_soc_dict)
-            self.model.maximal_soc = Param(self.model.STORAGES, initialize=self.maximal_soc_dict)
-
-            self.model.ratio_capacity_p = Param(self.model.STORAGES, initialize=self.ratio_capacity_power_dict)
-
-            self.model.fixed_capacity = Param(self.model.COMPONENTS, initialize=self.fixed_capacity_dict)
-
-        attach_component_parameters_to_optimization_problem()
-
-        def attach_shut_down_component_parameters_to_optimization_problem():
-            self.model.down_time = Param(self.model.SHUT_DOWN_COMPONENTS, initialize=self.shut_down_down_time_dict)
-
-        attach_shut_down_component_parameters_to_optimization_problem()
-
-        def attach_standby_component_parameters_to_optimization_problem():
-            self.model.standby_time = Param(self.model.STANDBY_COMPONENTS, initialize=self.standby_down_time_dict)
-
-        attach_standby_component_parameters_to_optimization_problem()
-
-        def attach_demand_time_series_to_optimization_problem():
-            self.model.hourly_commodity_demand = Param(self.model.DEMANDED_COMMODITIES, self.model.CLUSTERS,
-                                                       self.model.TIME,
-                                                       initialize=self.hourly_demand_dict)
-            self.model.total_commodity_demand = Param(self.model.TOTAL_DEMANDED_COMMODITIES,
-                                                      initialize=self.total_demand_dict)
-
-        attach_demand_time_series_to_optimization_problem()
-
-        def attach_generation_time_series_to_optimization_problem():
-            self.model.generation_profiles = Param(self.model.GENERATORS, self.model.CLUSTERS, self.model.TIME,
-                                                   initialize=self.generation_profiles_dict)
-
-        attach_generation_time_series_to_optimization_problem()
-
-        def attach_weightings_time_series_to_optimization_problem():
-            self.model.weightings = Param(self.model.CLUSTERS, initialize=self.weightings_dict)
-
-        attach_weightings_time_series_to_optimization_problem()
+    # def attach_technical_parameters(self):
+    #
+    #     # def attach_component_parameters_to_optimization_problem():
+    #     #     self.model.min_p = Param(self.model.CONVERSION_COMPONENTS, initialize=self.minimal_power_dict)
+    #     #     self.model.max_p = Param(self.model.CONVERSION_COMPONENTS, initialize=self.maximal_power_dict)
+    #     #
+    #     #     self.model.ramp_up = Param(self.model.CONVERSION_COMPONENTS, initialize=self.ramp_up_dict)
+    #     #     self.model.ramp_down = Param(self.model.CONVERSION_COMPONENTS, initialize=self.ramp_down_dict)
+    #     #
+    #     #     self.model.charging_efficiency = Param(self.model.STORAGES, initialize=self.charging_efficiency_dict)
+    #     #     self.model.discharging_efficiency = Param(self.model.STORAGES, initialize=self.discharging_efficiency_dict)
+    #     #
+    #     #     self.model.minimal_soc = Param(self.model.STORAGES, initialize=self.minimal_soc_dict)
+    #     #     self.model.maximal_soc = Param(self.model.STORAGES, initialize=self.maximal_soc_dict)
+    #     #
+    #     #     self.model.ratio_capacity_p = Param(self.model.STORAGES, initialize=self.ratio_capacity_power_dict)
+    #     #
+    #     #     self.model.fixed_capacity = Param(self.model.COMPONENTS, initialize=self.fixed_capacity_dict)
+    #     #
+    #     # attach_component_parameters_to_optimization_problem()
+    #
+    #     # def attach_shut_down_component_parameters_to_optimization_problem():
+    #     #     self.model.down_time = Param(self.model.SHUT_DOWN_COMPONENTS, initialize=self.shut_down_down_time_dict)
+    #     #
+    #     # attach_shut_down_component_parameters_to_optimization_problem()
+    #
+    #     # def attach_standby_component_parameters_to_optimization_problem():
+    #     #     self.model.standby_time = Param(self.model.STANDBY_COMPONENTS, initialize=self.standby_down_time_dict)
+    #     #
+    #     # attach_standby_component_parameters_to_optimization_problem()
+    #
+    #     # def attach_demand_time_series_to_optimization_problem():
+    #     #     self.model.hourly_commodity_demand = Param(self.model.DEMANDED_COMMODITIES, self.model.CLUSTERS,
+    #     #                                                self.model.TIME,
+    #     #                                                initialize=self.hourly_demand_dict)
+    #     #     self.model.total_commodity_demand = Param(self.model.TOTAL_DEMANDED_COMMODITIES,
+    #     #                                               initialize=self.total_demand_dict)
+    #     #
+    #     # attach_demand_time_series_to_optimization_problem()
+    #
+    #     # def attach_generation_time_series_to_optimization_problem():
+    #     #     self.model.generation_profiles = Param(self.model.GENERATORS, self.model.CLUSTERS, self.model.TIME,
+    #     #                                            initialize=self.generation_profiles_dict)
+    #     #
+    #     # attach_generation_time_series_to_optimization_problem()
+    #
+    #     # def attach_weightings_time_series_to_optimization_problem():
+    #     #     self.model.weightings = Param(self.model.CLUSTERS, initialize=self.weightings_dict)
+    #     #
+    #     # attach_weightings_time_series_to_optimization_problem()
 
     def attach_technical_variables(self):
 
@@ -187,47 +187,47 @@ class OptimizationPyomoModel:
 
         attach_commodity_variables_to_optimization_problem()
 
-    def attach_economic_parameters(self):
-
-        def attach_annuity_to_optimization_problem():
-            self.model.ANF = Param(self.model.COMPONENTS, initialize=self.annuity_factor_dict)
-
-        attach_annuity_to_optimization_problem()
-
-        def attach_component_parameters_to_optimization_problem():
-            self.model.lifetime = Param(self.model.COMPONENTS, initialize=self.lifetime_dict)
-            self.model.fixed_om = Param(self.model.COMPONENTS, initialize=self.fixed_om_dict)
-            self.model.variable_om = Param(self.model.COMPONENTS, initialize=self.variable_om_dict)
-
-            self.model.capex_var = Param(self.model.COMPONENTS, initialize=self.capex_var_dict)
-            self.model.capex_fix = Param(self.model.COMPONENTS, initialize=self.capex_fix_dict)
-
-        attach_component_parameters_to_optimization_problem()
-
-        def attach_scalable_component_parameters_to_optimization_problem():
-            # Investment linearized: Investment = capex var * capacity + capex fix
-            # Variable part of investment -> capex var * capacity
-
-            self.model.capex_pre_var = Param(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
-                                             initialize=self.scaling_capex_var_dict)
-            # fix part of investment
-            self.model.capex_pre_fix = Param(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
-                                             initialize=self.scaling_capex_fix_dict)
-
-        attach_scalable_component_parameters_to_optimization_problem()
-
-        def attach_shut_down_component_parameters_to_optimization_problem():
-            self.model.start_up_costs = Param(self.model.SHUT_DOWN_COMPONENTS, initialize=self.shut_down_start_up_costs)
-
-        attach_shut_down_component_parameters_to_optimization_problem()
-
-        def attach_commodity_price_parameters_to_optimization_problem():
-            self.model.purchase_price = Param(self.model.PURCHASABLE_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
-                                              initialize=self.purchase_price_dict)
-            self.model.selling_price = Param(self.model.SALEABLE_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
-                                             initialize=self.sell_price_dict)
-
-        attach_commodity_price_parameters_to_optimization_problem()
+    # def attach_economic_parameters(self):  # todo: remove
+    # 
+    #     # def attach_annuity_to_optimization_problem():
+    #     #     self.model.ANF = Param(self.model.COMPONENTS, initialize=self.annuity_factor_dict)
+    #     # 
+    #     # attach_annuity_to_optimization_problem()
+    # 
+    #     # def attach_component_parameters_to_optimization_problem():
+    #     #     self.model.lifetime = Param(self.model.COMPONENTS, initialize=self.lifetime_dict)
+    #     #     self.model.fixed_om = Param(self.model.COMPONENTS, initialize=self.fixed_om_dict)
+    #     #     self.model.variable_om = Param(self.model.COMPONENTS, initialize=self.variable_om_dict)
+    #     # 
+    #     #     self.model.capex_var = Param(self.model.COMPONENTS, initialize=self.capex_var_dict)
+    #     #     self.model.capex_fix = Param(self.model.COMPONENTS, initialize=self.capex_fix_dict)
+    #     # 
+    #     # attach_component_parameters_to_optimization_problem()
+    # 
+    #     # def attach_scalable_component_parameters_to_optimization_problem():
+    #     #     # Investment linearized: Investment = capex var * capacity + capex fix
+    #     #     # Variable part of investment -> capex var * capacity
+    #     #
+    #     #     self.model.capex_pre_var = Param(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
+    #     #                                      initialize=self.scaling_capex_var_dict)
+    #     #     # fix part of investment
+    #     #     self.model.capex_pre_fix = Param(self.model.SCALABLE_COMPONENTS, self.model.INTEGER_STEPS,
+    #     #                                      initialize=self.scaling_capex_fix_dict)
+    #     #
+    #     # attach_scalable_component_parameters_to_optimization_problem()
+    # 
+    #     # def attach_shut_down_component_parameters_to_optimization_problem():
+    #     #     self.model.start_up_costs = Param(self.model.SHUT_DOWN_COMPONENTS, initialize=self.shut_down_start_up_costs)
+    #     # 
+    #     # attach_shut_down_component_parameters_to_optimization_problem()
+    # 
+    #     # def attach_commodity_price_parameters_to_optimization_problem():
+    #     #     self.model.purchase_price = Param(self.model.PURCHASABLE_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
+    #     #                                       initialize=self.purchase_price_dict)
+    #     #     self.model.selling_price = Param(self.model.SALEABLE_COMMODITIES, self.model.CLUSTERS, self.model.TIME,
+    #     #                                      initialize=self.sell_price_dict)
+    #     # 
+    #     # attach_commodity_price_parameters_to_optimization_problem()
 
     def attach_economic_variables(self):
 
@@ -335,7 +335,7 @@ class OptimizationPyomoModel:
         def demand_satisfaction_rule(m, me, cl, t):
             # Sets commodities, which are demanded
             if me not in m.TOTAL_DEMANDED_COMMODITIES:  # Case where demand needs to be satisfied in every t
-                return m.mass_energy_demand[me, cl, t] >= m.hourly_commodity_demand[me, cl, t]
+                return m.mass_energy_demand[me, cl, t] >= self.hourly_demand_dict[me, cl, t]
             else:  # case covering demand over all time steps
                 return Constraint.Skip
 
@@ -348,8 +348,8 @@ class OptimizationPyomoModel:
             if me not in m.TOTAL_DEMANDED_COMMODITIES:  # Case where demand needs to be satisfied in every t
                 return Constraint.Skip
             else:  # case covering demand over all time steps
-                return sum(m.mass_energy_demand[me, cl, t] * m.weightings[cl]
-                           for cl in m.CLUSTERS for t in m.TIME) >= m.total_commodity_demand[me]
+                return sum(m.mass_energy_demand[me, cl, t] * self.weightings_dict[cl]
+                           for cl in m.CLUSTERS for t in m.TIME) >= self.total_demand_dict[me]
 
         self.model.total_demand_satisfaction_con = Constraint(self.model.DEMANDED_COMMODITIES,
                                                               rule=total_demand_satisfaction_rule)
@@ -492,7 +492,7 @@ class OptimizationPyomoModel:
             # Limits conversion on capacity of conversion unit and defines conversions
             # Important: Capacity is always matched with input
             main_input = self.pm_object.get_component(c).get_main_input()
-            return m.mass_energy_component_in_commodities[c, main_input, cl, t] <= m.nominal_cap[c] * m.max_p[c]
+            return m.mass_energy_component_in_commodities[c, main_input, cl, t] <= m.nominal_cap[c] * self.maximal_power_dict[c]
 
         self.model._conversion_maximal_component_capacity_con = Constraint(self.model.CONVERSION_COMPONENTS,
                                                                            self.model.CLUSTERS, self.model.TIME,
@@ -501,7 +501,7 @@ class OptimizationPyomoModel:
         def _conversion_minimal_component_capacity_rule(m, c, cl, t):
             main_input = self.pm_object.get_component(c).get_main_input()
             return m.mass_energy_component_in_commodities[c, main_input, cl, t] \
-                   >= m.nominal_cap[c] * m.min_p[c] + (m.status_on[c, cl, t] - 1) * m.M[c]
+                   >= m.nominal_cap[c] * self.minimal_power_dict[c] + (m.status_on[c, cl, t] - 1) * m.M[c]
 
         self.model._conversion_minimal_component_capacity_con = Constraint(self.model.CONVERSION_COMPONENTS,
                                                                            self.model.CLUSTERS,
@@ -513,7 +513,7 @@ class OptimizationPyomoModel:
             if t > 0:
                 return (m.mass_energy_component_in_commodities[c, main_input, cl, t]
                         - m.mass_energy_component_in_commodities[c, main_input, cl, t - 1]) <= \
-                       m.nominal_cap[c] * m.ramp_up[c] + (m.status_off_switch_off[c, cl, t]
+                       m.nominal_cap[c] * self.ramp_up_dict[c] + (m.status_off_switch_off[c, cl, t]
                                                           + m.status_standby_switch_off[c, cl, t]) * m.M[c]
             else:
                 return Constraint.Skip
@@ -526,7 +526,7 @@ class OptimizationPyomoModel:
             if t > 0:
                 return (m.mass_energy_component_in_commodities[c, main_input, cl, t]
                         - m.mass_energy_component_in_commodities[c, main_input, cl, t - 1]) >= \
-                       - (m.nominal_cap[c] * m.ramp_down[c] +
+                       - (m.nominal_cap[c] * self.ramp_down_dict[c] +
                           (m.status_off_switch_on[c, cl, t] + m.status_standby_switch_on[c, cl, t]) * m.M[c])
             else:
                 return Constraint.Skip
@@ -535,10 +535,10 @@ class OptimizationPyomoModel:
                                                rule=_ramp_down_rule)
 
         def shut_off_downtime_adherence_rule(m, c, cl, t):
-            if m.down_time[c] + t > max(m.TIME):
+            if self.shut_down_down_time_dict[c] + t > max(m.TIME):
                 dt = max(m.TIME) - t + 1
             else:
-                dt = m.down_time[c]
+                dt = self.shut_down_down_time_dict[c]
 
             if t > 0:
                 return (m.status_off[c, cl, t] - m.status_off[c, cl, t - 1]) - sum(m.status_off[c, cl, t + i]
@@ -551,10 +551,10 @@ class OptimizationPyomoModel:
                                                                 rule=shut_off_downtime_adherence_rule)
 
         def hot_standby_downtime_adherence_rule(m, c, cl, t):
-            if m.standby_time[c] + t > max(m.TIME):
+            if self.standby_down_time_dict[c] + t > max(m.TIME):
                 st = max(m.TIME) - t + 1
             else:
-                st = m.standby_time[c]
+                st = self.standby_down_time_dict[c]
 
             if t > 0:
                 return (m.status_standby[c, cl, t] - m.status_standby[c, cl, t - 1]) - sum(
@@ -610,10 +610,10 @@ class OptimizationPyomoModel:
             if gc == generated_commodity:
                 if self.pm_object.get_component(g).get_curtailment_possible():
                     return m.mass_energy_generation[g, generated_commodity, cl, t] \
-                           <= m.generation_profiles[g, cl, t] * m.nominal_cap[g]
+                           <= self.generation_profiles_dict[g, cl, t] * m.nominal_cap[g]
                 else:
                     return m.mass_energy_generation[g, generated_commodity, cl, t] \
-                           == m.generation_profiles[g, cl, t] * m.nominal_cap[g]
+                           == self.generation_profiles_dict[g, cl, t] * m.nominal_cap[g]
             else:
                 return m.mass_energy_generation[g, generated_commodity, cl, t] == 0
 
@@ -623,7 +623,7 @@ class OptimizationPyomoModel:
 
         def attach_fixed_capacity_rule(m, c):
             if self.pm_object.get_component(c).get_has_fixed_capacity():
-                return m.nominal_cap[c] == m.fixed_capacity[c]
+                return m.nominal_cap[c] == self.fixed_capacity_dict[c]
             else:
                 return Constraint.Skip
 
@@ -634,8 +634,8 @@ class OptimizationPyomoModel:
                 return Constraint.Skip
             else:
                 return m.soc[s, cl, t] == m.soc[s, cl, t - 1] \
-                       + m.mass_energy_storage_in_commodities[s, cl, t - 1] * m.charging_efficiency[s] \
-                       - m.mass_energy_storage_out_commodities[s, cl, t - 1] / m.discharging_efficiency[s]
+                       + m.mass_energy_storage_in_commodities[s, cl, t - 1] * self.charging_efficiency_dict[s] \
+                       - m.mass_energy_storage_out_commodities[s, cl, t - 1] / self.discharging_efficiency_dict[s]
 
         self.model.storage_balance_con = Constraint(self.model.STORAGES, self.model.CLUSTERS, self.model.TIME,
                                                     rule=storage_balance_rule)
@@ -645,8 +645,8 @@ class OptimizationPyomoModel:
                 # first SOC is last SOC + storage activities
                 if t == max(m.TIME):
                     return m.soc[s, cl, 0] == m.soc[s, cl, t] \
-                           + m.mass_energy_storage_in_commodities[s, cl, t] * m.charging_efficiency[s] \
-                           - m.mass_energy_storage_out_commodities[s, cl, t] / m.discharging_efficiency[s]
+                           + m.mass_energy_storage_in_commodities[s, cl, t] * self.charging_efficiency_dict[s] \
+                           - m.mass_energy_storage_out_commodities[s, cl, t] / self.discharging_efficiency_dict[s]
                 else:
                     return Constraint.Skip
 
@@ -655,38 +655,38 @@ class OptimizationPyomoModel:
         else:
             def total_storage_balance_rule(m, s):
                 # all goes in = all goes out
-                return sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.weightings[cl]
+                return sum(m.mass_energy_storage_in_commodities[s, cl, t] * self.weightings_dict[cl]
                            for cl in m.CLUSTERS for t in m.TIME) \
-                    * m.charging_efficiency[s] \
-                    == sum(m.mass_energy_storage_out_commodities[s, cl, t] * m.weightings[cl]
+                    * self.charging_efficiency_dict[s] \
+                    == sum(m.mass_energy_storage_out_commodities[s, cl, t] * self.weightings_dict[cl]
                            for cl in m.CLUSTERS for t in m.TIME) \
-                    / m.discharging_efficiency[s]
+                    / self.discharging_efficiency_dict[s]
 
             self.model.total_storage_balance_con = Constraint(self.model.STORAGES, rule=total_storage_balance_rule)
 
         def soc_max_bound_rule(m, s, cl, t):
-            return m.soc[s, cl, t] <= m.maximal_soc[s] * m.nominal_cap[s]
+            return m.soc[s, cl, t] <= self.maximal_soc_dict[s] * m.nominal_cap[s]
 
         self.model.soc_max = Constraint(self.model.STORAGES, self.model.CLUSTERS, self.model.TIME,
                                         rule=soc_max_bound_rule)
 
         def soc_min_bound_rule(m, s, cl, t):
-            return m.soc[s, cl, t] >= m.minimal_soc[s] * m.nominal_cap[s]
+            return m.soc[s, cl, t] >= self.minimal_soc_dict[s] * m.nominal_cap[s]
 
         self.model.soc_min = Constraint(self.model.STORAGES, self.model.CLUSTERS, self.model.TIME,
                                         rule=soc_min_bound_rule)
 
         def storage_charge_upper_bound_rule(m, s, cl, t):
             return m.mass_energy_storage_in_commodities[s, cl, t] <= m.nominal_cap[s] / \
-                   m.ratio_capacity_p[s]
+                   self.ratio_capacity_power_dict[s]
 
         self.model.storage_charge_upper_bound_con = Constraint(self.model.STORAGES, self.model.CLUSTERS,
                                                                self.model.TIME,
                                                                rule=storage_charge_upper_bound_rule)
 
         def storage_discharge_upper_bound_rule(m, s, cl, t):
-            return m.mass_energy_storage_out_commodities[s, cl, t] / m.discharging_efficiency[s] \
-                   <= m.nominal_cap[s] / m.ratio_capacity_p[s]
+            return m.mass_energy_storage_out_commodities[s, cl, t] / self.discharging_efficiency_dict[s] \
+                   <= m.nominal_cap[s] / self.ratio_capacity_power_dict[s]
 
         self.model.storage_discharge_upper_bound_con = Constraint(self.model.STORAGES, self.model.CLUSTERS,
                                                                   self.model.TIME,
@@ -718,14 +718,14 @@ class OptimizationPyomoModel:
 
         def restart_costs_rule(m, c, cl, t):
             if t < max(m.TIME):  # costs when restarting
-                return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * m.weightings[cl] * m.start_up_costs[c] \
-                       - (1 - m.status_off_switch_off[c, cl, t]) * m.M[c] * m.weightings[cl] * m.start_up_costs[c]
+                return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * self.weightings_dict[cl] * self.shut_down_start_up_costs[c] \
+                       - (1 - m.status_off_switch_off[c, cl, t]) * m.M[c] * self.weightings_dict[cl] * self.shut_down_start_up_costs[c]
             else:
                 # costs when restarting --> specific case as otherwise component would stay off to avoid restarting
                 # costs
-                return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * m.weightings[cl] * m.start_up_costs[c] \
-                       - (m.status_on[c, cl, t] - m.status_off_switch_off[c, cl, t]) * m.M[c] * m.weightings[cl] \
-                       * m.start_up_costs[c]
+                return m.restart_costs[c, cl, t] >= m.nominal_cap[c] * self.weightings_dict[cl] * self.shut_down_start_up_costs[c] \
+                       - (m.status_on[c, cl, t] - m.status_off_switch_off[c, cl, t]) * m.M[c] * self.weightings_dict[cl] \
+                       * self.shut_down_start_up_costs[c]
 
         self.model.restart_costs_con = Constraint(self.model.SHUT_DOWN_COMPONENTS, self.model.CLUSTERS, self.model.TIME,
                                                   rule=restart_costs_rule)
@@ -733,17 +733,17 @@ class OptimizationPyomoModel:
         def calculate_investment_components_rule(m, c):
             if c not in m.GENERATORS:
                 if c not in m.SCALABLE_COMPONENTS:
-                    return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+                    return m.investment[c] == m.nominal_cap[c] * self.capex_var_dict[c] + self.capex_fix_dict[c]
                 else:
-                    return m.investment[c] == sum(m.nominal_cap_pre[c, i] * m.capex_pre_var[c, i]
-                                                  + m.capex_pre_fix[c, i] * m.capacity_binary[c, i]
+                    return m.investment[c] == sum(m.nominal_cap_pre[c, i] * self.scaling_capex_var_dict[c, i]
+                                                  + self.scaling_capex_fix_dict[c, i] * m.capacity_binary[c, i]
                                                   for i in m.INTEGER_STEPS)
             else:
                 generator_component = self.pm_object.get_component(c)
                 if generator_component.get_uses_ppa():
                     return m.investment[c] == 0
                 else:
-                    return m.investment[c] == m.nominal_cap[c] * m.capex_var[c] + m.capex_fix[c]
+                    return m.investment[c] == m.nominal_cap[c] * self.capex_var_dict[c] + self.capex_fix_dict[c]
 
         self.model.calculate_investment_components_con = Constraint(self.model.COMPONENTS,
                                                                     rule=calculate_investment_components_rule)
@@ -753,20 +753,20 @@ class OptimizationPyomoModel:
     def attach_economic_objective_function(self):
 
         def objective_function(m):
-            return (sum(m.investment[c] * (m.ANF[c] + m.fixed_om[c]) for c in m.COMPONENTS)
-                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_om[s] * m.weightings[cl]
+            return (sum(m.investment[c] * (self.annuity_factor_dict[c] + self.fixed_om_dict[c]) for c in m.COMPONENTS)
+                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * self.variable_om_dict[s] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                     + sum(m.mass_energy_component_out_commodities[c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                        * m.variable_om[c] * m.weightings[cl] for t in m.TIME
+                        * self.variable_om_dict[c] * self.weightings_dict[cl] for t in m.TIME
                         for cl in m.CLUSTERS for c in m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                          * m.variable_om[g] * m.weightings[cl]
+                          * self.variable_om_dict[g] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
-                    + sum(m.mass_energy_purchase_commodity[me, cl, t] * m.purchase_price[me, cl, t] * m.weightings[cl]
+                    + sum(m.mass_energy_purchase_commodity[me, cl, t] * self.purchase_price_dict[me, cl, t] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES)
-                    + sum(m.mass_energy_sell_commodity[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
+                    + sum(m.mass_energy_sell_commodity[me, cl, t] * self.sell_price_dict[me, cl, t] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES)
-                    + sum(m.nominal_cap[g] * m.generation_profiles[g, cl, t] * m.weightings[cl] * self.pm_object.get_component(g).get_ppa_price()
+                    + sum(m.nominal_cap[g] * self.generation_profiles_dict[g, cl, t] * self.weightings_dict[cl] * self.pm_object.get_component(g).get_ppa_price()
                           for g in m.GENERATORS if self.pm_object.get_component(g).get_uses_ppa()
                           for t in m.TIME for cl in m.CLUSTERS)
                     + sum(m.restart_costs[c, cl, t] for t in m.TIME for cl in m.CLUSTERS
@@ -782,27 +782,27 @@ class OptimizationPyomoModel:
                         for c in m.COMPONENTS)
                     + sum(m.nominal_cap[c] * m.fixed_co2_emissions[c] for c in m.COMPONENTS)
                     + sum(
-                        m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_co2_emissions[s] * m.weightings[cl]
+                        m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_co2_emissions[s] * self.weightings_dict[cl]
                         for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                     + sum(
                         m.mass_energy_component_out_commodities[
                             c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                        * m.variable_co2_emissions[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                        * m.variable_co2_emissions[c] * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                         for c in m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                          * m.variable_co2_emissions[g] * m.weightings[cl]
+                          * m.variable_co2_emissions[g] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
                     + sum(m.mass_energy_purchase[me, cl, t] * m.purchase_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.PURCHASABLE_COMMODITIES)
                     + sum(m.mass_energy_available[me, cl, t] * m.available_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.AVAILABLE_COMMODITIES)
                     - sum(m.mass_energy_sell[me, cl, t] * m.sale_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.SALEABLE_COMMODITIES)
                     - sum(m.mass_energy_emitted[me, cl, t] * m.emitted_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.EMITTED_COMMODITIES))
 
         self.model.obj = Objective(rule=objective_function, sense=minimize)
@@ -810,24 +810,24 @@ class OptimizationPyomoModel:
     def attach_multi_objective_economic_objective_adherence_constraint(self, eps_value_economic):
 
         def economical_eps_rule(m):
-            return (sum(m.investment[c] * m.ANF[c] for c in m.COMPONENTS)
-                    + sum(m.investment[c] * m.fixed_om[c] for c in m.COMPONENTS)
-                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_om[s] * m.weightings[cl]
+            return (sum(m.investment[c] * self.annuity_factor_dict[c] for c in m.COMPONENTS)
+                    + sum(m.investment[c] * self.fixed_om_dict[c] for c in m.COMPONENTS)
+                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * self.variable_om_dict[s] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                     + sum(m.mass_energy_component_out_commodities[
                               c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                          * m.variable_om[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for c in
+                          * self.variable_om_dict[c] * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS for c in
                           m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                          * m.variable_om[g] * m.weightings[cl]
+                          * self.variable_om_dict[g] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
-                    + sum(m.mass_energy_purchase[me, cl, t] * m.purchase_price[me, cl, t] * m.weightings[cl]
+                    + sum(m.mass_energy_purchase[me, cl, t] * self.purchase_price_dict[me, cl, t] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES if
                           me in self.purchasable_commodities)
-                    - sum(m.mass_energy_sell[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
+                    - sum(m.mass_energy_sell[me, cl, t] * self.sell_price_dict[me, cl, t] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES if
                           me in self.saleable_commodities)
-                    + sum(m.status_off_switch_off[c, cl, t] * m.weightings[cl] * m.start_up_costs[c]
+                    + sum(m.status_off_switch_off[c, cl, t] * self.weightings_dict[cl] * m.start_up_costs[c]
                           for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS)) \
                    + m.slack_economical == eps_value_economic
 
@@ -836,25 +836,25 @@ class OptimizationPyomoModel:
     def attach_multi_objective_economic_objective_function(self):
 
         def objective_function(m):
-            return (sum(m.investment[c] * m.ANF[c] for c in m.COMPONENTS)
-                    + sum(m.investment[c] * m.fixed_om[c] for c in m.COMPONENTS)
-                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_om[s] * m.weightings[cl]
+            return (sum(m.investment[c] * self.annuity_factor_dict[c] for c in m.COMPONENTS)
+                    + sum(m.investment[c] * self.fixed_om_dict[c] for c in m.COMPONENTS)
+                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * self.variable_om_dict[s] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                     + sum(
                         m.mass_energy_component_out_commodities[
                             c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                        * m.variable_om[c] * m.weightings[cl] for t in m.TIME
+                        * self.variable_om_dict[c] * self.weightings_dict[cl] for t in m.TIME
                         for cl in m.CLUSTERS for c in m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                          * m.variable_om[g] * m.weightings[cl]
+                          * self.variable_om_dict[g] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
-                    + sum(m.mass_energy_purchase[me, cl, t] * m.purchase_price[me, cl, t] * m.weightings[cl]
+                    + sum(m.mass_energy_purchase[me, cl, t] * self.purchase_price_dict[me, cl, t] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES if
                           me in self.purchasable_commodities)
-                    - sum(m.mass_energy_sell[me, cl, t] * m.selling_price[me, cl, t] * m.weightings[cl]
+                    - sum(m.mass_energy_sell[me, cl, t] * self.sell_price_dict[me, cl, t] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES if
                           me in self.saleable_commodities)
-                    + sum(m.status_off_switch_off[c, cl, t] * m.weightings[cl] * m.start_up_costs[c]
+                    + sum(m.status_off_switch_off[c, cl, t] * self.weightings_dict[cl] * m.start_up_costs[c]
                           for t in m.TIME for cl in m.CLUSTERS for c in m.SHUT_DOWN_COMPONENTS)
                     - m.slack_ecological * 0.0001)
 
@@ -868,22 +868,22 @@ class OptimizationPyomoModel:
                      * (m.installation_co2_emissions_per_capacity[c] + m.disposal_co2_emissions[c]) / 20  # todo: Adjust
                      for c in m.COMPONENTS)
                  + sum(m.nominal_cap[c] * m.fixed_co2_emissions[c] for c in m.COMPONENTS)
-                 + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_co2_emissions[s] * m.weightings[cl]
+                 + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_co2_emissions[s] * self.weightings_dict[cl]
                        for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                  + sum(m.mass_energy_component_out_commodities[c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                       * m.variable_co2_emissions[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                       * m.variable_co2_emissions[c] * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                        for c in m.CONVERSION_COMPONENTS)
                  + sum(m.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                       * m.variable_co2_emissions[g] * m.weightings[cl]
+                       * m.variable_co2_emissions[g] * self.weightings_dict[cl]
                        for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
                  + sum(m.mass_energy_purchase[me, cl, t] * m.purchase_specific_co2_emissions[me, cl, t]
-                       * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES)
+                       * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.PURCHASABLE_COMMODITIES)
                  + sum(m.mass_energy_available[me, cl, t] * m.available_specific_co2_emissions[me, cl, t]
-                       * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.AVAILABLE_COMMODITIES)
+                       * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.AVAILABLE_COMMODITIES)
                  - sum(m.mass_energy_sell[me, cl, t] * m.sale_specific_co2_emissions[me, cl, t]
-                       * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES)
+                       * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.SALEABLE_COMMODITIES)
                  - sum(m.mass_energy_emitted[me, cl, t] * m.emitted_specific_co2_emissions[me, cl, t]
-                       * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.EMITTED_COMMODITIES)) \
+                       * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS for me in m.EMITTED_COMMODITIES)) \
                 + m.slack_ecological == eps_value_ecologic
         self.model.ecological_eps_con = Constraint(rule=ecological_eps_rule)
 
@@ -894,25 +894,25 @@ class OptimizationPyomoModel:
                         * (m.installation_co2_emissions_per_capacity[c] + m.disposal_co2_emissions[c]) / 20  # m.lifetime[c]
                         for c in m.COMPONENTS)
                     + sum(m.nominal_cap[c] * m.fixed_co2_emissions[c] for c in m.COMPONENTS)
-                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_co2_emissions[s] * m.weightings[cl]
+                    + sum(m.mass_energy_storage_in_commodities[s, cl, t] * m.variable_co2_emissions[s] * self.weightings_dict[cl]
                         for t in m.TIME for cl in m.CLUSTERS for s in m.STORAGES)
                     + sum(m.mass_energy_component_out_commodities[c, self.pm_object.get_component(c).get_main_output(), cl, t]
-                        * m.variable_co2_emissions[c] * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                        * m.variable_co2_emissions[c] * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                         for c in m.CONVERSION_COMPONENTS)
                     + sum(m.mass_energy_generation[g, self.pm_object.get_component(g).get_generated_commodity(), cl, t]
-                          * m.variable_co2_emissions[g] * m.weightings[cl]
+                          * m.variable_co2_emissions[g] * self.weightings_dict[cl]
                           for t in m.TIME for cl in m.CLUSTERS for g in m.GENERATORS)
                     + sum(m.mass_energy_purchase[me, cl, t] * m.purchase_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.PURCHASABLE_COMMODITIES)
                     + sum(m.mass_energy_available[me, cl, t] * m.available_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.AVAILABLE_COMMODITIES)
                     - sum(m.mass_energy_sell[me, cl, t] * m.sale_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.SALEABLE_COMMODITIES)
                     - sum(m.mass_energy_emitted[me, cl, t] * m.emitted_specific_co2_emissions[me, cl, t]
-                          * m.weightings[cl] for t in m.TIME for cl in m.CLUSTERS
+                          * self.weightings_dict[cl] for t in m.TIME for cl in m.CLUSTERS
                           for me in m.EMITTED_COMMODITIES)
                     - m.slack_economical * 0.0001)
 
@@ -921,9 +921,9 @@ class OptimizationPyomoModel:
     def prepare(self, optimization_type, eps_value_economic=None, eps_value_ecologic=None):
         if optimization_type == 'economical':
             self.attach_sets()
-            self.attach_technical_parameters()
+            # self.attach_technical_parameters()
             self.attach_technical_variables()
-            self.attach_economic_parameters()
+            # self.attach_economic_parameters()
             self.attach_economic_variables()
 
             self.attach_technical_constraints()
@@ -939,9 +939,9 @@ class OptimizationPyomoModel:
 
             self.attach_sets()
 
-            self.attach_technical_parameters()
+            # self.attach_technical_parameters()
             self.attach_technical_variables()
-            self.attach_economic_parameters()
+            # self.attach_economic_parameters()
             self.attach_economic_variables()
             self.attach_ecologic_parameters()
 
@@ -956,9 +956,9 @@ class OptimizationPyomoModel:
 
         else:  # multi objective
             self.attach_sets()
-            self.attach_technical_parameters()
+            # self.attach_technical_parameters()
             self.attach_technical_variables()
-            self.attach_economic_parameters()
+            # self.attach_economic_parameters()
             self.attach_economic_variables()
             self.attach_ecologic_parameters()
 
@@ -972,7 +972,7 @@ class OptimizationPyomoModel:
 
     def optimize(self, instance=None):
 
-        if (self.solver == 'cbc') | (self.solver == 'glpk'):
+        if (self.solver == 'cbc') | (self.solver == 'glpk') | (self.solver == 'appsi_highs'):
             opt = pyo.SolverFactory(self.solver)
         else:
             opt = pyo.SolverFactory(self.solver, solver_io="python")
@@ -982,6 +982,12 @@ class OptimizationPyomoModel:
             self.results = opt.solve(self.instance, tee=False)
         else:
             self.results = opt.solve(self.instance, tee=False, warmstart=True)
+
+        if self.results.solver.status == 'ok' and self.results.solver.termination_condition == 'optimal':
+            print("✅ Model solved to optimality!")
+        else:
+            print(f"⚠️ Solver Status: {self.results.solver.status}")
+            print(f"⚠️ Termination Condition: {self.results.solver.termination_condition}")
 
         self.objective_function_value = self.instance.obj()
 

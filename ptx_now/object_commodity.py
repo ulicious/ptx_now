@@ -124,7 +124,7 @@ class Commodity:
         self.total_co2_emissions_purchase = total_co2_emissions_purchase
 
     def get_total_co2_emissions_purchase(self):
-        return self.specific_co2_emissions_purchase
+        return self.total_co2_emissions_purchase
 
     def set_specific_co2_emissions_sale(self, specific_co2_emissions_sale):
         self.specific_co2_emissions_sale = specific_co2_emissions_sale

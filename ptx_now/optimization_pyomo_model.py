@@ -986,7 +986,7 @@ class OptimizationPyomoModel:
         if self.results.solver.status == 'ok' and self.results.solver.termination_condition == 'optimal':
             print("✅ Model solved to optimality!")
         else:
-            print(f"⚠️ Solver Status: {self.results.solver.status}")
+            print(f"⚠️ Model did not solve")
             print(f"⚠️ Termination Condition: {self.results.solver.termination_condition}")
 
         self.objective_function_value = self.instance.obj()

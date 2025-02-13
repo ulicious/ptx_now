@@ -262,7 +262,9 @@ class GUI:
             if commodity.is_saleable():
                 if commodity.get_sale_price_type() == 'variable':
 
-                    column_name = commodity.get_name() + '_Selling_Price'
+                    column_name_price = commodity.get_name() + '_Selling_Price'
+                    column_name_emission = commodity.get_name() + '_Selling_Emissions'
+                    optimization_type = self.pm_object_copy.get_optimization_type
 
                     if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
@@ -272,8 +274,13 @@ class GUI:
                             commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
                                                             index_col=0)
 
-                        if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_name() + ' Selling Price')
+                        if (column_name_price not in commodity_profile.columns) & (
+                                optimization_type in ['economical', 'multiobjective']):
+                            profile_not_exist.append(column_name_price)
+
+                        if (column_name_emission not in commodity_profile.columns) & (
+                                optimization_type in ['ecological', 'multiobjective']):
+                            profile_not_exist.append(column_name_emission)
                     else:
                         path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                         _, _, filenames = next(walk(path_to_commodity_files))
@@ -285,16 +292,23 @@ class GUI:
                             else:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
-                            if column_name not in commodity_profile.columns:
-                                profile_not_exist.append(commodity.get_name() + ' Selling Price')
+                            if (column_name_price not in commodity_profile.columns) & (
+                                    optimization_type in ['economical', 'multiobjective']):
+                                profile_not_exist.append(column_name_price)
+
+                            if (column_name_emission not in commodity_profile.columns) & (
+                                    optimization_type in ['ecological', 'multiobjective']):
+                                profile_not_exist.append(column_name_emission)
 
                             break
 
             if commodity.is_purchasable():
                 if commodity.get_purchase_price_type() == 'variable':
-                    column_name = commodity.get_name() + '_Purchase_Price'
+                    column_name_price = commodity.get_name() + '_Purchase_Price'
+                    column_name_emission = commodity.get_name() + '_Purchase_Emissions'
+                    optimization_type = self.pm_object_copy.get_optimization_type
 
-                    if self.pm_object_copy.get_single_or_multiple_commodity_profiles() == 'single':
+                    if self.pm_object_copy.get_single_or_multiple_profiles() == 'single':
                         if self.pm_object_copy.get_profile_data().split('.')[-1] == 'xlsx':
                             commodity_profile = pd.read_excel(self.path_data + self.pm_object_copy.get_profile_data(),
                                                               index_col=0)
@@ -302,8 +316,12 @@ class GUI:
                             commodity_profile = pd.read_csv(self.path_data + self.pm_object_copy.get_profile_data(),
                                                             index_col=0)
 
-                        if column_name not in commodity_profile.columns:
-                            profile_not_exist.append(commodity.get_name() + ' Purchase Price')
+                        if (column_name_price not in commodity_profile.columns) & (optimization_type in ['economical', 'multiobjective']):
+                            profile_not_exist.append(column_name_price)
+
+                        if (column_name_emission not in commodity_profile.columns) & (optimization_type in ['ecological', 'multiobjective']):
+                            profile_not_exist.append(column_name_emission)
+
                     else:
                         path_to_commodity_files = self.path_data + '/' + self.pm_object_copy.get_profile_data()
                         _, _, filenames = next(walk(path_to_commodity_files))
@@ -315,8 +333,11 @@ class GUI:
                             else:
                                 commodity_profile = pd.read_csv(path, index_col=0)
 
-                            if column_name not in commodity_profile.columns:
-                                profile_not_exist.append(commodity.get_name() + ' Purchase Price')
+                            if (column_name_price not in commodity_profile.columns) & (optimization_type in ['economical', 'multiobjective']):
+                                profile_not_exist.append(column_name_price)
+
+                            if (column_name_emission not in commodity_profile.columns) & (optimization_type in ['ecological', 'multiobjective']):
+                                profile_not_exist.append(column_name_emission)
 
                             break
 

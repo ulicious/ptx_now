@@ -1204,9 +1204,9 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    if commodity_name + '_Purchase_Specific_CO2_Emissions' in profile.columns:
+                    if commodity_name + '_Purchase_Emissions' in profile.columns:
 
-                        purchase_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Purchase_Specific_CO2_Emissions']
+                        purchase_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Purchase_Emissions']
 
                         ind = 0
                         for cl in range(self.get_number_clusters()):
@@ -1214,7 +1214,7 @@ class ParameterObject:
                                 purchase_specific_co2_emissions_dict.update({(commodity_name, cl, t): float(purchase_specific_co2_emissions_curve.loc[purchase_specific_co2_emissions_curve.index[ind]])})
                                 ind += 1
 
-                    else:
+                    else:  # this should never be reached since optimization cannot start if no data is available
                         ind = 0
                         for cl in range(self.get_number_clusters()):
                             for t in range(self.get_covered_period()):
@@ -1280,10 +1280,10 @@ class ParameterObject:
                     else:
                         profile = pd.read_csv(path, index_col=0)
 
-                    if commodity_name + '_Selling_Specific_CO2_Emissions' in profile.columns:
+                    if commodity_name + '_Selling_Emissions' in profile.columns:
                         # If this would be necessary, it would have been caught already when checking the optimizaton problem
 
-                        sale_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Selling_Specific_CO2_Emissions']
+                        sale_specific_co2_emissions_curve = profile.loc[:, commodity_name + '_Selling_Emissions']
 
                         ind = 0
                         for cl in range(self.get_number_clusters()):

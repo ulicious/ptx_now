@@ -22,8 +22,6 @@ def optimize(pm_object, path_data, path_results, solver):
     depend on number of generation, purchase and sale data"""
 
     # Adjust pm_object if parallel units are used
-    pm_object_copy_pyomo = clone_components_which_use_parallelization(pm_object)  # todo: remove as soon as decided
-    pm_object_copy_gurobi = clone_components_which_use_parallelization(pm_object)
     pm_object_copy = clone_components_which_use_parallelization(pm_object)
 
     optimization_type = pm_object_copy.get_optimization_type()
@@ -38,20 +36,17 @@ def optimize(pm_object, path_data, path_results, solver):
 
             if profile_type == 'single':
 
-                optimize_single_profile_not_multi_objective(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
-                                                solver, path_results)
+                optimize_single_profile_not_multi_objective(optimization_type, pm_object_copy, solver, path_results)
 
             else:
                 # multiple profiles are processed using multiprocessing
-                optimize_multi_profiles_no_multi_optimization(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
-                                                              solver, path_results)
+                optimize_multi_profiles_no_multi_optimization(optimization_type, pm_object_copy, solver, path_results)
 
         else:
 
             # todo: multiple cases like above
 
-            optimize_no_profile(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
-                                solver, path_results)
+            optimize_no_profile(optimization_type, pm_object_copy, solver, path_results)
 
     else:
         if profile_needed:
@@ -60,19 +55,17 @@ def optimize(pm_object, path_data, path_results, solver):
 
             if pm_object_copy.get_single_or_multiple_profiles() == 'single':
 
-                optimize_single_profile_multi_objective(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
-                                                        solver, path_results)
+                optimize_single_profile_multi_objective(pm_object_copy, solver, path_results)
 
             else:
                 # multiple profiles are processed using multiprocessing
-                multi_profiles_multi_objective(pm_object_copy_gurobi, solver, path_results)
+                multi_profiles_multi_objective(pm_object_copy, solver, path_results)
 
         else:
 
             # todo: multiple cases
 
-            optimize_no_profile(optimization_type, pm_object_copy_pyomo, pm_object_copy_gurobi,
-                                solver, path_results)
+            optimize_no_profile(optimization_type, pm_object_copy, solver, path_results)
 
     print('Optimization completed.')
 

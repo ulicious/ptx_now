@@ -9,7 +9,6 @@ from _create_result_files import check_integer_variables
 def _transfer_results_to_parameter_object(pm_object, solver):
     all_variables_dict = {}
 
-    print(solver)
     if solver == 'gurobi':
         for v in pm_object.instance.binary_variables:
             variable_name = [*v.keys()][0]
@@ -245,6 +244,7 @@ def _transfer_results_to_parameter_object(pm_object, solver):
 
         variable_dict = all_variables_dict[variable]
 
+        commodity_before = None
         for k in [*variable_dict.keys()]:
 
             commodity = k[0]
@@ -253,8 +253,11 @@ def _transfer_results_to_parameter_object(pm_object, solver):
 
             specific_co2_emissions_available = commodity_object.get_specific_co2_emissions_available()
             specific_co2_emissions_emitted = commodity_object.get_specific_co2_emissions_emitted()
-            specific_co2_emissions_purchase = commodity_object.get_specific_co2_emissions_purchase()
-            specific_co2_emissions_sale = commodity_object.get_specific_co2_emissions_sale()
+
+            if commodity != commodity_before:
+                specific_co2_emissions_purchase = pm_object.get_purchase_specific_co2_emissions_time_series()
+                specific_co2_emissions_sale = pm_object.get_sale_price_time_series()
+                commodity_before = commodity
 
             # get time series from variables
             if variable_dict[k] is None:
@@ -298,7 +301,7 @@ def _transfer_results_to_parameter_object(pm_object, solver):
 
                 commodity_object.set_total_co2_emissions_purchase(commodity_object.get_total_co2_emissions_purchase()
                                                                   + variable_dict[k] * weightings[cluster]
-                                                                  * specific_co2_emissions_purchase)
+                                                                  * specific_co2_emissions_purchase[k])
 
             if variable == 'mass_energy_sell_commodity':
                 commodity_object.set_sold_quantity(commodity_object.get_purchased_quantity()
@@ -310,7 +313,7 @@ def _transfer_results_to_parameter_object(pm_object, solver):
 
                 commodity_object.set_total_co2_emissions_sale(commodity_object.get_total_co2_emissions_sale()
                                                               + variable_dict[k] * weightings[cluster]
-                                                              * specific_co2_emissions_sale)
+                                                              * specific_co2_emissions_sale[k])
 
             if variable == 'mass_energy_demand':
                 commodity_object.set_demanded_quantity(commodity_object.get_demanded_quantity()

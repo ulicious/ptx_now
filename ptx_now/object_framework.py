@@ -517,7 +517,7 @@ class ParameterObject:
             component_name = component_object.get_name()
 
             ratio = 1
-            if component_object.get_component_type == 'conversion':
+            if component_object.get_component_type() == 'conversion':
                 if component_object.get_capex_basis() == 'output':
                     i = component_object.get_main_input()
                     i_coefficient = component_object.get_inputs()[i]

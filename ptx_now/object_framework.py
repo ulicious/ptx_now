@@ -1391,6 +1391,12 @@ class ParameterObject:
     def get_objective_function_value(self):
         return self.objective_function_value
 
+    def set_solver(self, solver):
+        self.solver = solver
+
+    def get_solver(self):
+        return self.solver
+
     def __copy__(self):
 
         # deepcopy mutable objects
@@ -1412,7 +1418,7 @@ class ParameterObject:
                                monetary_unit=self.monetary_unit, optimization_type=self.optimization_type,
                                instance=instance,
                                operation_time_series=operation_time_series,
-                               copy_object=True)
+                               copy_object=True, solver=self.solver)
 
     def __init__(self, project_name='', integer_steps=5, facility_lifetime=20,
                  wacc=0.07, names_dict=None, commodities=None, components=None,
@@ -1420,7 +1426,7 @@ class ParameterObject:
                  uses_representative_periods=False, representative_periods_length=0,
                  covered_period=8760, monetary_unit='€', path_data=None, optimization_type='economical',
                  instance=None, operation_time_series=None,
-                 copy_object=False):
+                 copy_object=False, solver='gurobi'):
 
         """
         Object, which stores all components, commodities, settings etc.
@@ -1472,6 +1478,8 @@ class ParameterObject:
         self.operation_time_series = operation_time_series
 
         self.objective_function_value = None
+
+        self.solver = solver
 
 
 ParameterObjectCopy = type('CopyOfB', ParameterObject.__bases__, dict(ParameterObject.__dict__))

@@ -64,6 +64,7 @@ def run_main():
                         case_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
                     pm_object = load_project(pm_object, case_data)
                     pm_object.set_project_name(file_without_ending)
+                    pm_object.set_solver(solver)
 
                     optimize(pm_object, path_data, path_result, solver)
 
@@ -525,12 +526,14 @@ class GUI:
 
             self.root.title('New Project')
             self.project_name = None
+            self.solver = solver
 
         else:  # Custom project
 
             custom_title = self.path_optimize.split('/')[-1].split('.')[0]
             self.root.title(custom_title)
             self.project_name = custom_title
+            self.solver = solver
 
             self.pm_object_original = ParameterObject(custom_title, integer_steps=10,
                                                       path_data=path_data)

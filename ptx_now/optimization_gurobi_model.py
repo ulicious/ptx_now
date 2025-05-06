@@ -447,14 +447,16 @@ class OptimizationGurobiModel:
                                      for cl in self.clusters for t in self.time) / self.discharging_efficiency_dict[c],
                                  name='in_storage_equals_out_storage')
 
-        # commodities with total demand
-        for com in self.demanded_commodities:
-            if com in self.total_demand_commodities:
-                self.model.addConstr(sum(self.mass_energy_demand[com, cl, t] * self.weightings_dict[cl]
-                                         for cl in self.clusters
-                                         for t in self.time)
-                                     >= self.total_demand_dict[com],
-                                     name='total_demand_satisfaction_' + com + '_constraint')
+        if not self.reach_capacity:
+
+            # commodities with total demand
+            for com in self.demanded_commodities:
+                if com in self.total_demand_commodities:
+                    self.model.addConstr(sum(self.mass_energy_demand[com, cl, t] * self.weightings_dict[cl]
+                                             for cl in self.clusters
+                                             for t in self.time)
+                                         >= self.total_demand_dict[com],
+                                         name='total_demand_satisfaction_' + com + '_constraint')
 
         for sc in self.scalable_components:
             for i in self.integer_steps:
@@ -480,6 +482,23 @@ class OptimizationGurobiModel:
             if component_object.get_has_fixed_capacity():
                 self.model.addConstr(self.nominal_cap[c] == self.fixed_capacity_dict[c],
                                      name='fixed_capacity_of' + name_adding)
+
+        if self.reach_capacity:
+            self.capacity_reaching_binary = self.model.addVars(self.generator_components, vtype='B')
+
+            for g in self.generator_components:
+                self.model.addConstr(self.nominal_cap[g] <= self.max_capacities[g] + (self.max_capacities[g]) * (self.capacity_reaching_binary[g] - 1),
+                                     name='target_capacity_upper_' + g)
+
+                self.model.addConstr(self.nominal_cap[g] >= self.max_capacities[g] + (self.max_capacities[g]) * (self.capacity_reaching_binary[g] - 1),
+                                     name='target_capacity_lower_' + g)
+
+            self.model.addConstr(1 == self.capacity_reaching_binary['Wind'] + self.capacity_reaching_binary['Solar'], name='reach_capacity')
+
+            self.total_production = self.model.addVar()
+
+            self.model.addConstr(self.total_production == sum(self.mass_energy_component_out_commodities['electrolyzer', 'Hydrogen', cl, t] * self.weightings_dict[cl]
+                                                              for cl in self.clusters for t in self.time))
 
     def attach_economic_constraints(self):
 
@@ -687,11 +706,22 @@ class OptimizationGurobiModel:
                                      {'storage_discharge_binary': self.storage_discharge_binary},
                                      {'capacity_binary': self.capacity_binary}]
 
-        self.model.Params.LogToConsole = 0
+        # self.model.Params.LogToConsole = 0
+        # self.model.setParam("MIPGap", 0.01)
         self.model.optimize()
         self.instance = self
 
         self.status = self.model.status
+
+        # check if bigM was binding
+        re_optimize = False
+        for c in self.pm_object.get_final_components_names():
+            if c in self.bigM.keys():
+                if self.nominal_cap[c].X == self.bigM[c]:
+                    print('BigM binds capacity of ' + c)
+                    self.bigM[c] = self.bigM[c] * 10
+                    re_optimize = True
+                    # todo: something should happen
 
         if self.status == 2:
 
@@ -707,7 +737,7 @@ class OptimizationGurobiModel:
             self.output_tuples, self.output_conversion_tuples, self.output_conversion_tuples_dict \
             = self.pm_object.get_all_conversion()
 
-    def __init__(self, pm_object, solver):
+    def __init__(self, pm_object, solver, max_capacities=None):
 
         # ----------------------------------
         # Set up problem
@@ -715,6 +745,9 @@ class OptimizationGurobiModel:
         self.instance = None
         self.status = None
         self.pm_object = pm_object
+
+        self.max_capacities = max_capacities
+        self.reach_capacity = False
 
         self.objective_function_value = None
         self.economic_objective_function_value = None

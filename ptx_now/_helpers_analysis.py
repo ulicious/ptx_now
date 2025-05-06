@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 def create_linear_system_of_equations(pm_object, new_result_folder):
     # todo: currently, variable o&M are included in the total Fixed Costs and not somewhere else

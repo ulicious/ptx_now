@@ -1,27 +1,62 @@
 """Batch runner for country/profile optimizations without the GUI.
 
-Countries are discovered from the subfolders of --countries-root. No hard-coded
-country list is needed.
+All run settings are hard-coded in the configuration block below. Countries
+are still discovered automatically from the subfolders of COUNTRIES_ROOT.
 
-Example:
-    python ptx_now/country_profile_runner.py \
-        --settings-yaml ptx_now/data/hydrogen_parameters.yaml \
-        --countries-root D:/weatherOut_Uwe \
-        --profile-subdir Clustered_Profiles/2030/168 \
-        --wacc-file D:/country_specific_wacc.xlsx \
-        --output-xlsx D:/results/country_profile_results.xlsx
+Run:
+    python ptx_now/country_profile_runner.py
 """
 
 from __future__ import annotations
 
-import argparse
 import multiprocessing
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
+
+
+# ---------------------------------------------------------------------------
+# Hard-coded runner configuration
+# ---------------------------------------------------------------------------
+SETTINGS_YAML = Path(
+    r"C:\Users\mt5285\Documents\yamls_hydrogen\hydrogen_all_data.yaml"
+)
+COUNTRIES_ROOT = Path(r"Z:\weatherOut\weatherOut_Uwe")
+WACC_FILE = Path(r"C:\Users\mt5285\Documents\country_specific_wacc.xlsx")
+OUTPUT_XLSX = Path(
+    r"C:\Users\mt5285\Documents\yamls_hydrogen\country_profile_results.xlsx"
+)
+
+SCENARIO_YEAR = 2030
+CLUSTER_LENGTH = 168
+PROFILE_SUBDIR = Path("Clustered_Profiles") / str(SCENARIO_YEAR) / str(CLUSTER_LENGTH)
+
+SOLVER = "gurobi"
+OPTIMIZATION_TYPE: str | None = None
+CORES: int | str = "max"
+RECURSIVE_PROFILES = False
+
+# None processes every country folder. To restrict the run, use for example:
+# COUNTRIES = ["Germany", "France"]
+COUNTRIES: list[str] | None = None
+
+
+@dataclass(frozen=True)
+class RunnerConfig:
+    settings_yaml: Path
+    countries_root: Path
+    output_xlsx: Path
+    wacc_file: Path | None
+    profile_subdir: str | None
+    countries: list[str] | None
+    recursive_profiles: bool
+    solver: str
+    optimization_type: str | None
+    cores: int
 
 
 def _normalise_folder(path: Path) -> str:
@@ -232,7 +267,7 @@ def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
     return sorted(files)
 
 
-def collect_jobs(args: argparse.Namespace) -> list[dict[str, Any]]:
+def collect_jobs(args: RunnerConfig) -> list[dict[str, Any]]:
     wacc_by_country = _read_wacc_table(args.wacc_file)
     country_dirs = [path for path in args.countries_root.iterdir() if path.is_dir()]
 
@@ -284,43 +319,51 @@ def write_results(output_xlsx: Path, results: list[dict[str, Any]]) -> None:
             pd.DataFrame(errors).to_excel(writer, sheet_name="errors", index=False)
 
 
-def _parse_cores(value: str) -> int:
-    if value.lower() == "max":
+def _parse_cores(value: int | str) -> int:
+    if isinstance(value, str) and value.lower() == "max":
         return max(1, multiprocessing.cpu_count() - 1)
 
     cores = int(value)
     if cores < 1:
-        raise argparse.ArgumentTypeError("--cores must be at least 1 or 'max'.")
+        raise ValueError("CORES must be at least 1 or 'max'.")
     return cores
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run country/profile optimizations without the GUI.")
-    parser.add_argument("--settings-yaml", required=True, type=Path, help="Path to the project YAML.")
-    parser.add_argument(
-        "--countries-root",
-        required=True,
-        type=Path,
-        help="Folder whose direct subfolders are treated as countries.",
+def build_config() -> RunnerConfig:
+    return RunnerConfig(
+        settings_yaml=SETTINGS_YAML,
+        countries_root=COUNTRIES_ROOT,
+        output_xlsx=OUTPUT_XLSX,
+        wacc_file=WACC_FILE,
+        profile_subdir=str(PROFILE_SUBDIR),
+        countries=COUNTRIES,
+        recursive_profiles=RECURSIVE_PROFILES,
+        solver=SOLVER,
+        optimization_type=OPTIMIZATION_TYPE,
+        cores=_parse_cores(CORES),
     )
-    parser.add_argument("--output-xlsx", required=True, type=Path, help="Central Excel output file.")
-    parser.add_argument("--wacc-file", type=Path, help="Excel/CSV with country names and a WACC column.")
-    parser.add_argument("--profile-subdir", help="Relative profile folder inside each country folder.")
-    parser.add_argument("--countries", nargs="*", help="Optional filter for specific country folder names.")
-    parser.add_argument("--recursive-profiles", action="store_true", help="Search profiles below the profile folder.")
-    parser.add_argument("--solver", default="gurobi", help="Solver name passed to the project.")
-    parser.add_argument("--optimization-type", help="Override optimization type from the YAML.")
-    parser.add_argument(
-        "--cores",
-        type=_parse_cores,
-        default=max(1, multiprocessing.cpu_count() - 1),
-        help="Number of parallel worker processes, or 'max' for cpu_count - 1.",
-    )
-    return parser.parse_args()
+
+
+def validate_config(config: RunnerConfig) -> None:
+    missing = []
+    if not config.settings_yaml.is_file():
+        missing.append(f"SETTINGS_YAML does not exist: {config.settings_yaml}")
+    if not config.countries_root.is_dir():
+        missing.append(f"COUNTRIES_ROOT does not exist: {config.countries_root}")
+    if config.wacc_file is not None and not config.wacc_file.is_file():
+        missing.append(f"WACC_FILE does not exist: {config.wacc_file}")
+
+    if missing:
+        details = "\n".join(f"- {message}" for message in missing)
+        raise SystemExit(
+            "Please correct the hard-coded configuration at the top of "
+            f"country_profile_runner.py:\n{details}"
+        )
 
 
 def main() -> None:
-    args = parse_args()
+    args = build_config()
+    validate_config(args)
     jobs = collect_jobs(args)
 
     if not jobs:

@@ -245,134 +245,7 @@ class OptimizationGurobiModel:
 
                     main_input = pm_object.get_component(c).get_main_input()
 
-                    self.model.addConstr(
-                        self.status_on[c, cl, t] + self.status_off[c, cl, t] + self.status_standby[c, cl, t] == 1,
-                        name='balance_component_status' + name_adding)
 
-                    # If component can not be shut off or put in hot standby, the status is always on
-                    if (c not in self.shut_down_components) & (c not in self.standby_components):
-                        self.model.addConstr(self.status_on[c, cl, t] == 1,
-                                             name='no_shutdown_or_standby' + name_adding)
-                    elif c not in self.shut_down_components:
-                        self.model.addConstr(self.status_off[c, cl, t] == 0,
-                                             name='no_shutdown' + name_adding)
-                    elif c not in self.standby_components:
-                        self.model.addConstr(self.status_standby[c, cl, t] == 0,
-                                             name='no_standby' + name_adding)
-
-                    # Set binary to 1 if component is active
-                    self.model.addConstr(self.mass_energy_component_in_commodities[c, main_input, cl, t]
-                                         - self.status_on[c, cl, t] * self.bigM[c] <= 0,
-                                         name='active_component' + name_adding)
-
-                    # Balance switch off
-                    self.model.addConstr(self.status_off_switch_on[c, cl, t]
-                                         + self.status_off_switch_off[c, cl, t] <= 1,
-                                         name='balance_status_off_switch' + name_adding)
-
-                    # Define switch on / off constraint
-                    if t > 0:
-                        self.model.addConstr(self.status_off[c, cl, t]
-                                             == self.status_off[c, cl, t - 1]
-                                             + self.status_off_switch_on[c, cl, t]
-                                             - self.status_off_switch_off[c, cl, t],
-                                             name='define_status_on_off_switch' + name_adding)
-
-                    # Balance switch standby
-                    self.model.addConstr(self.status_standby_switch_on[c, cl, t]
-                                         + self.status_standby_switch_off[c, cl, t] <= 1,
-                                         name='balance_status_standby_switch' + name_adding)
-
-                    # Define switch on / standby constraint
-                    if t > 0:
-                        self.model.addConstr(self.status_standby[c, cl, t]
-                                             == self.status_standby[c, cl, t - 1]
-                                             + self.status_standby_switch_on[c, cl, t]
-                                             - self.status_standby_switch_off[c, cl, t],
-                                             name='define_status_on_standby_switch' + name_adding)
-
-                    # Set upper bound conversion
-                    self.model.addConstr(self.mass_energy_component_in_commodities[c, main_input, cl, t]
-                                         <= self.nominal_cap[c] * self.maximal_power_dict[c],
-                                         name='set_upper_bound_conversion' + name_adding)
-
-                    # Set lower bound conversion
-                    self.model.addConstr(self.mass_energy_component_in_commodities[c, main_input, cl, t]
-                                         >= self.nominal_cap[c] * self.minimal_power_dict[c]
-                                         + (self.status_on[c, cl, t] - 1) * self.bigM[c],
-                                         name='set_lower_bound_conversion' + name_adding)
-
-                    if t > 0:
-                        # ramp up limitations
-                        self.model.addConstr(self.mass_energy_component_in_commodities[c, main_input, cl, t]
-                                             - self.mass_energy_component_in_commodities[c, main_input, cl, t - 1]
-                                             <= self.nominal_cap[c] * self.ramp_up_dict[c]
-                                             + (self.status_off_switch_off[c, cl, t]
-                                                + self.status_standby_switch_off[c, cl, t]) * self.bigM[c],
-                                             name='set_ramp_up_limitations' + name_adding)
-
-                        # ramp down limitations
-                        self.model.addConstr(self.mass_energy_component_in_commodities[c, main_input, cl, t]
-                                             - self.mass_energy_component_in_commodities[c, main_input, cl, t - 1]
-                                             >= - (self.nominal_cap[c] * self.ramp_down_dict[c]
-                                                   + (self.status_off_switch_on[c, cl, t]
-                                                      + self.status_standby_switch_on[c, cl, t]) * self.bigM[c]),
-                                             name='set_ramp_down_limitations' + name_adding)
-
-                    if c in self.shut_down_components:
-
-                        # set minimal downtime after shut down
-                        if self.shut_down_down_time_dict[c] + t > max(self.time):
-                            dt = max(self.time) - t + 1
-                        else:
-                            dt = self.shut_down_down_time_dict[c]
-
-                        if True:
-
-                            if t > 0:
-                                self.model.addConstr((self.status_off[c, cl, t] - self.status_off[c, cl, t - 1])
-                                                     - sum(self.status_off[c, cl, t + i]
-                                                           for i in range(dt)) / dt <= 0,
-                                                     name='set_down_time' + name_adding)
-
-                    # lower limit hot standby (don't create energy / commodity
-                    if c in self.standby_components:
-
-                        hot_standby_commodity = [*pm_object.get_component(c).get_hot_standby_demand().keys()][0]
-                        hot_standby_demand = pm_object.get_component(c).get_hot_standby_demand()[hot_standby_commodity]
-
-                        for com in self.final_commodities:
-                            if com == hot_standby_commodity:
-                                self.model.addConstr(
-                                    self.mass_energy_hot_standby_demand[c, hot_standby_commodity, cl, t]
-                                    >= self.nominal_cap[c] * hot_standby_demand
-                                    + (self.status_standby[c, cl, t] - 1) * self.bigM[c] * hot_standby_demand,
-                                    name='define_lower_limit_hot_standby_demand' + name_adding)
-                            else:
-                                self.model.addConstr(self.mass_energy_hot_standby_demand[c, com, cl, t] == 0,
-                                                     name='define_lower_limit_hot_standby_demand' + name_adding)
-
-                        # upper limit got standby (don't destroy energy / commodity)
-                        self.model.addConstr(self.mass_energy_hot_standby_demand[c, hot_standby_commodity, cl, t]
-                                             <= self.nominal_cap[c] * hot_standby_demand,
-                                             name='define_upper_limit_hot_standby_demand' + name_adding)
-
-                        # activate if in hot standby
-                        self.model.addConstr(self.mass_energy_hot_standby_demand[c, hot_standby_commodity, cl, t]
-                                             <= self.status_standby[c, cl, t] * self.bigM[c],
-                                             name='define_hot_standby_activation' + name_adding)
-
-                        # set minimal standby time after standby
-                        if self.standby_down_time_dict[c] + t > max(self.time):
-                            st = max(self.time) - t + 1
-                        else:
-                            st = self.standby_down_time_dict[c]
-
-                        if t > 0:
-                            self.model.addConstr((self.status_standby[c, cl, t] - self.status_standby[c, cl, t - 1])
-                                                 - sum(self.status_standby[c, cl, t + i]
-                                                       for i in range(st)) / st <= 0,
-                                                 name='set_standby_time' + name_adding)
 
                 if component_object.get_component_type() == 'generator':
 
@@ -426,18 +299,19 @@ class OptimizationGurobiModel:
                                          <= self.nominal_cap[c] / self.ratio_capacity_power_dict[c],
                                          name='min_soc' + name_adding)
 
-                    # storage binary --> don't allow charge and discharge at same time
-                    self.model.addConstr(
-                        self.storage_charge_binary[c, cl, t] + self.storage_discharge_binary[c, cl, t] <= 1,
-                        name='balance_storage_binaries' + name_adding)
+                    # storage binary --> don't allow charge and discharge at same time  # todo: abfrage und ersetzen
+                    if SOMETHING: # todo: adjust
+                        self.model.addConstr(
+                            self.storage_charge_binary[c, cl, t] + self.storage_discharge_binary[c, cl, t] <= 1,
+                            name='balance_storage_binaries' + name_adding)
 
-                    self.model.addConstr(self.mass_energy_storage_in_commodities[c, cl, t]
-                                         - self.storage_charge_binary[c, cl, t] * self.bigM[c] <= 0,
-                                         name='activate_charging_binary' + name_adding)
+                        self.model.addConstr(self.mass_energy_storage_in_commodities[c, cl, t]
+                                             - self.storage_charge_binary[c, cl, t] * self.bigM[c] <= 0,
+                                             name='activate_charging_binary' + name_adding)
 
-                    self.model.addConstr(self.mass_energy_storage_out_commodities[c, cl, t]
-                                         - self.storage_discharge_binary[c, cl, t] * self.bigM[c] <= 0,
-                                         name='deactivate_charging_binary' + name_adding)
+                        self.model.addConstr(self.mass_energy_storage_out_commodities[c, cl, t]
+                                             - self.storage_discharge_binary[c, cl, t] * self.bigM[c] <= 0,
+                                             name='deactivate_charging_binary' + name_adding)
 
         # instead of first soc = last soc we can also say total in = total out
         for c in self.storage_components:

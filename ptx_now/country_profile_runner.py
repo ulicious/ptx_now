@@ -264,6 +264,31 @@ class CountrySettings:
     wacc: float | None
 
 
+class OptimizationNotOptimalError(RuntimeError):
+    def __init__(
+        self,
+        year: int,
+        country: str,
+        profile: str,
+        reason: str,
+        raw_status: str,
+    ) -> None:
+        self.year = year
+        self.country = country
+        self.profile = profile
+        self.reason = reason
+        self.raw_status = raw_status
+        super().__init__(year, country, profile, reason, raw_status)
+
+    def __str__(self) -> str:
+        return (
+            "Optimization aborted because no optimal solution was found: "
+            f"year={self.year}, country={self.country}, "
+            f"profile={self.profile}, reason={self.reason}, "
+            f"solver_status={self.raw_status}"
+        )
+
+
 def _normalise_folder(path: Path) -> str:
     return str(path.resolve()) + os.sep
 
@@ -698,19 +723,56 @@ def _model_class_for_solver(solver: str):
     return OptimizationPyomoModel
 
 
-def _optimization_status(optimization_problem: Any) -> tuple[bool, str]:
+def _optimization_status(
+    optimization_problem: Any,
+) -> tuple[bool, str, str]:
     status = getattr(optimization_problem, "status", None)
     if status is not None:
-        return status == 2, str(status)
+        gurobi_status = {
+            1: "loaded",
+            2: "optimal",
+            3: "infeasible",
+            4: "infeasible_or_unbounded",
+            5: "unbounded",
+            6: "cutoff",
+            7: "iteration_limit",
+            8: "node_limit",
+            9: "time_limit",
+            10: "solution_limit",
+            11: "interrupted",
+            12: "numeric_error",
+            13: "suboptimal",
+            14: "in_progress",
+            15: "user_objective_limit",
+            16: "work_limit",
+            17: "memory_limit",
+        }
+        reason = gurobi_status.get(int(status), "unknown")
+        return status == 2, reason, f"gurobi_status_{status}"
 
     results = getattr(optimization_problem, "results", None)
     if results is None:
-        return False, "unknown"
+        return False, "unknown", "unknown"
 
     solver_status = str(results.solver.status).lower()
     termination = str(results.solver.termination_condition).lower()
+    normalized_termination = termination.replace(" ", "_")
+    if "infeasibleorunbounded" in normalized_termination.replace("_", ""):
+        reason = "infeasible_or_unbounded"
+    elif "infeasible" in normalized_termination:
+        reason = "infeasible"
+    elif "unbounded" in normalized_termination:
+        reason = "unbounded"
+    elif "timelimit" in normalized_termination.replace("_", ""):
+        reason = "time_limit"
+    elif normalized_termination == "optimal":
+        reason = "optimal"
+    else:
+        reason = normalized_termination
+
     return (
         solver_status == "ok" and termination == "optimal",
+        reason,
         f"{solver_status}_{termination}",
     )
 
@@ -737,9 +799,34 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         optimization_problem.prepare(
             optimization_type=pm_object.get_optimization_type()
         )
-        optimization_problem.optimize()
+        try:
+            optimization_problem.optimize()
+        except Exception as exc:
+            is_optimal, reason, raw_status = _optimization_status(
+                optimization_problem
+            )
+            if not is_optimal and raw_status != "unknown":
+                raise OptimizationNotOptimalError(
+                    year,
+                    country,
+                    profile,
+                    reason,
+                    raw_status,
+                ) from exc
+            raise
 
-        is_optimal, solver_status = _optimization_status(optimization_problem)
+        is_optimal, reason, solver_status = _optimization_status(
+            optimization_problem
+        )
+        if not is_optimal:
+            raise OptimizationNotOptimalError(
+                year,
+                country,
+                profile,
+                reason,
+                solver_status,
+            )
+
         economic_objective = getattr(
             optimization_problem,
             "economic_objective_function_value",
@@ -761,18 +848,6 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             "economic_objective": economic_objective,
             "ecologic_objective": ecologic_objective,
         }
-        if not is_optimal:
-            return {
-                "result": {
-                    **base_result,
-                    "status": "not_optimal",
-                    "total_costs": economic_objective,
-                    "produced_quantity": None,
-                    "cost_per_produced_unit": None,
-                },
-                "components": [],
-                "error": None,
-            }
 
         pm_object.set_objective_function_value(
             optimization_problem.objective_function_value
@@ -835,6 +910,8 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             "error": None,
         }
 
+    except OptimizationNotOptimalError:
+        raise
     except Exception as exc:  # noqa: BLE001 - one profile must not stop a batch.
         return {
             "result": {
@@ -1181,6 +1258,29 @@ def run(config: RunnerConfig) -> None:
                     _applied_rows_with_country(applied, settings)
                 )
                 completed_countries.append(country)
+
+            except OptimizationNotOptimalError as exc:
+                year_errors.append(
+                    {
+                        "scenario_year": exc.year,
+                        "country": exc.country,
+                        "region": settings.region,
+                        "profile": exc.profile,
+                        "error": str(exc),
+                    }
+                )
+                write_year_results(
+                    output_path=output_path,
+                    year=year,
+                    completed_countries=completed_countries,
+                    results=year_results,
+                    components=year_components,
+                    applied_parameters=year_parameters,
+                    errors=year_errors,
+                )
+                print(f"\nABORT: {exc}")
+                print(f"Checkpoint written before abort: {output_path}")
+                raise SystemExit(str(exc)) from exc
 
             except Exception as exc:  # noqa: BLE001 - checkpoint and continue.
                 year_errors.append(

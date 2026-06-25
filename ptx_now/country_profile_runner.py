@@ -31,6 +31,7 @@ from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
+RUNNER_VERSION = "2026-06-25-server-first-local-fallback-v1"
 
 
 # ---------------------------------------------------------------------------
@@ -1720,6 +1721,7 @@ def main() -> None:
     config = build_config()
     validate_config(config)
     print(
+        f"Runner version: {RUNNER_VERSION}\n"
         f"Countries: {config.countries_root}\n"
         f"YAML: {config.settings_yaml}\n"
         f"Parameters: {config.parameters_xlsx}\n"

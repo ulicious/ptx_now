@@ -31,7 +31,7 @@ from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
-RUNNER_VERSION = "2026-06-25-server-first-local-fallback-v1"
+RUNNER_VERSION = "2026-06-25-solver-capacity-reporting-v2"
 
 
 # ---------------------------------------------------------------------------
@@ -907,6 +907,30 @@ def _optimization_status(
     )
 
 
+def _variable_value(variable: Any) -> float:
+    value = getattr(variable, "X", None)
+    if value is None:
+        value = getattr(variable, "value", None)
+    if callable(value):
+        value = value()
+    if value is None:
+        raise ValueError(f"Solver variable has no result value: {variable!r}")
+    return float(value)
+
+
+def _solver_nominal_capacity(
+    optimization_problem: Any,
+    component_name: str,
+) -> float:
+    nominal_cap = getattr(optimization_problem, "nominal_cap", None)
+    if nominal_cap is None:
+        instance = getattr(optimization_problem, "instance", None)
+        nominal_cap = getattr(instance, "nominal_cap", None)
+    if nominal_cap is None:
+        raise ValueError("Optimization result has no nominal_cap variable.")
+    return _variable_value(nominal_cap[component_name])
+
+
 def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
     country = job["country"]
     region = job["region"]
@@ -992,7 +1016,12 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             commodity.get_name(): commodity.get_produced_quantity()
             for commodity in pm_object.get_final_commodities_objects()
         }
-        produced_quantity = sum(produced_by_commodity.values())
+        demanded_production = {
+            commodity.get_name(): commodity.get_produced_quantity()
+            for commodity in pm_object.get_final_commodities_objects()
+            if commodity.is_demanded()
+        }
+        produced_quantity = sum(demanded_production.values())
         total_costs = economic_objective
         cost_per_produced_unit = (
             total_costs / produced_quantity
@@ -1003,14 +1032,45 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         components = []
         capacity_columns = {}
         for component in pm_object.get_final_components_objects():
+            component_name = component.get_name()
+            solver_capacity = _solver_nominal_capacity(
+                optimization_problem,
+                component_name,
+            )
+            capacity_ratio = (
+                component.get_capex_ratio()
+                if component.get_component_type() == "conversion"
+                else 1.0
+            )
+            reported_capacity = solver_capacity * capacity_ratio
+            transferred_capacity = component.get_fixed_capacity()
+
+            produced_by_component = sum(
+                component.get_specific_produced_commodity(commodity_name)
+                for commodity_name in produced_by_commodity
+            )
+            if produced_by_component > 1e-8 and solver_capacity <= 1e-12:
+                raise RuntimeError(
+                    "Inconsistent optimization result: component "
+                    f"'{component_name}' produced {produced_by_component} "
+                    "but its solver nominal capacity is zero."
+                )
+
             component_row = {
                 "scenario_year": year,
                 "country": country,
                 "region": region,
                 "profile": profile,
-                "component": component.get_name(),
+                "component": component_name,
                 "component_type": component.get_component_type(),
-                "capacity": component.get_fixed_capacity(),
+                "capacity": reported_capacity,
+                "solver_capacity": solver_capacity,
+                "transferred_capacity": transferred_capacity,
+                "capacity_basis": (
+                    component.get_capex_basis()
+                    if component.get_component_type() == "conversion"
+                    else "native"
+                ),
                 "investment": component.get_investment(),
                 "annualized_investment": component.get_annualized_investment(),
                 "fixed_costs": component.get_total_fixed_costs(),
@@ -1018,12 +1078,10 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                 "component_total_costs": component.get_total_costs(),
             }
             components.append(component_row)
-            capacity_columns[f"capacity__{component.get_name()}"] = (
-                component.get_fixed_capacity()
-            )
+            capacity_columns[f"capacity_{component_name}"] = reported_capacity
 
         commodity_columns = {
-            f"produced__{name}": quantity
+            f"produced_{name}": quantity
             for name, quantity in produced_by_commodity.items()
         }
         return {
@@ -1121,6 +1179,18 @@ def _safe_excel_value(value: Any) -> Any:
         return value
 
 
+def _normalize_result_record(record: dict[str, Any]) -> dict[str, Any]:
+    normalized_record = {}
+    for key, value in record.items():
+        normalized_key = key
+        if key.startswith("capacity__"):
+            normalized_key = "capacity_" + key.removeprefix("capacity__")
+        elif key.startswith("produced__"):
+            normalized_key = "produced_" + key.removeprefix("produced__")
+        normalized_record[normalized_key] = value
+    return normalized_record
+
+
 def _records_from_sheet(path: Path, sheet_name: str) -> list[dict[str, Any]]:
     import pandas as pd
 
@@ -1130,13 +1200,15 @@ def _records_from_sheet(path: Path, sheet_name: str) -> list[dict[str, Any]]:
         return []
     if frame.empty:
         return []
-    return [
-        {
+    records = []
+    for record in frame.to_dict(orient="records"):
+        normalized_record = _normalize_result_record(record)
+        normalized_record = {
             key: _safe_excel_value(value)
-            for key, value in record.items()
+            for key, value in normalized_record.items()
         }
-        for record in frame.to_dict(orient="records")
-    ]
+        records.append(normalized_record)
+    return records
 
 
 def _load_existing_year_results(
@@ -1323,6 +1395,7 @@ def write_year_results(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_suffix(".tmp.xlsx")
+    results = [_normalize_result_record(record) for record in results]
 
     result_base_columns = [
         "scenario_year",
@@ -1360,6 +1433,9 @@ def write_year_results(
             "component",
             "component_type",
             "capacity",
+            "solver_capacity",
+            "transferred_capacity",
+            "capacity_basis",
             "investment",
             "annualized_investment",
             "fixed_costs",
@@ -1477,10 +1553,24 @@ def run(config: RunnerConfig) -> None:
                 for row in year_results
                 if row.get("country") == country
             ]
+            country_component_rows = [
+                row
+                for row in year_components
+                if row.get("country") == country
+            ]
             expected_profiles = int(record.get("profile_count", 0))
+            has_current_capacity_schema = (
+                bool(country_component_rows)
+                and all(
+                    row.get("solver_capacity") is not None
+                    and row.get("transferred_capacity") is not None
+                    for row in country_component_rows
+                )
+            )
             if (
                 country_rows
                 and len(country_rows) == expected_profiles
+                and has_current_capacity_schema
                 and all(
                     row.get("status") == "optimal"
                     for row in country_rows
@@ -1490,7 +1580,8 @@ def run(config: RunnerConfig) -> None:
             else:
                 print(
                     f"Progress entry for {year}/{country} is not backed by "
-                    "a complete optimal result set; country will be rerun."
+                    "a complete optimal result set using the current output "
+                    "schema; country will be rerun."
                 )
 
         completed_countries = sorted(resumable_completed)

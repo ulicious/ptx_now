@@ -18,7 +18,11 @@ from __future__ import annotations
 import json
 import multiprocessing
 import os
+import shutil
+import tempfile
+import time
 import traceback
+import zipfile
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
@@ -56,6 +60,8 @@ SOLVER = "gurobi"
 OPTIMIZATION_TYPE: str | None = "economical"
 CORES: int | str = "max"
 RECURSIVE_PROFILES = False
+PROFILE_COPY_RETRIES = 5
+PROFILE_COPY_RETRY_DELAY_SECONDS = 2.0
 
 # None means all discovered country folders.
 COUNTRIES: list[str] | None = None
@@ -756,6 +762,85 @@ def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
     )
 
 
+def _validate_staged_profile(path: Path) -> None:
+    if not path.is_file():
+        raise FileNotFoundError(f"Staged profile does not exist: {path}")
+    if path.stat().st_size == 0:
+        raise OSError(f"Staged profile is empty: {path}")
+
+    if path.suffix.lower() == ".xlsx":
+        with zipfile.ZipFile(path, "r") as archive:
+            corrupt_member = archive.testzip()
+            if corrupt_member is not None:
+                raise zipfile.BadZipFile(
+                    f"Corrupt member '{corrupt_member}' in {path}"
+                )
+
+
+def _copy_profile_with_retries(
+    source: Path,
+    destination: Path,
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary_destination = destination.with_suffix(
+        destination.suffix + ".part"
+    )
+    last_error: Exception | None = None
+
+    for attempt in range(1, PROFILE_COPY_RETRIES + 1):
+        try:
+            temporary_destination.unlink(missing_ok=True)
+            destination.unlink(missing_ok=True)
+
+            source_size_before = source.stat().st_size
+            with source.open("rb") as source_file:
+                with temporary_destination.open("wb") as destination_file:
+                    shutil.copyfileobj(
+                        source_file,
+                        destination_file,
+                        length=1024 * 1024,
+                    )
+                    destination_file.flush()
+                    os.fsync(destination_file.fileno())
+
+            source_size_after = source.stat().st_size
+            copied_size = temporary_destination.stat().st_size
+            if source_size_before != source_size_after:
+                raise OSError(
+                    "Source file size changed while it was being copied: "
+                    f"{source_size_before} -> {source_size_after}"
+                )
+            if copied_size != source_size_after:
+                raise OSError(
+                    f"Incomplete copy: source={source_size_after} bytes, "
+                    f"local={copied_size} bytes"
+                )
+
+            _validate_staged_profile(temporary_destination)
+            os.replace(temporary_destination, destination)
+            return
+
+        except Exception as exc:  # noqa: BLE001 - network reads are retried.
+            last_error = exc
+            temporary_destination.unlink(missing_ok=True)
+            destination.unlink(missing_ok=True)
+            if attempt == PROFILE_COPY_RETRIES:
+                break
+
+            delay = PROFILE_COPY_RETRY_DELAY_SECONDS * attempt
+            print(
+                f"Profile copy failed ({attempt}/{PROFILE_COPY_RETRIES}): "
+                f"{source}: {type(exc).__name__}: {exc}. "
+                f"Retry in {delay:.1f}s."
+            )
+            time.sleep(delay)
+
+    raise OSError(
+        f"Could not create a valid local copy after "
+        f"{PROFILE_COPY_RETRIES} attempts: {source}"
+    ) from last_error
+
+
 def _model_class_for_solver(solver: str):
     if solver.lower() == "gurobi":
         from optimization_gurobi_model import OptimizationGurobiModel
@@ -959,6 +1044,50 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
     except ProfileOptimizationError:
         raise
     except Exception as exc:
+        retryable_file_error = isinstance(
+            exc,
+            (OSError, EOFError, zipfile.BadZipFile),
+        )
+        if retryable_file_error and not job.get("_local_file_retry"):
+            safe_country = "".join(
+                character if character.isalnum() else "_"
+                for character in country
+            )
+            local_profile_dir = Path(
+                tempfile.mkdtemp(
+                    prefix=f"ptx_now_retry_{year}_{safe_country}_",
+                )
+            )
+            source_profile = Path(job["profile_dir"]) / profile
+            local_profile = local_profile_dir / profile
+
+            print(
+                f"Direct server read failed for {source_profile}: "
+                f"{type(exc).__name__}: {exc}. "
+                f"Retrying with a validated local copy."
+            )
+            try:
+                _copy_profile_with_retries(
+                    source=source_profile,
+                    destination=local_profile,
+                )
+                retry_job = dict(job)
+                retry_job["profile_dir"] = local_profile_dir
+                retry_job["_local_file_retry"] = True
+                result = _run_single_profile(retry_job)
+            except Exception:
+                print(
+                    f"Local retry directory retained after failure: "
+                    f"{local_profile_dir}"
+                )
+                raise
+            else:
+                shutil.rmtree(local_profile_dir)
+                print(
+                    f"Local retry succeeded for {country}/{profile}"
+                )
+                return result
+
         raise ProfileOptimizationError(
             year=year,
             country=country,

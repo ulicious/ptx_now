@@ -15,8 +15,10 @@ Run:
 
 from __future__ import annotations
 
+import json
 import multiprocessing
 import os
+import traceback
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
@@ -60,6 +62,7 @@ COUNTRIES: list[str] | None = None
 
 COUNTRIES_SHEET = "countries"
 PARAMETERS_SHEET = "parameters"
+PROGRESS_FILE_NAME = "runner_progress.json"
 
 # Country folders are mapped to the parameter geographies below. Exact
 # geographies such as China or India take precedence over broad regions.
@@ -296,30 +299,37 @@ class ProfileOptimizationError(RuntimeError):
         country: str,
         region: str,
         profile: str,
+        profile_path: str,
         exception_type: str,
         detail: str,
+        traceback_text: str,
     ) -> None:
         self.year = year
         self.country = country
         self.region = region
         self.profile = profile
+        self.profile_path = profile_path
         self.exception_type = exception_type
         self.detail = detail
+        self.traceback_text = traceback_text
         super().__init__(
             year,
             country,
             region,
             profile,
+            profile_path,
             exception_type,
             detail,
+            traceback_text,
         )
 
     def __str__(self) -> str:
         return (
             "Optimization aborted because the profile run failed: "
             f"year={self.year}, country={self.country}, "
-            f"profile={self.profile}, exception={self.exception_type}, "
-            f"detail={self.detail}"
+            f"profile={self.profile}, profile_path={self.profile_path}, "
+            f"exception={self.exception_type}, detail={self.detail}\n"
+            f"Traceback:\n{self.traceback_text}"
         )
 
 
@@ -954,8 +964,10 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             country=country,
             region=region,
             profile=profile,
+            profile_path=str(Path(job["profile_dir"]) / profile),
             exception_type=type(exc).__name__,
             detail=repr(exc),
+            traceback_text=traceback.format_exc(),
         ) from exc
 
 
@@ -977,6 +989,132 @@ def _safe_excel_value(value: Any) -> Any:
         return None if pd.isna(value) else value
     except TypeError:
         return value
+
+
+def _records_from_sheet(path: Path, sheet_name: str) -> list[dict[str, Any]]:
+    import pandas as pd
+
+    try:
+        frame = pd.read_excel(path, sheet_name=sheet_name)
+    except ValueError:
+        return []
+    if frame.empty:
+        return []
+    return [
+        {
+            key: _safe_excel_value(value)
+            for key, value in record.items()
+        }
+        for record in frame.to_dict(orient="records")
+    ]
+
+
+def _load_existing_year_results(
+    output_path: Path,
+    year: int,
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    if not output_path.is_file():
+        return [], [], [], []
+
+    results = _records_from_sheet(output_path, "results")
+    components = _records_from_sheet(output_path, "components")
+    parameters = _records_from_sheet(output_path, "parameters_applied")
+    errors = _records_from_sheet(output_path, "errors")
+
+    for sheet_name, records in [
+        ("results", results),
+        ("components", components),
+        ("parameters_applied", parameters),
+        ("errors", errors),
+    ]:
+        wrong_years = {
+            int(record["scenario_year"])
+            for record in records
+            if record.get("scenario_year") is not None
+            and int(record["scenario_year"]) != year
+        }
+        if wrong_years:
+            raise ValueError(
+                f"Existing sheet '{sheet_name}' in {output_path} contains "
+                f"unexpected scenario years: {sorted(wrong_years)}"
+            )
+
+    return results, components, parameters, errors
+
+
+def _progress_path(config: RunnerConfig) -> Path:
+    return config.output_dir / PROGRESS_FILE_NAME
+
+
+def _load_progress(config: RunnerConfig) -> dict[str, Any]:
+    path = _progress_path(config)
+    if not path.is_file():
+        return {"version": 1, "scenario_years": {}}
+
+    with path.open("r", encoding="utf-8") as file:
+        progress = json.load(file)
+    if progress.get("version") != 1:
+        raise ValueError(
+            f"Unsupported progress file version in {path}: "
+            f"{progress.get('version')}"
+        )
+    progress.setdefault("scenario_years", {})
+    return progress
+
+
+def _save_progress(config: RunnerConfig, progress: dict[str, Any]) -> None:
+    path = _progress_path(config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_suffix(".tmp.json")
+    with temporary_path.open("w", encoding="utf-8") as file:
+        json.dump(progress, file, indent=2, ensure_ascii=True)
+    os.replace(temporary_path, path)
+
+
+def _completed_country_records(
+    progress: dict[str, Any],
+    year: int,
+) -> dict[str, Any]:
+    year_state = progress.setdefault("scenario_years", {}).setdefault(
+        str(year),
+        {},
+    )
+    return year_state.setdefault("completed_countries", {})
+
+
+def _mark_country_completed(
+    config: RunnerConfig,
+    progress: dict[str, Any],
+    year: int,
+    country: str,
+    region: str,
+    profile_count: int,
+    output_path: Path,
+) -> None:
+    completed = _completed_country_records(progress, year)
+    completed[country] = {
+        "region": region,
+        "profile_count": profile_count,
+        "completed_at": datetime.now().isoformat(timespec="seconds"),
+        "output_file": str(output_path),
+    }
+    _save_progress(config, progress)
+
+
+def _remove_country_records(
+    records: list[dict[str, Any]],
+    country: str,
+) -> list[dict[str, Any]]:
+    return [
+        record
+        for record in records
+        if record.get("country") != country
+    ]
 
 
 def _format_output_workbook(path: Path) -> None:
@@ -1188,24 +1326,75 @@ def run(config: RunnerConfig) -> None:
         raise SystemExit("No country folders found.")
 
     base_pm_object = _build_base_parameter_object(config)
+    progress = _load_progress(config)
 
     for year in config.scenario_years:
         print(f"\n=== Scenario year {year} ===")
         output_path = config.output_dir / f"country_profile_results_{year}.xlsx"
 
-        year_results: list[dict[str, Any]] = []
-        year_components: list[dict[str, Any]] = []
-        year_parameters: list[dict[str, Any]] = []
-        year_errors: list[dict[str, Any]] = []
-        completed_countries: list[str] = []
+        (
+            year_results,
+            year_components,
+            year_parameters,
+            year_errors,
+        ) = _load_existing_year_results(output_path, year)
+
+        logged_completed = _completed_country_records(progress, year)
+        resumable_completed = set()
+        for country, record in logged_completed.items():
+            country_rows = [
+                row
+                for row in year_results
+                if row.get("country") == country
+            ]
+            expected_profiles = int(record.get("profile_count", 0))
+            if (
+                country_rows
+                and len(country_rows) == expected_profiles
+                and all(
+                    row.get("status") == "optimal"
+                    for row in country_rows
+                )
+            ):
+                resumable_completed.add(country)
+            else:
+                print(
+                    f"Progress entry for {year}/{country} is not backed by "
+                    "a complete optimal result set; country will be rerun."
+                )
+
+        completed_countries = sorted(resumable_completed)
+        if completed_countries:
+            print(
+                f"Resume {year}: {len(completed_countries)} completed "
+                "countries loaded from progress log."
+            )
 
         for country_dir in country_dirs:
             country = country_dir.name
 
             if country == "00_Information":
                 continue
+            if country in resumable_completed:
+                print(f"{year}: Skip completed country {country}")
+                continue
 
             print(f"{year}: {country}")
+            country_successful = False
+            completed_profile_count = 0
+
+            # Remove stale rows from an interrupted or previously failed run
+            # before recalculating this country.
+            year_results = _remove_country_records(year_results, country)
+            year_components = _remove_country_records(
+                year_components,
+                country,
+            )
+            year_parameters = _remove_country_records(
+                year_parameters,
+                country,
+            )
+            year_errors = _remove_country_records(year_errors, country)
 
             try:
                 settings = _country_settings(countries_df, country)
@@ -1275,6 +1464,10 @@ def run(config: RunnerConfig) -> None:
                         country=country,
                         region=settings.region,
                         profile=str(result_row.get("profile", "unknown")),
+                        profile_path=str(
+                            profile_dir
+                            / str(result_row.get("profile", "unknown"))
+                        ),
                         exception_type=str(
                             result_row.get("solver_status", "unknown")
                         ),
@@ -1284,6 +1477,7 @@ def run(config: RunnerConfig) -> None:
                                 f"Non-optimal result row: {result_row}",
                             )
                         ),
+                        traceback_text="No worker traceback was returned.",
                     )
 
                 year_results.extend(
@@ -1303,6 +1497,8 @@ def run(config: RunnerConfig) -> None:
                     _applied_rows_with_country(applied, settings)
                 )
                 completed_countries.append(country)
+                country_successful = True
+                completed_profile_count = len(country_results)
 
             except OptimizationNotOptimalError as exc:
                 year_errors.append(
@@ -1372,6 +1568,21 @@ def run(config: RunnerConfig) -> None:
                 errors=year_errors,
             )
             print(f"Checkpoint written: {output_path}")
+            if country_successful:
+                _mark_country_completed(
+                    config=config,
+                    progress=progress,
+                    year=year,
+                    country=country,
+                    region=settings.region,
+                    profile_count=completed_profile_count,
+                    output_path=output_path,
+                )
+                resumable_completed.add(country)
+                print(
+                    f"Progress logged: year={year}, country={country}, "
+                    f"profiles={completed_profile_count}"
+                )
 
         print(f"Final result for {year}: {output_path}")
 

@@ -300,7 +300,7 @@ class OptimizationGurobiModel:
                                          name='min_soc' + name_adding)
 
                     # storage binary --> don't allow charge and discharge at same time  # todo: abfrage und ersetzen
-                    if SOMETHING: # todo: adjust
+                    if True: # todo: adjust
                         self.model.addConstr(
                             self.storage_charge_binary[c, cl, t] + self.storage_discharge_binary[c, cl, t] <= 1,
                             name='balance_storage_binaries' + name_adding)

@@ -30,15 +30,21 @@ PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
 # ---------------------------------------------------------------------------
 # Hard-coded configuration
 # ---------------------------------------------------------------------------
-COUNTRIES_ROOT = Path(r"Z:\weatherOut\weatherOut_Uwe")
+COUNTRIES_ROOT = Path(
+    r"/run/user/1000/gvfs/smb-share:server=iipsrv-ss1.iip.kit.edu,"
+    r"share=daten$/weatherOut/weatherOut_Uwe"
+)
 SETTINGS_YAML = Path(
-    r"C:\Users\mt5285\Documents\yamls_hydrogen\hydrogen_all_data.yaml"
+    r"/home/localadmin/Dokumente/ptx_now_data/"
+    r"global_hydrogen_case_calculation/hydrogen.yaml"
 )
 PARAMETERS_XLSX = Path(
-    r"C:\Users\mt5285\Documents\yamls_hydrogen\runner_parameters.xlsx"
+    r"/home/localadmin/Dokumente/ptx_now_data/"
+    r"global_hydrogen_case_calculation/runner_parameters.xlsx"
 )
 OUTPUT_DIR = Path(
-    r"C:\Users\mt5285\Documents\yamls_hydrogen\optimization_results"
+    r"/home/localadmin/Dokumente/ptx_now_data/"
+    r"global_hydrogen_case_calculation/results"
 )
 
 SCENARIO_YEARS = (2030, 2040, 2050)
@@ -54,6 +60,186 @@ COUNTRIES: list[str] | None = None
 
 COUNTRIES_SHEET = "countries"
 PARAMETERS_SHEET = "parameters"
+
+# Country folders are mapped to the parameter geographies below. Exact
+# geographies such as China or India take precedence over broad regions.
+EUROPE_COUNTRIES = {
+    "Albania",
+    "Austria",
+    "Belarus",
+    "Belgium",
+    "Bosnia and Herzegovina",
+    "Bulgaria",
+    "Croatia",
+    "Cyprus",
+    "Czech Republic",
+    "Denmark",
+    "Estonia",
+    "Finland",
+    "France",
+    "Germany",
+    "Greece",
+    "Hungary",
+    "Iceland",
+    "Ireland",
+    "Italy",
+    "Latvia",
+    "Lithuania",
+    "Luxembourg",
+    "Moldova",
+    "Montenegro",
+    "Netherlands",
+    "North Macedonia",
+    "Norway",
+    "Poland",
+    "Portugal",
+    "Romania",
+    "Serbia",
+    "Slovakia",
+    "Slovenia",
+    "Spain",
+    "Sweden",
+    "Switzerland",
+    "Turkey",
+    "Ukraine",
+    "United Kingdom",
+}
+MIDDLE_EAST_COUNTRIES = {
+    "Bahrain",
+    "Iran",
+    "Iraq",
+    "Israel",
+    "Jordan",
+    "Kuwait",
+    "Lebanon",
+    "Oman",
+    "Qatar",
+    "Saudi Arabia",
+    "Syria",
+    "United Arab Emirates",
+    "Yemen",
+}
+AFRICA_COUNTRIES = {
+    "Algeria",
+    "Angola",
+    "Benin",
+    "Botswana",
+    "Burkina Faso",
+    "Burundi",
+    "Cameroon",
+    "Central African Republic",
+    "Chad",
+    "Comoros",
+    "Democratic Republic of the Congo",
+    "Djibouti",
+    "Egypt",
+    "Equatorial Guinea",
+    "Eritrea",
+    "Eswatini",
+    "Ethiopia",
+    "Gabon",
+    "Gambia",
+    "Ghana",
+    "Guinea",
+    "Guinea-Bissau",
+    "Ivory Coast",
+    "Kenya",
+    "Lesotho",
+    "Liberia",
+    "Libya",
+    "Madagascar",
+    "Malawi",
+    "Mali",
+    "Mauritania",
+    "Morocco",
+    "Mozambique",
+    "Namibia",
+    "Niger",
+    "Nigeria",
+    "Republic of the Congo",
+    "Rwanda",
+    "Senegal",
+    "Sierra Leone",
+    "Somalia",
+    "South Africa",
+    "South Sudan",
+    "Sudan",
+    "Tanzania",
+    "Togo",
+    "Tunisia",
+    "Uganda",
+    "Western Sahara",
+    "Zambia",
+    "Zimbabwe",
+}
+LATIN_AMERICA_COUNTRIES = {
+    "Argentina",
+    "Belize",
+    "Bolivia",
+    "Chile",
+    "Colombia",
+    "Costa Rica",
+    "Cuba",
+    "Dominican Republic",
+    "Ecuador",
+    "El Salvador",
+    "Guatemala",
+    "Guyana",
+    "Haiti",
+    "Honduras",
+    "Jamaica",
+    "Mexico",
+    "Nicaragua",
+    "Panama",
+    "Paraguay",
+    "Peru",
+    "Puerto Rico",
+    "Suriname",
+    "Uruguay",
+    "Venezuela",
+}
+ASIA_OCEANIA_COUNTRIES = {
+    "Afghanistan",
+    "Armenia",
+    "Australia",
+    "Azerbaijan",
+    "Bangladesh",
+    "Bhutan",
+    "Brunei",
+    "Cambodia",
+    "Georgia",
+    "Indonesia",
+    "Kazakhstan",
+    "Kyrgyzstan",
+    "Laos",
+    "Malaysia",
+    "Mongolia",
+    "Myanmar",
+    "Nepal",
+    "New Zealand",
+    "North Korea",
+    "Pakistan",
+    "Papua New Guinea",
+    "Philippines",
+    "South Korea",
+    "Sri Lanka",
+    "Tajikistan",
+    "Thailand",
+    "Turkmenistan",
+    "Uzbekistan",
+    "Vietnam",
+}
+COUNTRY_REGION_ALIASES = {
+    "Brazil": "Brazil",
+    "Canada": "North America",
+    "China": "China",
+    "People's Republic of China": "China",
+    "India": "India",
+    "Japan": "Japan",
+    "Russia": "Russia",
+    "United States": "United States",
+    "United States of America": "United States",
+}
 
 
 @dataclass(frozen=True)
@@ -319,19 +505,66 @@ def _country_settings(countries_df: Any, country: str) -> CountrySettings:
     import pandas as pd
 
     matches = countries_df[countries_df["country"] == country]
-    if len(matches) != 1:
+    if len(matches) > 1:
         raise ValueError(
-            f"Country '{country}' must occur exactly once in sheet "
+            f"Country '{country}' may occur at most once in sheet "
             f"'{COUNTRIES_SHEET}', found {len(matches)} rows."
         )
 
-    row = matches.iloc[0]
-    wacc = None if pd.isna(row["wacc"]) else float(row["wacc"])
+    available_regions = set(countries_df["region"])
+    if len(matches) == 1:
+        row = matches.iloc[0]
+        region = str(row["region"]).strip()
+        wacc = None if pd.isna(row["wacc"]) else float(row["wacc"])
+    else:
+        region = _infer_parameter_region(country, available_regions)
+        region_rows = countries_df[
+            (countries_df["country"] == region)
+            | (countries_df["region"] == region)
+        ]
+        region_wacc_values = region_rows["wacc"].dropna()
+        wacc = (
+            float(region_wacc_values.iloc[0])
+            if len(region_wacc_values) > 0
+            else None
+        )
+
     return CountrySettings(
         country=country,
-        region=str(row["region"]).strip(),
+        region=region,
         wacc=wacc,
     )
+
+
+def _infer_parameter_region(
+    country: str,
+    available_regions: set[str],
+) -> str:
+    if country in COUNTRY_REGION_ALIASES:
+        region = COUNTRY_REGION_ALIASES[country]
+    elif country in EUROPE_COUNTRIES:
+        region = "European Union"
+    elif country in MIDDLE_EAST_COUNTRIES:
+        region = "Middle East"
+    elif country in AFRICA_COUNTRIES:
+        region = "Africa"
+    elif country in LATIN_AMERICA_COUNTRIES:
+        region = "South & Latin America"
+    elif country in ASIA_OCEANIA_COUNTRIES:
+        region = "Asia & Oceania"
+    else:
+        raise ValueError(
+            f"No automatic parameter region is defined for country "
+            f"'{country}'. Add an exact row to sheet '{COUNTRIES_SHEET}' "
+            "or extend the country mapping in country_profile_runner.py."
+        )
+
+    if region not in available_regions:
+        raise ValueError(
+            f"Country '{country}' maps to region '{region}', but that region "
+            f"is not present in sheet '{COUNTRIES_SHEET}'."
+        )
+    return region
 
 
 def _parameter_rows_for_country(
@@ -871,6 +1104,10 @@ def run(config: RunnerConfig) -> None:
 
         for country_dir in country_dirs:
             country = country_dir.name
+
+            if country == "00_Information":
+                continue
+
             print(f"{year}: {country}")
 
             try:

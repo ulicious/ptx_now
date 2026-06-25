@@ -289,6 +289,40 @@ class OptimizationNotOptimalError(RuntimeError):
         )
 
 
+class ProfileOptimizationError(RuntimeError):
+    def __init__(
+        self,
+        year: int,
+        country: str,
+        region: str,
+        profile: str,
+        exception_type: str,
+        detail: str,
+    ) -> None:
+        self.year = year
+        self.country = country
+        self.region = region
+        self.profile = profile
+        self.exception_type = exception_type
+        self.detail = detail
+        super().__init__(
+            year,
+            country,
+            region,
+            profile,
+            exception_type,
+            detail,
+        )
+
+    def __str__(self) -> str:
+        return (
+            "Optimization aborted because the profile run failed: "
+            f"year={self.year}, country={self.country}, "
+            f"profile={self.profile}, exception={self.exception_type}, "
+            f"detail={self.detail}"
+        )
+
+
 def _normalise_folder(path: Path) -> str:
     return str(path.resolve()) + os.sep
 
@@ -912,31 +946,17 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
 
     except OptimizationNotOptimalError:
         raise
-    except Exception as exc:  # noqa: BLE001 - one profile must not stop a batch.
-        return {
-            "result": {
-                "scenario_year": year,
-                "country": country,
-                "region": region,
-                "profile": profile,
-                "wacc": job["wacc"],
-                "status": "failed",
-                "solver_status": "exception",
-                "economic_objective": None,
-                "ecologic_objective": None,
-                "total_costs": None,
-                "produced_quantity": None,
-                "cost_per_produced_unit": None,
-            },
-            "components": [],
-            "error": {
-                "scenario_year": year,
-                "country": country,
-                "region": region,
-                "profile": profile,
-                "error": repr(exc),
-            },
-        }
+    except ProfileOptimizationError:
+        raise
+    except Exception as exc:
+        raise ProfileOptimizationError(
+            year=year,
+            country=country,
+            region=region,
+            profile=profile,
+            exception_type=type(exc).__name__,
+            detail=repr(exc),
+        ) from exc
 
 
 def _run_country_jobs(jobs: list[dict[str, Any]], cores: int) -> list[dict[str, Any]]:
@@ -1241,6 +1261,31 @@ def run(config: RunnerConfig) -> None:
                 ]
                 country_results = _run_country_jobs(jobs, config.cores)
 
+                unsuccessful = [
+                    result
+                    for result in country_results
+                    if result.get("result", {}).get("status") != "optimal"
+                ]
+                if unsuccessful:
+                    failed_result = unsuccessful[0]
+                    result_row = failed_result.get("result", {})
+                    error_row = failed_result.get("error") or {}
+                    raise ProfileOptimizationError(
+                        year=year,
+                        country=country,
+                        region=settings.region,
+                        profile=str(result_row.get("profile", "unknown")),
+                        exception_type=str(
+                            result_row.get("solver_status", "unknown")
+                        ),
+                        detail=str(
+                            error_row.get(
+                                "error",
+                                f"Non-optimal result row: {result_row}",
+                            )
+                        ),
+                    )
+
                 year_results.extend(
                     result["result"] for result in country_results
                 )
@@ -1265,6 +1310,29 @@ def run(config: RunnerConfig) -> None:
                         "scenario_year": exc.year,
                         "country": exc.country,
                         "region": settings.region,
+                        "profile": exc.profile,
+                        "error": str(exc),
+                    }
+                )
+                write_year_results(
+                    output_path=output_path,
+                    year=year,
+                    completed_countries=completed_countries,
+                    results=year_results,
+                    components=year_components,
+                    applied_parameters=year_parameters,
+                    errors=year_errors,
+                )
+                print(f"\nABORT: {exc}")
+                print(f"Checkpoint written before abort: {output_path}")
+                raise SystemExit(str(exc)) from exc
+
+            except ProfileOptimizationError as exc:
+                year_errors.append(
+                    {
+                        "scenario_year": exc.year,
+                        "country": exc.country,
+                        "region": exc.region,
                         "profile": exc.profile,
                         "error": str(exc),
                     }

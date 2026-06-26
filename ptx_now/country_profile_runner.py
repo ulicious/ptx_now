@@ -31,7 +31,7 @@ from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
-RUNNER_VERSION = "2026-06-25-solver-capacity-reporting-v2"
+RUNNER_VERSION = "2026-06-26-solver-flow-capacity-check-v3"
 
 
 # ---------------------------------------------------------------------------
@@ -931,6 +931,79 @@ def _solver_nominal_capacity(
     return _variable_value(nominal_cap[component_name])
 
 
+def _solver_weighted_flow_sum(
+    variable: Any,
+    keys: list[tuple[Any, ...]],
+    weightings: dict[Any, float],
+    cluster_index: int,
+) -> float:
+    quantity = 0.0
+    for key in keys:
+        quantity += _variable_value(variable[key]) * weightings[key[cluster_index]]
+    return quantity
+
+
+def _solver_component_output_quantity(
+    optimization_problem: Any,
+    pm_object: Any,
+    component_name: str,
+    commodity_names: set[str],
+) -> float:
+    variable = getattr(
+        optimization_problem,
+        "mass_energy_component_out_commodities",
+        None,
+    )
+    if variable is None:
+        instance = getattr(optimization_problem, "instance", None)
+        variable = getattr(instance, "mass_energy_component_out_commodities", None)
+    if variable is None:
+        return 0.0
+
+    weightings = pm_object.get_weightings_time_series()
+    keys = [
+        (component_name, commodity_name, cl, t)
+        for commodity_name in commodity_names
+        for cl in range(pm_object.get_number_clusters())
+        for t in range(pm_object.get_covered_period())
+    ]
+    existing_keys = [key for key in keys if key in variable]
+    return _solver_weighted_flow_sum(
+        variable,
+        existing_keys,
+        weightings,
+        cluster_index=2,
+    )
+
+
+def _solver_generator_output_quantity(
+    optimization_problem: Any,
+    pm_object: Any,
+    component_name: str,
+    commodity_name: str,
+) -> float:
+    variable = getattr(optimization_problem, "mass_energy_generation", None)
+    if variable is None:
+        instance = getattr(optimization_problem, "instance", None)
+        variable = getattr(instance, "mass_energy_generation", None)
+    if variable is None:
+        return 0.0
+
+    weightings = pm_object.get_weightings_time_series()
+    keys = [
+        (component_name, commodity_name, cl, t)
+        for cl in range(pm_object.get_number_clusters())
+        for t in range(pm_object.get_covered_period())
+    ]
+    existing_keys = [key for key in keys if key in variable]
+    return _solver_weighted_flow_sum(
+        variable,
+        existing_keys,
+        weightings,
+        cluster_index=2,
+    )
+
+
 def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
     country = job["country"]
     region = job["region"]
@@ -1031,6 +1104,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
 
         components = []
         capacity_columns = {}
+        final_commodity_names = set(produced_by_commodity)
         for component in pm_object.get_final_components_objects():
             component_name = component.get_name()
             solver_capacity = _solver_nominal_capacity(
@@ -1045,10 +1119,23 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             reported_capacity = solver_capacity * capacity_ratio
             transferred_capacity = component.get_fixed_capacity()
 
-            produced_by_component = sum(
-                component.get_specific_produced_commodity(commodity_name)
-                for commodity_name in produced_by_commodity
-            )
+            if component.get_component_type() == "conversion":
+                produced_by_component = _solver_component_output_quantity(
+                    optimization_problem,
+                    pm_object,
+                    component_name,
+                    final_commodity_names,
+                )
+            elif component.get_component_type() == "generator":
+                produced_by_component = _solver_generator_output_quantity(
+                    optimization_problem,
+                    pm_object,
+                    component_name,
+                    component.get_generated_commodity(),
+                )
+            else:
+                produced_by_component = 0.0
+
             if produced_by_component > 1e-8 and solver_capacity <= 1e-12:
                 raise RuntimeError(
                     "Inconsistent optimization result: component "
@@ -1066,6 +1153,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                 "capacity": reported_capacity,
                 "solver_capacity": solver_capacity,
                 "transferred_capacity": transferred_capacity,
+                "solver_output_quantity": produced_by_component,
                 "capacity_basis": (
                     component.get_capex_basis()
                     if component.get_component_type() == "conversion"
@@ -1435,6 +1523,7 @@ def write_year_results(
             "capacity",
             "solver_capacity",
             "transferred_capacity",
+            "solver_output_quantity",
             "capacity_basis",
             "investment",
             "annualized_investment",
@@ -1564,6 +1653,7 @@ def run(config: RunnerConfig) -> None:
                 and all(
                     row.get("solver_capacity") is not None
                     and row.get("transferred_capacity") is not None
+                    and row.get("solver_output_quantity") is not None
                     for row in country_component_rows
                 )
             )

@@ -72,6 +72,28 @@ COUNTRIES_SHEET = "countries"
 PARAMETERS_SHEET = "parameters"
 PROGRESS_FILE_NAME = "runner_progress.json"
 
+ASSUMPTION_COMPONENT_LABELS = {
+    "Solar": "Solar",
+    "Wind": "Wind",
+    "Electricity": "Battery",
+    "electrolyzer": "Electrolyzer",
+}
+ASSUMPTION_PARAMETER_LABELS = {
+    "capex": "CAPEX",
+    "fixed_om": "FOM",
+    "variable_om": "VOM",
+    "charging_efficiency": "charge_eff",
+    "discharging_efficiency": "discharge_eff",
+    "ratio_capacity_p": "duration",
+    "min_p": "min_p",
+    "max_p": "max_p",
+    "input.Electricity": "electricity_input",
+}
+ASSUMPTION_PARAMETER_ORDER = {
+    parameter: order
+    for order, parameter in enumerate(ASSUMPTION_PARAMETER_LABELS)
+}
+
 # Country folders are mapped to the parameter geographies below. Exact
 # geographies such as China or India take precedence over broad regions.
 EUROPE_COUNTRIES = {
@@ -465,6 +487,7 @@ def _read_parameter_workbook(path: Path) -> tuple[Any, Any]:
 
     countries = countries.copy()
     parameter_matrix = parameter_matrix.copy()
+    _fill_formula_parameter_values(path, parameter_matrix)
     countries["country"] = countries["country"].astype(str).str.strip()
     countries["region"] = countries["region"].astype(str).str.strip()
 
@@ -530,6 +553,177 @@ def _read_parameter_workbook(path: Path) -> tuple[Any, Any]:
     return countries, parameters
 
 
+def _fill_formula_parameter_values(path: Path, parameter_matrix: Any) -> None:
+    import pandas as pd
+
+    year_columns = [str(year) for year in SCENARIO_YEARS]
+    if not any(
+        column in parameter_matrix.columns
+        and parameter_matrix[column].isna().any()
+        for column in year_columns
+    ):
+        return
+
+    try:
+        import openpyxl
+        from openpyxl.utils.cell import column_index_from_string
+    except ImportError:
+        return
+
+    workbook = openpyxl.load_workbook(path, data_only=False, read_only=False)
+    parameter_sheet = workbook[PARAMETERS_SHEET]
+    header_to_column = {
+        str(parameter_sheet.cell(1, column).value).strip(): column
+        for column in range(1, parameter_sheet.max_column + 1)
+    }
+    cache: dict[tuple[str, str], float] = {}
+
+    def split_cell_ref(reference: str, current_sheet: str) -> tuple[str, str]:
+        reference = reference.replace("$", "").strip()
+        if "!" not in reference:
+            return current_sheet, reference
+        sheet_name, cell_ref = reference.split("!", 1)
+        return sheet_name.strip("'"), cell_ref
+
+    def split_range_ref(reference: str, current_sheet: str) -> tuple[str, str, str]:
+        reference = reference.replace("$", "").strip()
+        if "!" in reference:
+            sheet_name, range_ref = reference.split("!", 1)
+            sheet_name = sheet_name.strip("'")
+        else:
+            sheet_name = current_sheet
+            range_ref = reference
+        start_ref, end_ref = range_ref.split(":", 1)
+        return sheet_name, start_ref, end_ref
+
+    def cell_value(sheet_name: str, cell_ref: str) -> float:
+        cell_ref = cell_ref.replace("$", "")
+        key = (sheet_name, cell_ref)
+        if key in cache:
+            return cache[key]
+        value = workbook[sheet_name][cell_ref].value
+        if isinstance(value, str) and value.startswith("="):
+            value = evaluate_formula(value, sheet_name)
+        if value is None or pd.isna(value):
+            raise ValueError(f"Formula cell {sheet_name}!{cell_ref} is empty.")
+        value = float(value)
+        cache[key] = value
+        return value
+
+    def range_values(reference: str, current_sheet: str) -> list[float]:
+        sheet_name, start_ref, end_ref = split_range_ref(reference, current_sheet)
+        sheet = workbook[sheet_name]
+        start_column = "".join(character for character in start_ref if character.isalpha())
+        start_row = int("".join(character for character in start_ref if character.isdigit()))
+        end_column = "".join(character for character in end_ref if character.isalpha())
+        end_row = int("".join(character for character in end_ref if character.isdigit()))
+        values = []
+        for row in range(start_row, end_row + 1):
+            for column in range(
+                column_index_from_string(start_column),
+                column_index_from_string(end_column) + 1,
+            ):
+                values.append(float(sheet.cell(row, column).value))
+        return values
+
+    def evaluate_index_match(formula: str, current_sheet: str) -> float:
+        import re
+
+        match = re.fullmatch(
+            r"INDEX\((?P<value_range>.+),MATCH\((?P<lookup>.+),"
+            r"(?P<lookup_range>.+),0\)\)",
+            formula,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            raise ValueError(f"Unsupported INDEX/MATCH formula: ={formula}")
+        value_range = range_values(match.group("value_range"), current_sheet)
+        lookup_range = range_values(match.group("lookup_range"), current_sheet)
+        lookup_sheet, lookup_ref = split_cell_ref(match.group("lookup"), current_sheet)
+        lookup_value = cell_value(lookup_sheet, lookup_ref)
+        for index, candidate in enumerate(lookup_range):
+            if abs(candidate - lookup_value) <= 1e-9:
+                return value_range[index]
+        raise ValueError(f"No MATCH value found in formula: ={formula}")
+
+    def evaluate_arithmetic(formula: str, current_sheet: str) -> float:
+        import ast
+        import operator
+        import re
+
+        operators = {
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+            ast.Mult: operator.mul,
+            ast.Div: operator.truediv,
+            ast.USub: operator.neg,
+            ast.UAdd: operator.pos,
+        }
+
+        def replace_reference(match: Any) -> str:
+            sheet_name = (match.group("quoted") or match.group("plain")).strip("'")
+            cell_ref = match.group("cell").replace("$", "")
+            return str(cell_value(sheet_name, cell_ref))
+
+        expression = re.sub(
+            r"(?P<sheet>(?:'(?P<quoted>[^']+)'|(?P<plain>[A-Za-z0-9_ &]+))!)"
+            r"(?P<cell>\$?[A-Z]+\$?\d+)",
+            replace_reference,
+            formula,
+        )
+
+        def evaluate_node(node: Any) -> float:
+            if isinstance(node, ast.Expression):
+                return evaluate_node(node.body)
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return float(node.value)
+            if isinstance(node, ast.BinOp) and type(node.op) in operators:
+                return operators[type(node.op)](
+                    evaluate_node(node.left),
+                    evaluate_node(node.right),
+                )
+            if isinstance(node, ast.UnaryOp) and type(node.op) in operators:
+                return operators[type(node.op)](evaluate_node(node.operand))
+            raise ValueError(f"Unsupported arithmetic formula: ={formula}")
+
+        return evaluate_node(ast.parse(expression, mode="eval"))
+
+    def evaluate_formula(formula: str, current_sheet: str) -> float:
+        import re
+
+        formula = formula.strip()
+        if formula.startswith("="):
+            formula = formula[1:]
+        if re.fullmatch(r"[+-]?\d+(\.\d+)?", formula):
+            return float(formula)
+        direct = re.fullmatch(
+            r"(?:'(?P<quoted>[^']+)'|(?P<plain>[A-Za-z0-9_ &]+))!"
+            r"(?P<cell>\$?[A-Z]+\$?\d+)",
+            formula,
+        )
+        if direct:
+            sheet_name = direct.group("quoted") or direct.group("plain")
+            return cell_value(sheet_name, direct.group("cell"))
+        if formula.upper().startswith("INDEX("):
+            return evaluate_index_match(formula, current_sheet)
+        return evaluate_arithmetic(formula, current_sheet)
+
+    for row_index, row in parameter_matrix.iterrows():
+        excel_row = int(row_index) + 2
+        for year_column in year_columns:
+            if year_column not in parameter_matrix.columns or not pd.isna(row[year_column]):
+                continue
+            excel_column = header_to_column.get(year_column)
+            if excel_column is None:
+                continue
+            formula = parameter_sheet.cell(excel_row, excel_column).value
+            if isinstance(formula, str) and formula.startswith("="):
+                parameter_matrix.at[row_index, year_column] = evaluate_formula(
+                    formula,
+                    PARAMETERS_SHEET,
+                )
+
+
 def _component_name_for_technology(technology: str) -> str:
     mapping = {
         "solar": "Solar",
@@ -563,6 +757,11 @@ def _internal_parameter_name(parameter: str) -> str:
         "maximum load": "max_p",
         "max_p": "max_p",
         "electricity input": "input.Electricity",
+        "electricity input per hydrogen": "input.Electricity",
+        "electricity_input_per_hydrogen": "input.Electricity",
+        "specific electricity consumption": "input.Electricity",
+        "specific electricity consumption electricity": "input.Electricity",
+        "mwh electricity per mwh hydrogen": "input.Electricity",
         "input.electricity": "input.Electricity",
     }
     return mapping.get(parameter.strip().lower(), parameter.strip())
@@ -743,6 +942,74 @@ def _apply_parameters(pm_object: Any, parameter_rows: Any) -> list[dict[str, Any
     return applied
 
 
+def _format_assumption_value(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number != number:
+        return "n/a"
+    if number == 0:
+        return "0"
+    if abs(number) >= 100:
+        return f"{number:.2f}"
+    return f"{number:.6g}"
+
+
+def _format_wacc(value: Any) -> str:
+    try:
+        return f"{float(value):.2%}"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
+def _print_country_assumptions(
+    year: int,
+    settings: CountrySettings,
+    parameter_rows: Any,
+    pm_object: Any,
+) -> None:
+    try:
+        wacc = pm_object.get_wacc()
+    except AttributeError:
+        wacc = settings.wacc
+
+    print(
+        f"Assumptions {year}/{settings.country} "
+        f"({settings.region}): WACC={_format_wacc(wacc)}"
+    )
+
+    central_rows = parameter_rows[
+        parameter_rows["component"].isin(ASSUMPTION_COMPONENT_LABELS)
+        & parameter_rows["parameter"].isin(ASSUMPTION_PARAMETER_LABELS)
+    ].copy()
+    if central_rows.empty:
+        print("  No central CAPEX/operation assumptions found.")
+        return
+
+    central_rows["_component_order"] = central_rows["component"].map(
+        {
+            component: order
+            for order, component in enumerate(ASSUMPTION_COMPONENT_LABELS)
+        }
+    )
+    central_rows["_parameter_order"] = central_rows["parameter"].map(
+        ASSUMPTION_PARAMETER_ORDER
+    )
+    central_rows = central_rows.sort_values(
+        ["_component_order", "_parameter_order"],
+        kind="stable",
+    )
+
+    for component, rows in central_rows.groupby("component", sort=False):
+        values = []
+        for _, row in rows.iterrows():
+            label = ASSUMPTION_PARAMETER_LABELS[row["parameter"]]
+            value = _format_assumption_value(row["value"])
+            values.append(f"{label}={value}")
+        print(f"  {ASSUMPTION_COMPONENT_LABELS[component]}: {', '.join(values)}")
+
+
 def _profile_dir(config: RunnerConfig, country_dir: Path, year: int) -> Path:
     relative = config.profile_subdir_template.format(year=year)
     return country_dir / Path(relative)
@@ -852,6 +1119,23 @@ def _model_class_for_solver(solver: str):
     from optimization_pyomo_model import OptimizationPyomoModel
 
     return OptimizationPyomoModel
+
+
+def _suppress_solver_log(optimization_problem: Any, solver: str) -> None:
+    if solver.lower() != "gurobi":
+        return
+    model = getattr(optimization_problem, "model", None)
+    if model is None:
+        return
+
+    for parameter, value in [
+        ("OutputFlag", 0),
+        ("LogToConsole", 0),
+    ]:
+        try:
+            model.setParam(parameter, value)
+        except Exception:
+            pass
 
 
 def _optimization_status(
@@ -1240,6 +1524,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
 
         optimization_model = _model_class_for_solver(job["solver"])
         optimization_problem = optimization_model(pm_object, job["solver"])
+        _suppress_solver_log(optimization_problem, job["solver"])
         optimization_problem.prepare(
             optimization_type=pm_object.get_optimization_type()
         )
@@ -2012,6 +2297,12 @@ def run(config: RunnerConfig) -> None:
                 )
                 if settings.wacc is not None:
                     country_pm_object.set_wacc(settings.wacc)
+                _print_country_assumptions(
+                    year,
+                    settings,
+                    parameter_rows,
+                    country_pm_object,
+                )
 
                 profile_dir = _profile_dir(
                     config,

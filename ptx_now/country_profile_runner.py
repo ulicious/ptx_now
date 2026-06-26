@@ -31,7 +31,8 @@ from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
-RUNNER_VERSION = "2026-06-26-solver-flow-capacity-check-v3"
+RUNNER_VERSION = "2026-06-26-operational-balance-check-v4"
+BALANCE_TOLERANCE = 1e-6
 
 
 # ---------------------------------------------------------------------------
@@ -943,20 +944,38 @@ def _solver_weighted_flow_sum(
     return quantity
 
 
+def _solver_variable(optimization_problem: Any, name: str) -> Any:
+    variable = getattr(optimization_problem, name, None)
+    if variable is None:
+        instance = getattr(optimization_problem, "instance", None)
+        variable = getattr(instance, name, None)
+    return variable
+
+
+def _solver_value_at(
+    optimization_problem: Any,
+    variable_name: str,
+    key: tuple[Any, ...],
+) -> float:
+    variable = _solver_variable(optimization_problem, variable_name)
+    if variable is None:
+        return 0.0
+    try:
+        return _variable_value(variable[key])
+    except (KeyError, IndexError, TypeError):
+        return 0.0
+
+
 def _solver_component_output_quantity(
     optimization_problem: Any,
     pm_object: Any,
     component_name: str,
     commodity_names: set[str],
 ) -> float:
-    variable = getattr(
+    variable = _solver_variable(
         optimization_problem,
         "mass_energy_component_out_commodities",
-        None,
     )
-    if variable is None:
-        instance = getattr(optimization_problem, "instance", None)
-        variable = getattr(instance, "mass_energy_component_out_commodities", None)
     if variable is None:
         return 0.0
 
@@ -982,10 +1001,7 @@ def _solver_generator_output_quantity(
     component_name: str,
     commodity_name: str,
 ) -> float:
-    variable = getattr(optimization_problem, "mass_energy_generation", None)
-    if variable is None:
-        instance = getattr(optimization_problem, "instance", None)
-        variable = getattr(instance, "mass_energy_generation", None)
+    variable = _solver_variable(optimization_problem, "mass_energy_generation")
     if variable is None:
         return 0.0
 
@@ -1002,6 +1018,207 @@ def _solver_generator_output_quantity(
         weightings,
         cluster_index=2,
     )
+
+
+def _format_balance_terms(terms: list[tuple[str, float]]) -> str:
+    relevant_terms = [
+        (name, value)
+        for name, value in terms
+        if abs(value) > BALANCE_TOLERANCE
+    ]
+    if not relevant_terms:
+        return "none"
+    relevant_terms.sort(key=lambda item: abs(item[1]), reverse=True)
+    return ", ".join(
+        f"{name}={value:.12g}"
+        for name, value in relevant_terms[:12]
+    )
+
+
+def _solver_operational_flow_records(
+    optimization_problem: Any,
+    pm_object: Any,
+    year: int,
+    country: str,
+    region: str,
+    profile: str,
+) -> list[dict[str, Any]]:
+    conversion_components = pm_object.get_final_conversion_components_objects()
+    generator_components = pm_object.get_final_generator_components_objects()
+    storage_names = set(pm_object.get_final_storage_components_names())
+    commodity_objects = pm_object.get_final_commodities_objects()
+    weightings = pm_object.get_weightings_time_series()
+    records = []
+
+    for commodity in commodity_objects:
+        commodity_name = commodity.get_name()
+        totals = {
+            "available": 0.0,
+            "purchased": 0.0,
+            "generated": 0.0,
+            "conversion_output": 0.0,
+            "storage_out": 0.0,
+            "emitted": 0.0,
+            "sold": 0.0,
+            "demanded": 0.0,
+            "conversion_input": 0.0,
+            "storage_in": 0.0,
+            "hot_standby_demand": 0.0,
+        }
+
+        for cl in range(pm_object.get_number_clusters()):
+            weighting = weightings[cl]
+            for t in range(pm_object.get_covered_period()):
+                source_terms = []
+                sink_terms = []
+
+                if commodity.is_available():
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_available",
+                        (commodity_name, cl, t),
+                    )
+                    source_terms.append(("available", value))
+                    totals["available"] += value * weighting
+                if commodity.is_purchasable():
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_purchase_commodity",
+                        (commodity_name, cl, t),
+                    )
+                    source_terms.append(("purchased", value))
+                    totals["purchased"] += value * weighting
+                if commodity.is_emittable():
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_emitted",
+                        (commodity_name, cl, t),
+                    )
+                    sink_terms.append(("emitted", value))
+                    totals["emitted"] += value * weighting
+                if commodity.is_saleable():
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_sell_commodity",
+                        (commodity_name, cl, t),
+                    )
+                    sink_terms.append(("sold", value))
+                    totals["sold"] += value * weighting
+                if commodity.is_demanded():
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_demand",
+                        (commodity_name, cl, t),
+                    )
+                    sink_terms.append(("demanded", value))
+                    totals["demanded"] += value * weighting
+
+                if commodity_name in storage_names:
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_storage_out_commodities",
+                        (commodity_name, cl, t),
+                    )
+                    source_terms.append(("storage_out", value))
+                    totals["storage_out"] += value * weighting
+
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_storage_in_commodities",
+                        (commodity_name, cl, t),
+                    )
+                    sink_terms.append(("storage_in", value))
+                    totals["storage_in"] += value * weighting
+
+                for generator in generator_components:
+                    if generator.get_generated_commodity() != commodity_name:
+                        continue
+                    value = _solver_value_at(
+                        optimization_problem,
+                        "mass_energy_generation",
+                        (generator.get_name(), commodity_name, cl, t),
+                    )
+                    source_terms.append((f"generated:{generator.get_name()}", value))
+                    totals["generated"] += value * weighting
+
+                for component in conversion_components:
+                    component_name = component.get_name()
+                    if commodity_name in component.get_outputs():
+                        value = _solver_value_at(
+                            optimization_problem,
+                            "mass_energy_component_out_commodities",
+                            (component_name, commodity_name, cl, t),
+                        )
+                        source_terms.append(
+                            (f"conversion_output:{component_name}", value)
+                        )
+                        totals["conversion_output"] += value * weighting
+                    if commodity_name in component.get_inputs():
+                        value = _solver_value_at(
+                            optimization_problem,
+                            "mass_energy_component_in_commodities",
+                            (component_name, commodity_name, cl, t),
+                        )
+                        sink_terms.append(
+                            (f"conversion_input:{component_name}", value)
+                        )
+                        totals["conversion_input"] += value * weighting
+                    hot_standby = component.get_hot_standby_demand()
+                    if commodity_name in hot_standby:
+                        value = _solver_value_at(
+                            optimization_problem,
+                            "mass_energy_hot_standby_demand",
+                            (component_name, commodity_name, cl, t),
+                        )
+                        sink_terms.append(
+                            (f"hot_standby_demand:{component_name}", value)
+                        )
+                        totals["hot_standby_demand"] += value * weighting
+
+                source_total = sum(value for _, value in source_terms)
+                sink_total = sum(value for _, value in sink_terms)
+                residual = source_total - sink_total
+                scale = max(abs(source_total), abs(sink_total), 1.0)
+                if abs(residual) > max(BALANCE_TOLERANCE, BALANCE_TOLERANCE * scale):
+                    raise RuntimeError(
+                        "Operational commodity balance check failed: "
+                        f"commodity={commodity_name}, cluster={cl}, time={t}, "
+                        f"sources={source_total:.12g}, sinks={sink_total:.12g}, "
+                        f"residual={residual:.12g}, "
+                        f"source_terms=[{_format_balance_terms(source_terms)}], "
+                        f"sink_terms=[{_format_balance_terms(sink_terms)}]"
+                    )
+
+        source_total = (
+            totals["available"]
+            + totals["purchased"]
+            + totals["generated"]
+            + totals["conversion_output"]
+            + totals["storage_out"]
+        )
+        sink_total = (
+            totals["emitted"]
+            + totals["sold"]
+            + totals["demanded"]
+            + totals["conversion_input"]
+            + totals["storage_in"]
+            + totals["hot_standby_demand"]
+        )
+        records.append(
+            {
+                "scenario_year": year,
+                "country": country,
+                "region": region,
+                "profile": profile,
+                "commodity": commodity_name,
+                **totals,
+                "source_total": source_total,
+                "sink_total": sink_total,
+                "balance_residual": source_total - sink_total,
+            }
+        )
+
+    return records
 
 
 def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
@@ -1075,6 +1292,15 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             "economic_objective": economic_objective,
             "ecologic_objective": ecologic_objective,
         }
+
+        commodity_flows = _solver_operational_flow_records(
+            optimization_problem,
+            pm_object,
+            year,
+            country,
+            region,
+            profile,
+        )
 
         pm_object.set_objective_function_value(
             optimization_problem.objective_function_value
@@ -1183,6 +1409,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                 **capacity_columns,
             },
             "components": components,
+            "commodity_flows": commodity_flows,
             "error": None,
         }
 
@@ -1302,23 +1529,23 @@ def _records_from_sheet(path: Path, sheet_name: str) -> list[dict[str, Any]]:
 def _load_existing_year_results(
     output_path: Path,
     year: int,
-) -> tuple[
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-]:
+    include_commodity_flows: bool = False,
+) -> tuple:
     if not output_path.is_file():
+        if include_commodity_flows:
+            return [], [], [], [], []
         return [], [], [], []
 
     results = _records_from_sheet(output_path, "results")
     components = _records_from_sheet(output_path, "components")
+    commodity_flows = _records_from_sheet(output_path, "commodity_flows")
     parameters = _records_from_sheet(output_path, "parameters_applied")
     errors = _records_from_sheet(output_path, "errors")
 
     for sheet_name, records in [
         ("results", results),
         ("components", components),
+        ("commodity_flows", commodity_flows),
         ("parameters_applied", parameters),
         ("errors", errors),
     ]:
@@ -1334,6 +1561,8 @@ def _load_existing_year_results(
                 f"unexpected scenario years: {sorted(wrong_years)}"
             )
 
+    if include_commodity_flows:
+        return results, components, commodity_flows, parameters, errors
     return results, components, parameters, errors
 
 
@@ -1478,12 +1707,15 @@ def write_year_results(
     components: list[dict[str, Any]],
     applied_parameters: list[dict[str, Any]],
     errors: list[dict[str, Any]],
+    commodity_flows: list[dict[str, Any]] | None = None,
 ) -> None:
     import pandas as pd
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_suffix(".tmp.xlsx")
     results = [_normalize_result_record(record) for record in results]
+    if commodity_flows is None:
+        commodity_flows = []
 
     result_base_columns = [
         "scenario_year",
@@ -1530,6 +1762,30 @@ def write_year_results(
             "fixed_costs",
             "variable_costs",
             "component_total_costs",
+        ],
+    )
+    commodity_flows_df = pd.DataFrame(
+        commodity_flows,
+        columns=[
+            "scenario_year",
+            "country",
+            "region",
+            "profile",
+            "commodity",
+            "available",
+            "purchased",
+            "generated",
+            "conversion_output",
+            "storage_out",
+            "emitted",
+            "sold",
+            "demanded",
+            "conversion_input",
+            "storage_in",
+            "hot_standby_demand",
+            "source_total",
+            "sink_total",
+            "balance_residual",
         ],
     )
     parameters_df = pd.DataFrame(
@@ -1586,6 +1842,11 @@ def write_year_results(
         summary.to_excel(writer, sheet_name="summary", index=False)
         results_df.to_excel(writer, sheet_name="results", index=False)
         components_df.to_excel(writer, sheet_name="components", index=False)
+        commodity_flows_df.to_excel(
+            writer,
+            sheet_name="commodity_flows",
+            index=False,
+        )
         parameters_df.to_excel(
             writer,
             sheet_name="parameters_applied",
@@ -1630,9 +1891,14 @@ def run(config: RunnerConfig) -> None:
         (
             year_results,
             year_components,
+            year_commodity_flows,
             year_parameters,
             year_errors,
-        ) = _load_existing_year_results(output_path, year)
+        ) = _load_existing_year_results(
+            output_path,
+            year,
+            include_commodity_flows=True,
+        )
 
         logged_completed = _completed_country_records(progress, year)
         resumable_completed = set()
@@ -1647,6 +1913,11 @@ def run(config: RunnerConfig) -> None:
                 for row in year_components
                 if row.get("country") == country
             ]
+            country_flow_rows = [
+                row
+                for row in year_commodity_flows
+                if row.get("country") == country
+            ]
             expected_profiles = int(record.get("profile_count", 0))
             has_current_capacity_schema = (
                 bool(country_component_rows)
@@ -1657,10 +1928,20 @@ def run(config: RunnerConfig) -> None:
                     for row in country_component_rows
                 )
             )
+            has_operational_balance_schema = (
+                bool(country_flow_rows)
+                and all(
+                    row.get("source_total") is not None
+                    and row.get("sink_total") is not None
+                    and row.get("balance_residual") is not None
+                    for row in country_flow_rows
+                )
+            )
             if (
                 country_rows
                 and len(country_rows) == expected_profiles
                 and has_current_capacity_schema
+                and has_operational_balance_schema
                 and all(
                     row.get("status") == "optimal"
                     for row in country_rows
@@ -1699,6 +1980,10 @@ def run(config: RunnerConfig) -> None:
             year_results = _remove_country_records(year_results, country)
             year_components = _remove_country_records(
                 year_components,
+                country,
+            )
+            year_commodity_flows = _remove_country_records(
+                year_commodity_flows,
                 country,
             )
             year_parameters = _remove_country_records(
@@ -1799,6 +2084,11 @@ def run(config: RunnerConfig) -> None:
                     for result in country_results
                     for row in result["components"]
                 )
+                year_commodity_flows.extend(
+                    row
+                    for result in country_results
+                    for row in result["commodity_flows"]
+                )
                 year_errors.extend(
                     result["error"]
                     for result in country_results
@@ -1827,6 +2117,7 @@ def run(config: RunnerConfig) -> None:
                     completed_countries=completed_countries,
                     results=year_results,
                     components=year_components,
+                    commodity_flows=year_commodity_flows,
                     applied_parameters=year_parameters,
                     errors=year_errors,
                 )
@@ -1850,6 +2141,7 @@ def run(config: RunnerConfig) -> None:
                     completed_countries=completed_countries,
                     results=year_results,
                     components=year_components,
+                    commodity_flows=year_commodity_flows,
                     applied_parameters=year_parameters,
                     errors=year_errors,
                 )
@@ -1875,6 +2167,7 @@ def run(config: RunnerConfig) -> None:
                 completed_countries=completed_countries,
                 results=year_results,
                 components=year_components,
+                commodity_flows=year_commodity_flows,
                 applied_parameters=year_parameters,
                 errors=year_errors,
             )

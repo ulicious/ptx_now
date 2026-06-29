@@ -581,8 +581,17 @@ def _normalise_wacc(value: Any) -> float | None:
 
 
 def _find_column(columns: list[str], candidates: set[str]) -> str | None:
+    import re
+
+    def normalize(column: str) -> str:
+        return re.sub(
+            r"_+",
+            "_",
+            re.sub(r"[^a-z0-9]+", "_", column.strip().lower()),
+        ).strip("_")
+
     normalized = {
-        column.strip().lower().replace(" ", "_"): column
+        normalize(column): column
         for column in columns
     }
     for candidate in candidates:
@@ -613,6 +622,7 @@ def _read_wacc_file(path: Path | None) -> dict[tuple[str, int | None], float]:
         list(raw.columns),
         {
             "country",
+            "country_territory",
             "country_name",
             "country_or_region",
             "name",

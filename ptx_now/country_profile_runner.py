@@ -50,7 +50,7 @@ PARAMETERS_XLSX = Path(
     r"/home/localadmin/Dokumente/ptx_now_data/"
     r"global_hydrogen_case_calculation/runner_parameters.xlsx"
 )
-WACC_CSV: Path | None = None
+WACC_FILE: Path | None = None
 OUTPUT_DIR = Path(
     r"/home/localadmin/Dokumente/ptx_now_data/"
     r"global_hydrogen_case_calculation/results"
@@ -283,7 +283,7 @@ class RunnerConfig:
     countries_root: Path
     settings_yaml: Path
     parameters_xlsx: Path
-    wacc_csv: Path | None
+    wacc_file: Path | None
     output_dir: Path
     scenario_years: tuple[int, ...]
     profile_subdir_template: str
@@ -387,7 +387,7 @@ def build_config() -> RunnerConfig:
         countries_root=COUNTRIES_ROOT,
         settings_yaml=SETTINGS_YAML,
         parameters_xlsx=PARAMETERS_XLSX,
-        wacc_csv=WACC_CSV,
+        wacc_file=WACC_FILE,
         output_dir=OUTPUT_DIR,
         scenario_years=SCENARIO_YEARS,
         profile_subdir_template=PROFILE_SUBDIR_TEMPLATE,
@@ -407,8 +407,8 @@ def validate_config(config: RunnerConfig) -> None:
         missing.append(f"SETTINGS_YAML does not exist: {config.settings_yaml}")
     if not config.parameters_xlsx.is_file():
         missing.append(f"PARAMETERS_XLSX does not exist: {config.parameters_xlsx}")
-    if config.wacc_csv is not None and not config.wacc_csv.is_file():
-        missing.append(f"WACC_CSV does not exist: {config.wacc_csv}")
+    if config.wacc_file is not None and not config.wacc_file.is_file():
+        missing.append(f"WACC_FILE does not exist: {config.wacc_file}")
 
     if missing:
         details = "\n".join(f"- {message}" for message in missing)
@@ -590,13 +590,22 @@ def _find_column(columns: list[str], candidates: set[str]) -> str | None:
     return None
 
 
-def _read_wacc_csv(path: Path | None) -> dict[tuple[str, int | None], float]:
+def _read_wacc_file(path: Path | None) -> dict[tuple[str, int | None], float]:
     if path is None:
         return {}
 
     import pandas as pd
 
-    raw = pd.read_csv(path, sep=None, engine="python")
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        raw = pd.read_csv(path, sep=None, engine="python")
+    elif suffix in {".xlsx", ".xls"}:
+        raw = pd.read_excel(path)
+    else:
+        raise ValueError(
+            f"Unsupported WACC file type '{path.suffix}'. "
+            "Use .csv, .xlsx, or .xls."
+        )
     raw.columns = [str(column).strip() for column in raw.columns]
 
     country_column = _find_column(
@@ -610,7 +619,7 @@ def _read_wacc_csv(path: Path | None) -> dict[tuple[str, int | None], float]:
     )
     if country_column is None:
         raise ValueError(
-            f"WACC CSV '{path}' needs a country column. Supported names are "
+            f"WACC file '{path}' needs a country column. Supported names are "
             "country, country_name, country_or_region, or name."
         )
 
@@ -638,7 +647,7 @@ def _read_wacc_csv(path: Path | None) -> dict[tuple[str, int | None], float]:
         )
         if wacc_column is None:
             raise ValueError(
-                f"WACC CSV '{path}' needs either year columns "
+                f"WACC file '{path}' needs either year columns "
                 f"{SCENARIO_YEARS} or a WACC column."
             )
         data = raw[[country_column, wacc_column]].copy()
@@ -662,7 +671,7 @@ def _read_wacc_csv(path: Path | None) -> dict[tuple[str, int | None], float]:
     if duplicates.any():
         duplicated_rows = data.loc[duplicates, ["country", "year"]]
         raise ValueError(
-            "WACC CSV has duplicate country/year rows: "
+            "WACC file has duplicate country/year rows: "
             f"{duplicated_rows.head(10).to_dict(orient='records')}"
         )
 
@@ -2319,10 +2328,10 @@ def run(config: RunnerConfig) -> None:
     countries_df, parameters_df = _read_parameter_workbook(
         config.parameters_xlsx
     )
-    wacc_overrides = _read_wacc_csv(config.wacc_csv)
+    wacc_overrides = _read_wacc_file(config.wacc_file)
     if wacc_overrides:
         print(
-            f"WACC CSV loaded: {len(wacc_overrides)} country/year "
+            f"WACC file loaded: {len(wacc_overrides)} country/year "
             "override entries."
         )
     country_dirs = _discover_countries(config)
@@ -2663,7 +2672,7 @@ def main() -> None:
         f"Countries: {config.countries_root}\n"
         f"YAML: {config.settings_yaml}\n"
         f"Parameters: {config.parameters_xlsx}\n"
-        f"WACC CSV: {config.wacc_csv}\n"
+        f"WACC file: {config.wacc_file}\n"
         f"Years: {config.scenario_years}\n"
         f"Workers per country: {config.cores}"
     )

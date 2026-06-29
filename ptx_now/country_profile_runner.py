@@ -50,7 +50,8 @@ PARAMETERS_XLSX = Path(
     r"/home/localadmin/Dokumente/ptx_now_data/"
     r"global_hydrogen_case_calculation/runner_parameters.xlsx"
 )
-WACC_FILE: Path | None = None
+WACC_FILE = Path(r"S:\Group_TE\GM_Uwe\transport_model\location_data_wacc.csv")
+WACC_CSV = WACC_FILE  # Backwards-compatible alias for WACC_FILE.
 OUTPUT_DIR = Path(
     r"/home/localadmin/Dokumente/ptx_now_data/"
     r"global_hydrogen_case_calculation/results"
@@ -387,7 +388,7 @@ def build_config() -> RunnerConfig:
         countries_root=COUNTRIES_ROOT,
         settings_yaml=SETTINGS_YAML,
         parameters_xlsx=PARAMETERS_XLSX,
-        wacc_file=WACC_FILE,
+        wacc_file=WACC_FILE or WACC_CSV,
         output_dir=OUTPUT_DIR,
         scenario_years=SCENARIO_YEARS,
         profile_subdir_template=PROFILE_SUBDIR_TEMPLATE,

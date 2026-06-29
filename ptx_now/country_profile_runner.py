@@ -50,6 +50,7 @@ PARAMETERS_XLSX = Path(
     r"/home/localadmin/Dokumente/ptx_now_data/"
     r"global_hydrogen_case_calculation/runner_parameters.xlsx"
 )
+WACC_CSV: Path | None = None
 OUTPUT_DIR = Path(
     r"/home/localadmin/Dokumente/ptx_now_data/"
     r"global_hydrogen_case_calculation/results"
@@ -282,6 +283,7 @@ class RunnerConfig:
     countries_root: Path
     settings_yaml: Path
     parameters_xlsx: Path
+    wacc_csv: Path | None
     output_dir: Path
     scenario_years: tuple[int, ...]
     profile_subdir_template: str
@@ -297,6 +299,7 @@ class CountrySettings:
     country: str
     region: str
     wacc: float | None
+    wacc_source: str
 
 
 class OptimizationNotOptimalError(RuntimeError):
@@ -384,6 +387,7 @@ def build_config() -> RunnerConfig:
         countries_root=COUNTRIES_ROOT,
         settings_yaml=SETTINGS_YAML,
         parameters_xlsx=PARAMETERS_XLSX,
+        wacc_csv=WACC_CSV,
         output_dir=OUTPUT_DIR,
         scenario_years=SCENARIO_YEARS,
         profile_subdir_template=PROFILE_SUBDIR_TEMPLATE,
@@ -403,6 +407,8 @@ def validate_config(config: RunnerConfig) -> None:
         missing.append(f"SETTINGS_YAML does not exist: {config.settings_yaml}")
     if not config.parameters_xlsx.is_file():
         missing.append(f"PARAMETERS_XLSX does not exist: {config.parameters_xlsx}")
+    if config.wacc_csv is not None and not config.wacc_csv.is_file():
+        missing.append(f"WACC_CSV does not exist: {config.wacc_csv}")
 
     if missing:
         details = "\n".join(f"- {message}" for message in missing)
@@ -553,6 +559,117 @@ def _read_parameter_workbook(path: Path) -> tuple[Any, Any]:
     )
 
     return countries, parameters
+
+
+def _normalise_wacc(value: Any) -> float | None:
+    import pandas as pd
+
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        value = value.replace("%", "").strip()
+        if "," in value and "." not in value:
+            value = value.replace(",", ".")
+    number = float(value)
+    if abs(number) > 1:
+        number = number / 100
+    return number
+
+
+def _find_column(columns: list[str], candidates: set[str]) -> str | None:
+    normalized = {
+        column.strip().lower().replace(" ", "_"): column
+        for column in columns
+    }
+    for candidate in candidates:
+        if candidate in normalized:
+            return normalized[candidate]
+    return None
+
+
+def _read_wacc_csv(path: Path | None) -> dict[tuple[str, int | None], float]:
+    if path is None:
+        return {}
+
+    import pandas as pd
+
+    raw = pd.read_csv(path, sep=None, engine="python")
+    raw.columns = [str(column).strip() for column in raw.columns]
+
+    country_column = _find_column(
+        list(raw.columns),
+        {
+            "country",
+            "country_name",
+            "country_or_region",
+            "name",
+        },
+    )
+    if country_column is None:
+        raise ValueError(
+            f"WACC CSV '{path}' needs a country column. Supported names are "
+            "country, country_name, country_or_region, or name."
+        )
+
+    year_columns = [
+        column
+        for column in raw.columns
+        if str(column).strip() in {str(year) for year in SCENARIO_YEARS}
+    ]
+    if year_columns:
+        data = raw.melt(
+            id_vars=[country_column],
+            value_vars=year_columns,
+            var_name="year",
+            value_name="wacc",
+        )
+    else:
+        wacc_column = _find_column(
+            list(raw.columns),
+            {
+                "wacc",
+                "weighted_average_cost_of_capital",
+                "discount_rate",
+                "value",
+            },
+        )
+        if wacc_column is None:
+            raise ValueError(
+                f"WACC CSV '{path}' needs either year columns "
+                f"{SCENARIO_YEARS} or a WACC column."
+            )
+        data = raw[[country_column, wacc_column]].copy()
+        data = data.rename(columns={wacc_column: "wacc"})
+        year_column = _find_column(list(raw.columns), {"year", "scenario_year"})
+        if year_column is not None:
+            data["year"] = raw[year_column]
+        else:
+            data["year"] = None
+
+    data = data.rename(columns={country_column: "country"})
+    data["country"] = data["country"].astype(str).str.strip()
+    data = data[data["country"] != ""].copy()
+    data["year"] = data["year"].map(
+        lambda value: None if pd.isna(value) else int(value)
+    )
+    data["wacc"] = data["wacc"].map(_normalise_wacc)
+    data = data.dropna(subset=["wacc"])
+
+    duplicates = data.duplicated(subset=["country", "year"], keep=False)
+    if duplicates.any():
+        duplicated_rows = data.loc[duplicates, ["country", "year"]]
+        raise ValueError(
+            "WACC CSV has duplicate country/year rows: "
+            f"{duplicated_rows.head(10).to_dict(orient='records')}"
+        )
+
+    return {
+        (str(row["country"]), row["year"]): float(row["wacc"])
+        for _, row in data.iterrows()
+    }
 
 
 def _fill_formula_parameter_values(path: Path, parameter_matrix: Any) -> None:
@@ -779,7 +896,12 @@ def _discover_countries(config: RunnerConfig) -> list[Path]:
     return sorted(country_dirs, key=lambda path: path.name.casefold())
 
 
-def _country_settings(countries_df: Any, country: str) -> CountrySettings:
+def _country_settings(
+    countries_df: Any,
+    country: str,
+    year: int,
+    wacc_overrides: dict[tuple[str, int | None], float],
+) -> CountrySettings:
     import pandas as pd
 
     matches = countries_df[countries_df["country"] == country]
@@ -794,6 +916,7 @@ def _country_settings(countries_df: Any, country: str) -> CountrySettings:
         row = matches.iloc[0]
         region = str(row["region"]).strip()
         wacc = None if pd.isna(row["wacc"]) else float(row["wacc"])
+        wacc_source = COUNTRIES_SHEET if wacc is not None else "base_yaml"
     else:
         region = _infer_parameter_region(country, available_regions)
         region_rows = countries_df[
@@ -806,11 +929,24 @@ def _country_settings(countries_df: Any, country: str) -> CountrySettings:
             if len(region_wacc_values) > 0
             else None
         )
+        wacc_source = (
+            f"{COUNTRIES_SHEET}:{region}"
+            if wacc is not None
+            else "base_yaml"
+        )
+
+    if (country, year) in wacc_overrides:
+        wacc = wacc_overrides[(country, year)]
+        wacc_source = "wacc_csv"
+    elif (country, None) in wacc_overrides:
+        wacc = wacc_overrides[(country, None)]
+        wacc_source = "wacc_csv"
 
     return CountrySettings(
         country=country,
         region=region,
         wacc=wacc,
+        wacc_source=wacc_source,
     )
 
 
@@ -2172,8 +2308,8 @@ def _applied_rows_with_country(
             "parameter": "wacc",
             "value": effective_wacc,
             "unit": "fraction",
-            "source": COUNTRIES_SHEET,
-            "note": "Effective country-specific WACC applied by runner.",
+            "source": settings.wacc_source,
+            "note": "Effective WACC applied by runner.",
         }
     )
     return rows
@@ -2183,6 +2319,12 @@ def run(config: RunnerConfig) -> None:
     countries_df, parameters_df = _read_parameter_workbook(
         config.parameters_xlsx
     )
+    wacc_overrides = _read_wacc_csv(config.wacc_csv)
+    if wacc_overrides:
+        print(
+            f"WACC CSV loaded: {len(wacc_overrides)} country/year "
+            "override entries."
+        )
     country_dirs = _discover_countries(config)
     if not country_dirs:
         raise SystemExit("No country folders found.")
@@ -2299,7 +2441,12 @@ def run(config: RunnerConfig) -> None:
             year_errors = _remove_country_records(year_errors, country)
 
             try:
-                settings = _country_settings(countries_df, country)
+                settings = _country_settings(
+                    countries_df,
+                    country,
+                    year,
+                    wacc_overrides,
+                )
                 parameter_rows = _parameter_rows_for_country(
                     parameters_df,
                     year,
@@ -2351,7 +2498,7 @@ def run(config: RunnerConfig) -> None:
                         "country": country,
                         "region": settings.region,
                         "year": year,
-                        "wacc": settings.wacc,
+                        "wacc": country_pm_object.get_wacc(),
                         "solver": config.solver,
                     }
                     for profile in profiles
@@ -2516,6 +2663,7 @@ def main() -> None:
         f"Countries: {config.countries_root}\n"
         f"YAML: {config.settings_yaml}\n"
         f"Parameters: {config.parameters_xlsx}\n"
+        f"WACC CSV: {config.wacc_csv}\n"
         f"Years: {config.scenario_years}\n"
         f"Workers per country: {config.cores}"
     )

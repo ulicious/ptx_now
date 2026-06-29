@@ -2146,16 +2146,35 @@ def write_year_results(
 def _applied_rows_with_country(
     applied: list[dict[str, Any]],
     settings: CountrySettings,
+    year: int,
+    effective_wacc: float,
 ) -> list[dict[str, Any]]:
-    return [
+    rows = [
         {
             "country": settings.country,
             "region": settings.region,
-            "wacc": settings.wacc,
+            "wacc": effective_wacc,
             **{key: _safe_excel_value(value) for key, value in row.items()},
         }
         for row in applied
     ]
+    rows.append(
+        {
+            "country": settings.country,
+            "region": settings.region,
+            "wacc": effective_wacc,
+            "year": year,
+            "scope": "country",
+            "scope_name": settings.country,
+            "component": "__project__",
+            "parameter": "wacc",
+            "value": effective_wacc,
+            "unit": "fraction",
+            "source": COUNTRIES_SHEET,
+            "note": "Effective country-specific WACC applied by runner.",
+        }
+    )
+    return rows
 
 
 def run(config: RunnerConfig) -> None:
@@ -2386,7 +2405,12 @@ def run(config: RunnerConfig) -> None:
                     if result["error"] is not None
                 )
                 year_parameters.extend(
-                    _applied_rows_with_country(applied, settings)
+                    _applied_rows_with_country(
+                        applied,
+                        settings,
+                        year,
+                        country_pm_object.get_wacc(),
+                    )
                 )
                 completed_countries.append(country)
                 country_successful = True

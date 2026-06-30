@@ -821,7 +821,12 @@ class OptimizationGurobiModel:
             self.all_inputs, self.all_outputs = self.pm_object.get_commodity_sets()
 
         # Create optimization program
-        self.model = gp.Model()
+        self.gurobi_env = gp.Env(empty=True)
+        self.gurobi_env.setParam("OutputFlag", 0)
+        self.gurobi_env.start()
+        self.model = gp.Model(env=self.gurobi_env)
+        self.model.setParam("OutputFlag", 0)
+        self.model.setParam("LogToConsole", 0)
         self.time = range(0, self.pm_object.get_covered_period())  # no -1 because of for
         self.clusters = range(0, self.pm_object.get_number_clusters())  # no -1 because of for
         self.integer_steps = range(0, self.pm_object.integer_steps)

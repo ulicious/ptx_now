@@ -33,6 +33,7 @@ from typing import Any
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
 RUNNER_VERSION = "2026-06-26-operational-balance-check-v4"
 BALANCE_TOLERANCE = 1e-6
+PROFILE_FEATURE_SHEET = "profile_features"
 
 
 # ---------------------------------------------------------------------------
@@ -1189,6 +1190,225 @@ def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
     )
 
 
+def _read_profile_frame(path: Path) -> Any:
+    import pandas as pd
+
+    if path.suffix.lower() in {".xlsx", ".xls"}:
+        return pd.read_excel(path, index_col=0)
+    return pd.read_csv(path, index_col=0)
+
+
+def _profile_column(frame: Any, column_name: str) -> str | None:
+    normalized = {
+        str(column).strip().lower(): column
+        for column in frame.columns
+    }
+    return normalized.get(column_name.strip().lower())
+
+
+def _weighted_average(values: Any, weights: Any) -> float | None:
+    import numpy as np
+
+    valid = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
+    if not valid.any():
+        return None
+    return float(np.average(values[valid], weights=weights[valid]))
+
+
+def _weighted_std(values: Any, weights: Any) -> float | None:
+    import numpy as np
+
+    mean = _weighted_average(values, weights)
+    if mean is None:
+        return None
+    valid = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
+    variance = np.average((values[valid] - mean) ** 2, weights=weights[valid])
+    return float(np.sqrt(variance))
+
+
+def _weighted_share_below(values: Any, weights: Any, threshold: float) -> float | None:
+    import numpy as np
+
+    valid = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
+    if not valid.any():
+        return None
+    total_weight = float(weights[valid].sum())
+    if total_weight <= 0:
+        return None
+    return float(weights[valid & (values < threshold)].sum() / total_weight)
+
+
+def _weighted_correlation(
+    left_values: Any,
+    right_values: Any,
+    weights: Any,
+) -> float | None:
+    import numpy as np
+
+    valid = (
+        np.isfinite(left_values)
+        & np.isfinite(right_values)
+        & np.isfinite(weights)
+        & (weights > 0)
+    )
+    if not valid.any():
+        return None
+    left = left_values[valid]
+    right = right_values[valid]
+    valid_weights = weights[valid]
+    left_mean = np.average(left, weights=valid_weights)
+    right_mean = np.average(right, weights=valid_weights)
+    covariance = np.average(
+        (left - left_mean) * (right - right_mean),
+        weights=valid_weights,
+    )
+    left_std = np.sqrt(np.average((left - left_mean) ** 2, weights=valid_weights))
+    right_std = np.sqrt(
+        np.average((right - right_mean) ** 2, weights=valid_weights)
+    )
+    if left_std <= 0 or right_std <= 0:
+        return None
+    return float(covariance / (left_std * right_std))
+
+
+def _profile_series_features(
+    frame: Any,
+    column_name: str,
+    weights: Any,
+    prefix: str,
+) -> dict[str, Any]:
+    import numpy as np
+
+    column = _profile_column(frame, column_name)
+    if column is None:
+        return {}
+
+    values = frame[column].to_numpy(dtype=float)
+    valid = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
+    if not valid.any():
+        return {
+            f"{prefix}_has_profile": False,
+        }
+
+    weighted_mean = _weighted_average(values, weights)
+    weighted_std = _weighted_std(values, weights)
+    return {
+        f"{prefix}_has_profile": True,
+        f"{prefix}_full_load_hours": float((values[valid] * weights[valid]).sum()),
+        f"{prefix}_weighted_mean": weighted_mean,
+        f"{prefix}_weighted_std": weighted_std,
+        f"{prefix}_coefficient_of_variation": (
+            weighted_std / weighted_mean
+            if weighted_mean not in {None, 0}
+            else None
+        ),
+        f"{prefix}_min": float(np.min(values[valid])),
+        f"{prefix}_p10": float(np.percentile(values[valid], 10)),
+        f"{prefix}_p50": float(np.percentile(values[valid], 50)),
+        f"{prefix}_p90": float(np.percentile(values[valid], 90)),
+        f"{prefix}_max": float(np.max(values[valid])),
+        f"{prefix}_share_below_0_05": _weighted_share_below(
+            values,
+            weights,
+            0.05,
+        ),
+        f"{prefix}_share_below_0_10": _weighted_share_below(
+            values,
+            weights,
+            0.10,
+        ),
+    }
+
+
+def calculate_profile_features(
+    profile_path: Path,
+    *,
+    year: int,
+    country: str,
+    region: str,
+    profile: str,
+) -> dict[str, Any]:
+    import numpy as np
+
+    frame = _read_profile_frame(profile_path)
+    weighting_column = _profile_column(frame, "Weighting")
+    if weighting_column is None:
+        weights = np.ones(len(frame), dtype=float)
+    else:
+        weights = frame[weighting_column].to_numpy(dtype=float)
+
+    record = {
+        "scenario_year": year,
+        "country": country,
+        "region": region,
+        "profile": profile,
+        "profile_rows": len(frame),
+        "total_weighted_hours": float(np.nansum(weights)),
+        "weighting_column_present": weighting_column is not None,
+    }
+    record.update(_profile_series_features(frame, "Solar", weights, "solar"))
+    record.update(_profile_series_features(frame, "Wind", weights, "wind"))
+
+    solar_column = _profile_column(frame, "Solar")
+    wind_column = _profile_column(frame, "Wind")
+    if solar_column is not None and wind_column is not None:
+        solar = frame[solar_column].to_numpy(dtype=float)
+        wind = frame[wind_column].to_numpy(dtype=float)
+        valid = (
+            np.isfinite(solar)
+            & np.isfinite(wind)
+            & np.isfinite(weights)
+            & (weights > 0)
+        )
+        if valid.any():
+            total_weight = float(weights[valid].sum())
+            record["solar_wind_correlation"] = _weighted_correlation(
+                solar,
+                wind,
+                weights,
+            )
+            record["solar_wind_weighted_mean_sum"] = _weighted_average(
+                solar + wind,
+                weights,
+            )
+            record["share_solar_and_wind_below_0_10"] = (
+                float(
+                    weights[
+                        valid
+                        & (solar < 0.10)
+                        & (wind < 0.10)
+                    ].sum()
+                    / total_weight
+                )
+                if total_weight > 0
+                else None
+            )
+
+    return record
+
+
+def _profile_feature_records(
+    profile_dir: Path,
+    profiles: list[str],
+    *,
+    year: int,
+    country: str,
+    region: str,
+) -> list[dict[str, Any]]:
+    records = []
+    for profile in profiles:
+        records.append(
+            calculate_profile_features(
+                profile_dir / profile,
+                year=year,
+                country=country,
+                region=region,
+                profile=profile,
+            )
+        )
+    return records
+
+
 def _validate_staged_profile(path: Path) -> None:
     if not path.is_file():
         raise FileNotFoundError(f"Staged profile does not exist: {path}")
@@ -1976,13 +2196,14 @@ def _load_existing_year_results(
 ) -> tuple:
     if not output_path.is_file():
         if include_commodity_flows:
-            return [], [], [], [], []
+            return [], [], [], [], [], []
         return [], [], [], []
 
     results = _records_from_sheet(output_path, "results")
     components = _records_from_sheet(output_path, "components")
     commodity_flows = _records_from_sheet(output_path, "commodity_flows")
     parameters = _records_from_sheet(output_path, "parameters_applied")
+    profile_features = _records_from_sheet(output_path, PROFILE_FEATURE_SHEET)
     errors = _records_from_sheet(output_path, "errors")
 
     for sheet_name, records in [
@@ -1990,13 +2211,14 @@ def _load_existing_year_results(
         ("components", components),
         ("commodity_flows", commodity_flows),
         ("parameters_applied", parameters),
+        (PROFILE_FEATURE_SHEET, profile_features),
         ("errors", errors),
     ]:
         wrong_years = {
-            int(record["scenario_year"])
+            int(record.get("scenario_year", record.get("year")))
             for record in records
-            if record.get("scenario_year") is not None
-            and int(record["scenario_year"]) != year
+            if record.get("scenario_year", record.get("year")) is not None
+            and int(record.get("scenario_year", record.get("year"))) != year
         }
         if wrong_years:
             raise ValueError(
@@ -2005,7 +2227,14 @@ def _load_existing_year_results(
             )
 
     if include_commodity_flows:
-        return results, components, commodity_flows, parameters, errors
+        return (
+            results,
+            components,
+            commodity_flows,
+            parameters,
+            profile_features,
+            errors,
+        )
     return results, components, parameters, errors
 
 
@@ -2151,6 +2380,7 @@ def write_year_results(
     applied_parameters: list[dict[str, Any]],
     errors: list[dict[str, Any]],
     commodity_flows: list[dict[str, Any]] | None = None,
+    profile_features: list[dict[str, Any]] | None = None,
 ) -> None:
     import pandas as pd
 
@@ -2159,6 +2389,8 @@ def write_year_results(
     results = [_normalize_result_record(record) for record in results]
     if commodity_flows is None:
         commodity_flows = []
+    if profile_features is None:
+        profile_features = []
 
     result_base_columns = [
         "scenario_year",
@@ -2248,6 +2480,27 @@ def write_year_results(
             "note",
         ],
     )
+    profile_feature_base_columns = [
+        "scenario_year",
+        "country",
+        "region",
+        "profile",
+        "profile_rows",
+        "total_weighted_hours",
+        "weighting_column_present",
+    ]
+    profile_feature_extra_columns = sorted(
+        {
+            key
+            for row in profile_features
+            for key in row
+            if key not in profile_feature_base_columns
+        }
+    )
+    profile_features_df = pd.DataFrame(
+        profile_features,
+        columns=profile_feature_base_columns + profile_feature_extra_columns,
+    )
     errors_df = pd.DataFrame(
         errors,
         columns=[
@@ -2293,6 +2546,11 @@ def write_year_results(
         parameters_df.to_excel(
             writer,
             sheet_name="parameters_applied",
+            index=False,
+        )
+        profile_features_df.to_excel(
+            writer,
+            sheet_name=PROFILE_FEATURE_SHEET,
             index=False,
         )
         errors_df.to_excel(writer, sheet_name="errors", index=False)
@@ -2361,6 +2619,7 @@ def run(config: RunnerConfig) -> None:
             year_components,
             year_commodity_flows,
             year_parameters,
+            year_profile_features,
             year_errors,
         ) = _load_existing_year_results(
             output_path,
@@ -2436,6 +2695,57 @@ def run(config: RunnerConfig) -> None:
             if country == "00_Information":
                 continue
             if country in resumable_completed:
+                expected_profiles = int(
+                    logged_completed.get(country, {}).get("profile_count", 0)
+                )
+                country_feature_rows = [
+                    row
+                    for row in year_profile_features
+                    if row.get("country") == country
+                ]
+                if expected_profiles and len(country_feature_rows) != expected_profiles:
+                    print(
+                        f"{year}: Backfill profile features for completed "
+                        f"country {country}"
+                    )
+                    progress_record = logged_completed.get(country, {})
+                    region = str(progress_record.get("region") or "")
+                    if not region:
+                        region = _country_settings(
+                            countries_df,
+                            country,
+                            year,
+                            wacc_overrides,
+                        ).region
+                    profile_dir = _profile_dir(config, country_dir, year)
+                    profiles = _profile_files(
+                        profile_dir,
+                        config.recursive_profiles,
+                    )
+                    year_profile_features = _remove_country_records(
+                        year_profile_features,
+                        country,
+                    )
+                    year_profile_features.extend(
+                        _profile_feature_records(
+                            profile_dir,
+                            profiles,
+                            year=year,
+                            country=country,
+                            region=region,
+                        )
+                    )
+                    write_year_results(
+                        output_path=output_path,
+                        year=year,
+                        completed_countries=completed_countries,
+                        results=year_results,
+                        components=year_components,
+                        commodity_flows=year_commodity_flows,
+                        applied_parameters=year_parameters,
+                        profile_features=year_profile_features,
+                        errors=year_errors,
+                    )
                 print(f"{year}: Skip completed country {country}")
                 continue
 
@@ -2456,6 +2766,10 @@ def run(config: RunnerConfig) -> None:
             )
             year_parameters = _remove_country_records(
                 year_parameters,
+                country,
+            )
+            year_profile_features = _remove_country_records(
+                year_profile_features,
                 country,
             )
             year_errors = _remove_country_records(year_errors, country)
@@ -2509,6 +2823,13 @@ def run(config: RunnerConfig) -> None:
                     raise FileNotFoundError(
                         f"No profile files found in {profile_dir}"
                     )
+                country_profile_features = _profile_feature_records(
+                    profile_dir,
+                    profiles,
+                    year=year,
+                    country=country,
+                    region=settings.region,
+                )
 
                 jobs = [
                     {
@@ -2581,6 +2902,7 @@ def run(config: RunnerConfig) -> None:
                         country_pm_object.get_wacc(),
                     )
                 )
+                year_profile_features.extend(country_profile_features)
                 completed_countries.append(country)
                 country_successful = True
                 completed_profile_count = len(country_results)
@@ -2603,6 +2925,7 @@ def run(config: RunnerConfig) -> None:
                     components=year_components,
                     commodity_flows=year_commodity_flows,
                     applied_parameters=year_parameters,
+                    profile_features=year_profile_features,
                     errors=year_errors,
                 )
                 print(f"\nABORT: {exc}")
@@ -2627,6 +2950,7 @@ def run(config: RunnerConfig) -> None:
                     components=year_components,
                     commodity_flows=year_commodity_flows,
                     applied_parameters=year_parameters,
+                    profile_features=year_profile_features,
                     errors=year_errors,
                 )
                 print(f"\nABORT: {exc}")
@@ -2653,6 +2977,7 @@ def run(config: RunnerConfig) -> None:
                 components=year_components,
                 commodity_flows=year_commodity_flows,
                 applied_parameters=year_parameters,
+                profile_features=year_profile_features,
                 errors=year_errors,
             )
             print(f"Checkpoint written: {output_path}")

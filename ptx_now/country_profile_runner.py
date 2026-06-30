@@ -65,8 +65,8 @@ SOLVER = "gurobi"
 OPTIMIZATION_TYPE: str | None = "economical"
 CORES: int | str = "max"
 RECURSIVE_PROFILES = False
-PROFILE_COPY_RETRIES = 5
-PROFILE_COPY_RETRY_DELAY_SECONDS = 2.0
+SERVER_ACCESS_RETRIES: int | None = None
+SERVER_ACCESS_RETRY_DELAY_SECONDS = 30.0
 
 # None means all discovered country folders.
 COUNTRIES: list[str] | None = None
@@ -1174,19 +1174,85 @@ def _profile_dir(config: RunnerConfig, country_dir: Path, year: int) -> Path:
     return country_dir / Path(relative)
 
 
-def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
-    if recursive:
-        files = [
-            path
-            for path in profile_dir.rglob("*")
-            if path.is_file() and path.suffix.lower() in PROFILE_SUFFIXES
-        ]
-        return sorted(str(path.relative_to(profile_dir)) for path in files)
+def _is_retryable_server_access_error(exc: BaseException) -> bool:
+    if isinstance(exc, (EOFError, zipfile.BadZipFile)):
+        return True
+    if not isinstance(exc, OSError):
+        return False
+    return getattr(exc, "errno", None) in {
+        2,    # File or directory temporarily invisible on flaky mounts.
+        5,    # Input/output error.
+        22,   # Invalid argument while streaming xlsx from GVFS/SMB.
+        107,  # Transport endpoint is not connected.
+        110,  # Connection timed out.
+        112,  # Host is down.
+        113,  # No route to host.
+        121,  # Remote I/O error.
+    }
 
-    return sorted(
-        path.name
-        for path in profile_dir.iterdir()
-        if path.is_file() and path.suffix.lower() in PROFILE_SUFFIXES
+
+def _retry_server_access(description: str, operation: Any) -> Any:
+    attempt = 0
+    while True:
+        try:
+            return operation()
+        except Exception as exc:  # noqa: BLE001 - transient server access.
+            if not _is_retryable_server_access_error(exc):
+                raise
+
+            attempt += 1
+            if (
+                SERVER_ACCESS_RETRIES is not None
+                and attempt > SERVER_ACCESS_RETRIES
+            ):
+                raise
+
+            limit = (
+                "unlimited"
+                if SERVER_ACCESS_RETRIES is None
+                else str(SERVER_ACCESS_RETRIES)
+            )
+            print(
+                f"Server access failed for {description}: "
+                f"{type(exc).__name__}: {exc}. "
+                f"Retry {attempt}/{limit} in "
+                f"{SERVER_ACCESS_RETRY_DELAY_SECONDS:.0f}s."
+            )
+            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+
+
+def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
+    def list_profiles() -> list[str]:
+        if recursive:
+            files = [
+                path
+                for path in profile_dir.rglob("*")
+                if path.is_file() and path.suffix.lower() in PROFILE_SUFFIXES
+            ]
+            return sorted(str(path.relative_to(profile_dir)) for path in files)
+
+        return sorted(
+            path.name
+            for path in profile_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in PROFILE_SUFFIXES
+        )
+
+    return _retry_server_access(
+        f"profile listing {profile_dir}",
+        list_profiles,
+    )
+
+
+def _wait_for_profile_dir(profile_dir: Path) -> None:
+    def check_profile_dir() -> None:
+        if not profile_dir.is_dir():
+            raise FileNotFoundError(
+                f"Profile directory not available: {profile_dir}"
+            )
+
+    _retry_server_access(
+        f"profile directory {profile_dir}",
+        check_profile_dir,
     )
 
 
@@ -1398,12 +1464,15 @@ def _profile_feature_records(
     records = []
     for profile in profiles:
         records.append(
-            calculate_profile_features(
-                profile_dir / profile,
-                year=year,
-                country=country,
-                region=region,
-                profile=profile,
+            _retry_server_access(
+                f"profile feature read {profile_dir / profile}",
+                lambda profile=profile: calculate_profile_features(
+                    profile_dir / profile,
+                    year=year,
+                    country=country,
+                    region=region,
+                    profile=profile,
+                ),
             )
         )
     return records
@@ -1434,7 +1503,9 @@ def _copy_profile_with_retries(
     )
     last_error: Exception | None = None
 
-    for attempt in range(1, PROFILE_COPY_RETRIES + 1):
+    attempt = 0
+    while True:
+        attempt += 1
         try:
             temporary_destination.unlink(missing_ok=True)
             destination.unlink(missing_ok=True)
@@ -1471,12 +1542,22 @@ def _copy_profile_with_retries(
             last_error = exc
             temporary_destination.unlink(missing_ok=True)
             destination.unlink(missing_ok=True)
-            if attempt == PROFILE_COPY_RETRIES:
+            if not _is_retryable_server_access_error(exc):
+                break
+            if (
+                SERVER_ACCESS_RETRIES is not None
+                and attempt >= SERVER_ACCESS_RETRIES
+            ):
                 break
 
-            delay = PROFILE_COPY_RETRY_DELAY_SECONDS * attempt
+            delay = SERVER_ACCESS_RETRY_DELAY_SECONDS
+            limit = (
+                "unlimited"
+                if SERVER_ACCESS_RETRIES is None
+                else str(SERVER_ACCESS_RETRIES)
+            )
             print(
-                f"Profile copy failed ({attempt}/{PROFILE_COPY_RETRIES}): "
+                f"Profile copy failed ({attempt}/{limit}): "
                 f"{source}: {type(exc).__name__}: {exc}. "
                 f"Retry in {delay:.1f}s."
             )
@@ -1484,7 +1565,7 @@ def _copy_profile_with_retries(
 
     raise OSError(
         f"Could not create a valid local copy after "
-        f"{PROFILE_COPY_RETRIES} attempts: {source}"
+        f"{attempt} attempts: {source}"
     ) from last_error
 
 
@@ -2716,8 +2797,9 @@ def run(config: RunnerConfig) -> None:
                             country,
                             year,
                             wacc_overrides,
-                        ).region
+                    ).region
                     profile_dir = _profile_dir(config, country_dir, year)
+                    _wait_for_profile_dir(profile_dir)
                     profiles = _profile_files(
                         profile_dir,
                         config.recursive_profiles,
@@ -2811,10 +2893,7 @@ def run(config: RunnerConfig) -> None:
                     country_dir,
                     year,
                 )
-                if not profile_dir.is_dir():
-                    raise FileNotFoundError(
-                        f"Profile directory not found: {profile_dir}"
-                    )
+                _wait_for_profile_dir(profile_dir)
                 profiles = _profile_files(
                     profile_dir,
                     config.recursive_profiles,

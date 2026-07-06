@@ -34,6 +34,7 @@ PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
 RUNNER_VERSION = "2026-06-26-operational-balance-check-v4"
 BALANCE_TOLERANCE = 1e-6
 PROFILE_FEATURE_SHEET = "profile_features"
+EXCEL_MAX_ROWS = 1_048_576
 
 
 # ---------------------------------------------------------------------------
@@ -2294,22 +2295,60 @@ def _records_from_sheet(path: Path, sheet_name: str) -> list[dict[str, Any]]:
     return records
 
 
+def _csv_output_path(output_path: Path, sheet_name: str) -> Path:
+    return output_path.with_name(f"{output_path.stem}_{sheet_name}.csv")
+
+
+def _records_from_output(output_path: Path, sheet_name: str) -> list[dict[str, Any]]:
+    import pandas as pd
+
+    csv_path = _csv_output_path(output_path, sheet_name)
+    if csv_path.is_file():
+        frame = pd.read_csv(csv_path)
+        if frame.empty:
+            return []
+        records = []
+        for record in frame.to_dict(orient="records"):
+            normalized_record = _normalize_result_record(record)
+            normalized_record = {
+                key: _safe_excel_value(value)
+                for key, value in normalized_record.items()
+            }
+            records.append(normalized_record)
+        return records
+
+    if not output_path.is_file():
+        return []
+    return _records_from_sheet(output_path, sheet_name)
+
+
 def _load_existing_year_results(
     output_path: Path,
     year: int,
     include_commodity_flows: bool = False,
 ) -> tuple:
-    if not output_path.is_file():
+    output_names = [
+        "results",
+        "components",
+        "commodity_flows",
+        "parameters_applied",
+        PROFILE_FEATURE_SHEET,
+        "errors",
+    ]
+    if not output_path.is_file() and not any(
+        _csv_output_path(output_path, sheet_name).is_file()
+        for sheet_name in output_names
+    ):
         if include_commodity_flows:
             return [], [], [], [], [], []
         return [], [], [], []
 
-    results = _records_from_sheet(output_path, "results")
-    components = _records_from_sheet(output_path, "components")
-    commodity_flows = _records_from_sheet(output_path, "commodity_flows")
-    parameters = _records_from_sheet(output_path, "parameters_applied")
-    profile_features = _records_from_sheet(output_path, PROFILE_FEATURE_SHEET)
-    errors = _records_from_sheet(output_path, "errors")
+    results = _records_from_output(output_path, "results")
+    components = _records_from_output(output_path, "components")
+    commodity_flows = _records_from_output(output_path, "commodity_flows")
+    parameters = _records_from_output(output_path, "parameters_applied")
+    profile_features = _records_from_output(output_path, PROFILE_FEATURE_SHEET)
+    errors = _records_from_output(output_path, "errors")
 
     for sheet_name, records in [
         ("results", results),
@@ -2646,28 +2685,84 @@ def write_year_results(
         ]
     )
 
+    detail_frames = {
+        "results": results_df,
+        "components": components_df,
+        "commodity_flows": commodity_flows_df,
+        "parameters_applied": parameters_df,
+        PROFILE_FEATURE_SHEET: profile_features_df,
+        "errors": errors_df,
+    }
+    csv_paths = {
+        sheet_name: _csv_output_path(output_path, sheet_name)
+        for sheet_name in detail_frames
+    }
+    csv_summary = pd.DataFrame(
+        [
+            {
+                "sheet": sheet_name,
+                "rows": len(frame),
+                "csv_file": csv_paths[sheet_name].name,
+                "included_in_workbook": len(frame) + 1 <= EXCEL_MAX_ROWS,
+            }
+            for sheet_name, frame in detail_frames.items()
+        ]
+    )
+    summary = pd.concat(
+        [
+            summary,
+            pd.DataFrame(
+                [
+                    {
+                        "metric": f"{sheet_name}_csv",
+                        "value": csv_paths[sheet_name].name,
+                    }
+                    for sheet_name in detail_frames
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    temporary_csv_paths = {}
+    for sheet_name, frame in detail_frames.items():
+        csv_path = csv_paths[sheet_name]
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_csv_path = csv_path.with_suffix(".tmp.csv")
+        frame.to_csv(temporary_csv_path, index=False)
+        temporary_csv_paths[sheet_name] = temporary_csv_path
+
     with pd.ExcelWriter(temporary_path, engine="openpyxl") as writer:
         summary.to_excel(writer, sheet_name="summary", index=False)
-        results_df.to_excel(writer, sheet_name="results", index=False)
-        components_df.to_excel(writer, sheet_name="components", index=False)
-        commodity_flows_df.to_excel(
-            writer,
-            sheet_name="commodity_flows",
-            index=False,
-        )
-        parameters_df.to_excel(
-            writer,
-            sheet_name="parameters_applied",
-            index=False,
-        )
-        profile_features_df.to_excel(
-            writer,
-            sheet_name=PROFILE_FEATURE_SHEET,
-            index=False,
-        )
-        errors_df.to_excel(writer, sheet_name="errors", index=False)
+        csv_summary.to_excel(writer, sheet_name="csv_outputs", index=False)
+        for sheet_name, frame in detail_frames.items():
+            if len(frame) + 1 <= EXCEL_MAX_ROWS:
+                frame.to_excel(writer, sheet_name=sheet_name, index=False)
+                continue
+            reference_sheet = f"{sheet_name[:25]}_csv"
+            pd.DataFrame(
+                [
+                    {
+                        "metric": "rows",
+                        "value": len(frame),
+                    },
+                    {
+                        "metric": "csv_file",
+                        "value": csv_paths[sheet_name].name,
+                    },
+                    {
+                        "metric": "reason",
+                        "value": (
+                            "Excel sheet row limit exceeded; full data is "
+                            "written to CSV."
+                        ),
+                    },
+                ]
+            ).to_excel(writer, sheet_name=reference_sheet, index=False)
 
     _format_output_workbook(temporary_path)
+    for sheet_name, temporary_csv_path in temporary_csv_paths.items():
+        os.replace(temporary_csv_path, csv_paths[sheet_name])
     os.replace(temporary_path, output_path)
 
 

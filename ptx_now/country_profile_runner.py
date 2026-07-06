@@ -2703,7 +2703,7 @@ def write_year_results(
                 "sheet": sheet_name,
                 "rows": len(frame),
                 "csv_file": csv_paths[sheet_name].name,
-                "included_in_workbook": len(frame) + 1 <= EXCEL_MAX_ROWS,
+                "included_in_workbook": False,
             }
             for sheet_name, frame in detail_frames.items()
         ]
@@ -2735,30 +2735,6 @@ def write_year_results(
     with pd.ExcelWriter(temporary_path, engine="openpyxl") as writer:
         summary.to_excel(writer, sheet_name="summary", index=False)
         csv_summary.to_excel(writer, sheet_name="csv_outputs", index=False)
-        for sheet_name, frame in detail_frames.items():
-            if len(frame) + 1 <= EXCEL_MAX_ROWS:
-                frame.to_excel(writer, sheet_name=sheet_name, index=False)
-                continue
-            reference_sheet = f"{sheet_name[:25]}_csv"
-            pd.DataFrame(
-                [
-                    {
-                        "metric": "rows",
-                        "value": len(frame),
-                    },
-                    {
-                        "metric": "csv_file",
-                        "value": csv_paths[sheet_name].name,
-                    },
-                    {
-                        "metric": "reason",
-                        "value": (
-                            "Excel sheet row limit exceeded; full data is "
-                            "written to CSV."
-                        ),
-                    },
-                ]
-            ).to_excel(writer, sheet_name=reference_sheet, index=False)
 
     _format_output_workbook(temporary_path)
     for sheet_name, temporary_csv_path in temporary_csv_paths.items():

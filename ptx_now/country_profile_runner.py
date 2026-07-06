@@ -65,6 +65,8 @@ SOLVER = "gurobi"
 OPTIMIZATION_TYPE: str | None = "economical"
 CORES: int | str = "max"
 RECURSIVE_PROFILES = False
+RUN_OPTIMIZATION = True
+READ_PROFILE_STATISTICS = True
 SERVER_ACCESS_RETRIES: int | None = None
 SERVER_ACCESS_RETRY_DELAY_SECONDS = 30.0
 
@@ -151,6 +153,8 @@ MIDDLE_EAST_COUNTRIES = {
     "Kuwait",
     "Lebanon",
     "Oman",
+    "Palestine",
+    "Palestinian Territory",
     "Qatar",
     "Saudi Arabia",
     "Syria",
@@ -271,6 +275,8 @@ COUNTRY_REGION_ALIASES = {
     "Brazil": "Brazil",
     "Canada": "North America",
     "China": "China",
+    "State of Palestine": "Middle East",
+    "Palestinian Territories": "Middle East",
     "People's Republic of China": "China",
     "India": "India",
     "Japan": "Japan",
@@ -293,6 +299,8 @@ class RunnerConfig:
     optimization_type: str | None
     cores: int
     recursive_profiles: bool
+    run_optimization: bool
+    read_profile_statistics: bool
     countries: list[str] | None
 
 
@@ -397,6 +405,8 @@ def build_config() -> RunnerConfig:
         optimization_type=OPTIMIZATION_TYPE,
         cores=_parse_cores(CORES),
         recursive_profiles=RECURSIVE_PROFILES,
+        run_optimization=RUN_OPTIMIZATION,
+        read_profile_statistics=READ_PROFILE_STATISTICS,
         countries=COUNTRIES,
     )
 
@@ -411,6 +421,11 @@ def validate_config(config: RunnerConfig) -> None:
         missing.append(f"PARAMETERS_XLSX does not exist: {config.parameters_xlsx}")
     if config.wacc_file is not None and not config.wacc_file.is_file():
         missing.append(f"WACC_FILE does not exist: {config.wacc_file}")
+    if not config.run_optimization and not config.read_profile_statistics:
+        missing.append(
+            "At least one of RUN_OPTIMIZATION or READ_PROFILE_STATISTICS "
+            "must be True."
+        )
 
     if missing:
         details = "\n".join(f"- {message}" for message in missing)
@@ -1206,19 +1221,27 @@ def _retry_server_access(description: str, operation: Any) -> Any:
                 and attempt > SERVER_ACCESS_RETRIES
             ):
                 raise
-
-            limit = (
-                "unlimited"
-                if SERVER_ACCESS_RETRIES is None
-                else str(SERVER_ACCESS_RETRIES)
-            )
-            print(
-                f"Server access failed for {description}: "
-                f"{type(exc).__name__}: {exc}. "
-                f"Retry {attempt}/{limit} in "
-                f"{SERVER_ACCESS_RETRY_DELAY_SECONDS:.0f}s."
-            )
             time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+
+
+def _print_progress(label: str, completed: int, total: int) -> None:
+    if total <= 0:
+        return
+    width = 30
+    fraction = min(1.0, max(0.0, completed / total))
+    filled = int(round(width * fraction))
+    bar = "#" * filled + "-" * (width - filled)
+    percent = 100 * fraction
+    print(
+        f"\r{label}: [{bar}] {completed}/{total} ({percent:5.1f}%)",
+        end="",
+        flush=True,
+    )
+
+
+def _finish_progress(label: str, completed: int, total: int) -> None:
+    _print_progress(label, completed, total)
+    print()
 
 
 def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
@@ -1462,7 +1485,10 @@ def _profile_feature_records(
     region: str,
 ) -> list[dict[str, Any]]:
     records = []
-    for profile in profiles:
+    label = f"{year} {country} profile statistics"
+    total = len(profiles)
+    _print_progress(label, 0, total)
+    for completed, profile in enumerate(profiles, start=1):
         records.append(
             _retry_server_access(
                 f"profile feature read {profile_dir / profile}",
@@ -1475,6 +1501,8 @@ def _profile_feature_records(
                 ),
             )
         )
+        _print_progress(label, completed, total)
+    _finish_progress(label, len(records), total)
     return records
 
 
@@ -1550,18 +1578,7 @@ def _copy_profile_with_retries(
             ):
                 break
 
-            delay = SERVER_ACCESS_RETRY_DELAY_SECONDS
-            limit = (
-                "unlimited"
-                if SERVER_ACCESS_RETRIES is None
-                else str(SERVER_ACCESS_RETRIES)
-            )
-            print(
-                f"Profile copy failed ({attempt}/{limit}): "
-                f"{source}: {type(exc).__name__}: {exc}. "
-                f"Retry in {delay:.1f}s."
-            )
-            time.sleep(delay)
+            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
 
     raise OSError(
         f"Could not create a valid local copy after "
@@ -2179,11 +2196,6 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             source_profile = Path(job["profile_dir"]) / profile
             local_profile = local_profile_dir / profile
 
-            print(
-                f"Direct server read failed for {source_profile}: "
-                f"{type(exc).__name__}: {exc}. "
-                f"Retrying with a validated local copy."
-            )
             try:
                 _copy_profile_with_retries(
                     source=source_profile,
@@ -2194,16 +2206,9 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                 retry_job["_local_file_retry"] = True
                 result = _run_single_profile(retry_job)
             except Exception:
-                print(
-                    f"Local retry directory retained after failure: "
-                    f"{local_profile_dir}"
-                )
                 raise
             else:
                 shutil.rmtree(local_profile_dir)
-                print(
-                    f"Local retry succeeded for {country}/{profile}"
-                )
                 return result
 
         raise ProfileOptimizationError(
@@ -2219,14 +2224,33 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
 
 
 def _run_country_jobs(jobs: list[dict[str, Any]], cores: int) -> list[dict[str, Any]]:
+    total = len(jobs)
+    if total == 0:
+        return []
+    first_job = jobs[0]
+    label = f"{first_job['year']} {first_job['country']} optimization"
+    _print_progress(label, 0, total)
     if cores == 1:
-        return [_run_single_profile(job) for job in jobs]
+        results = []
+        for completed, job in enumerate(jobs, start=1):
+            results.append(_run_single_profile(job))
+            _print_progress(label, completed, total)
+        _finish_progress(label, len(results), total)
+        return results
 
     with multiprocessing.Pool(
         processes=cores,
         maxtasksperchild=1,
     ) as pool:
-        return list(pool.imap_unordered(_run_single_profile, jobs))
+        results = []
+        for completed, result in enumerate(
+            pool.imap_unordered(_run_single_profile, jobs),
+            start=1,
+        ):
+            results.append(result)
+            _print_progress(label, completed, total)
+        _finish_progress(label, len(results), total)
+        return results
 
 
 def _safe_excel_value(value: Any) -> Any:
@@ -2462,6 +2486,8 @@ def write_year_results(
     errors: list[dict[str, Any]],
     commodity_flows: list[dict[str, Any]] | None = None,
     profile_features: list[dict[str, Any]] | None = None,
+    run_optimization: bool = RUN_OPTIMIZATION,
+    read_profile_statistics: bool = READ_PROFILE_STATISTICS,
 ) -> None:
     import pandas as pd
 
@@ -2596,6 +2622,11 @@ def write_year_results(
     summary = pd.DataFrame(
         [
             {"metric": "scenario_year", "value": year},
+            {"metric": "run_optimization", "value": run_optimization},
+            {
+                "metric": "read_profile_statistics",
+                "value": read_profile_statistics,
+            },
             {"metric": "last_checkpoint", "value": datetime.now().isoformat(timespec="seconds")},
             {"metric": "countries_completed", "value": len(completed_countries)},
             {"metric": "country_names", "value": ", ".join(completed_countries)},
@@ -2688,7 +2719,11 @@ def run(config: RunnerConfig) -> None:
     if not country_dirs:
         raise SystemExit("No country folders found.")
 
-    base_pm_object = _build_base_parameter_object(config)
+    base_pm_object = (
+        _build_base_parameter_object(config)
+        if config.run_optimization
+        else None
+    )
     progress = _load_progress(config)
 
     for year in config.scenario_years:
@@ -2710,7 +2745,11 @@ def run(config: RunnerConfig) -> None:
 
         logged_completed = _completed_country_records(progress, year)
         resumable_completed = set()
-        for country, record in logged_completed.items():
+        for country, record in (
+            logged_completed.items()
+            if config.run_optimization
+            else []
+        ):
             country_rows = [
                 row
                 for row in year_results
@@ -2784,7 +2823,11 @@ def run(config: RunnerConfig) -> None:
                     for row in year_profile_features
                     if row.get("country") == country
                 ]
-                if expected_profiles and len(country_feature_rows) != expected_profiles:
+                if (
+                    config.read_profile_statistics
+                    and expected_profiles
+                    and len(country_feature_rows) != expected_profiles
+                ):
                     print(
                         f"{year}: Backfill profile features for completed "
                         f"country {country}"
@@ -2797,7 +2840,7 @@ def run(config: RunnerConfig) -> None:
                             country,
                             year,
                             wacc_overrides,
-                    ).region
+                        ).region
                     profile_dir = _profile_dir(config, country_dir, year)
                     _wait_for_profile_dir(profile_dir)
                     profiles = _profile_files(
@@ -2827,6 +2870,8 @@ def run(config: RunnerConfig) -> None:
                         applied_parameters=year_parameters,
                         profile_features=year_profile_features,
                         errors=year_errors,
+                        run_optimization=config.run_optimization,
+                        read_profile_statistics=config.read_profile_statistics,
                     )
                 print(f"{year}: Skip completed country {country}")
                 continue
@@ -2835,26 +2880,29 @@ def run(config: RunnerConfig) -> None:
             country_successful = False
             completed_profile_count = 0
 
-            # Remove stale rows from an interrupted or previously failed run
-            # before recalculating this country.
-            year_results = _remove_country_records(year_results, country)
-            year_components = _remove_country_records(
-                year_components,
-                country,
-            )
-            year_commodity_flows = _remove_country_records(
-                year_commodity_flows,
-                country,
-            )
-            year_parameters = _remove_country_records(
-                year_parameters,
-                country,
-            )
-            year_profile_features = _remove_country_records(
-                year_profile_features,
-                country,
-            )
-            year_errors = _remove_country_records(year_errors, country)
+            # Remove stale rows only for the output branches that are being
+            # recalculated. A statistics-only run must preserve optimization
+            # results that may already exist in the workbook.
+            if config.run_optimization:
+                year_results = _remove_country_records(year_results, country)
+                year_components = _remove_country_records(
+                    year_components,
+                    country,
+                )
+                year_commodity_flows = _remove_country_records(
+                    year_commodity_flows,
+                    country,
+                )
+                year_parameters = _remove_country_records(
+                    year_parameters,
+                    country,
+                )
+                year_errors = _remove_country_records(year_errors, country)
+            if config.read_profile_statistics:
+                year_profile_features = _remove_country_records(
+                    year_profile_features,
+                    country,
+                )
 
             try:
                 settings = _country_settings(
@@ -2863,31 +2911,6 @@ def run(config: RunnerConfig) -> None:
                     year,
                     wacc_overrides,
                 )
-                parameter_rows = _parameter_rows_for_country(
-                    parameters_df,
-                    year,
-                    settings,
-                )
-                if parameter_rows.empty:
-                    raise ValueError(
-                        f"No active parameters found for {country}, "
-                        f"region {settings.region}, year {year}."
-                    )
-
-                country_pm_object = deepcopy(base_pm_object)
-                applied = _apply_parameters(
-                    country_pm_object,
-                    parameter_rows,
-                )
-                if settings.wacc is not None:
-                    country_pm_object.set_wacc(settings.wacc)
-                _print_country_assumptions(
-                    year,
-                    settings,
-                    parameter_rows,
-                    country_pm_object,
-                )
-
                 profile_dir = _profile_dir(
                     config,
                     country_dir,
@@ -2902,89 +2925,120 @@ def run(config: RunnerConfig) -> None:
                     raise FileNotFoundError(
                         f"No profile files found in {profile_dir}"
                     )
-                country_profile_features = _profile_feature_records(
-                    profile_dir,
-                    profiles,
-                    year=year,
-                    country=country,
-                    region=settings.region,
-                )
 
-                jobs = [
-                    {
-                        "pm_object": deepcopy(country_pm_object),
-                        "profile_dir": profile_dir,
-                        "profile": profile,
-                        "country": country,
-                        "region": settings.region,
-                        "year": year,
-                        "wacc": country_pm_object.get_wacc(),
-                        "solver": config.solver,
-                    }
-                    for profile in profiles
-                ]
-                country_results = _run_country_jobs(jobs, config.cores)
-
-                unsuccessful = [
-                    result
-                    for result in country_results
-                    if result.get("result", {}).get("status") != "optimal"
-                ]
-                if unsuccessful:
-                    failed_result = unsuccessful[0]
-                    result_row = failed_result.get("result", {})
-                    error_row = failed_result.get("error") or {}
-                    raise ProfileOptimizationError(
+                if config.read_profile_statistics:
+                    country_profile_features = _profile_feature_records(
+                        profile_dir,
+                        profiles,
                         year=year,
                         country=country,
                         region=settings.region,
-                        profile=str(result_row.get("profile", "unknown")),
-                        profile_path=str(
-                            profile_dir
-                            / str(result_row.get("profile", "unknown"))
-                        ),
-                        exception_type=str(
-                            result_row.get("solver_status", "unknown")
-                        ),
-                        detail=str(
-                            error_row.get(
-                                "error",
-                                f"Non-optimal result row: {result_row}",
-                            )
-                        ),
-                        traceback_text="No worker traceback was returned.",
+                    )
+                    year_profile_features.extend(country_profile_features)
+
+                if config.run_optimization:
+                    parameter_rows = _parameter_rows_for_country(
+                        parameters_df,
+                        year,
+                        settings,
+                    )
+                    if parameter_rows.empty:
+                        raise ValueError(
+                            f"No active parameters found for {country}, "
+                            f"region {settings.region}, year {year}."
+                        )
+
+                    country_pm_object = deepcopy(base_pm_object)
+                    applied = _apply_parameters(
+                        country_pm_object,
+                        parameter_rows,
+                    )
+                    if settings.wacc is not None:
+                        country_pm_object.set_wacc(settings.wacc)
+                    _print_country_assumptions(
+                        year,
+                        settings,
+                        parameter_rows,
+                        country_pm_object,
                     )
 
-                year_results.extend(
-                    result["result"] for result in country_results
-                )
-                year_components.extend(
-                    row
-                    for result in country_results
-                    for row in result["components"]
-                )
-                year_commodity_flows.extend(
-                    row
-                    for result in country_results
-                    for row in result["commodity_flows"]
-                )
-                year_errors.extend(
-                    result["error"]
-                    for result in country_results
-                    if result["error"] is not None
-                )
-                year_parameters.extend(
-                    _applied_rows_with_country(
-                        applied,
-                        settings,
-                        year,
-                        country_pm_object.get_wacc(),
+                    jobs = [
+                        {
+                            "pm_object": deepcopy(country_pm_object),
+                            "profile_dir": profile_dir,
+                            "profile": profile,
+                            "country": country,
+                            "region": settings.region,
+                            "year": year,
+                            "wacc": country_pm_object.get_wacc(),
+                            "solver": config.solver,
+                        }
+                        for profile in profiles
+                    ]
+                    country_results = _run_country_jobs(jobs, config.cores)
+
+                    unsuccessful = [
+                        result
+                        for result in country_results
+                        if result.get("result", {}).get("status") != "optimal"
+                    ]
+                    if unsuccessful:
+                        failed_result = unsuccessful[0]
+                        result_row = failed_result.get("result", {})
+                        error_row = failed_result.get("error") or {}
+                        raise ProfileOptimizationError(
+                            year=year,
+                            country=country,
+                            region=settings.region,
+                            profile=str(result_row.get("profile", "unknown")),
+                            profile_path=str(
+                                profile_dir
+                                / str(result_row.get("profile", "unknown"))
+                            ),
+                            exception_type=str(
+                                result_row.get("solver_status", "unknown")
+                            ),
+                            detail=str(
+                                error_row.get(
+                                    "error",
+                                    f"Non-optimal result row: {result_row}",
+                                )
+                            ),
+                            traceback_text="No worker traceback was returned.",
+                        )
+
+                    year_results.extend(
+                        result["result"] for result in country_results
                     )
-                )
-                year_profile_features.extend(country_profile_features)
-                completed_countries.append(country)
-                country_successful = True
-                completed_profile_count = len(country_results)
+                    year_components.extend(
+                        row
+                        for result in country_results
+                        for row in result["components"]
+                    )
+                    year_commodity_flows.extend(
+                        row
+                        for result in country_results
+                        for row in result["commodity_flows"]
+                    )
+                    year_errors.extend(
+                        result["error"]
+                        for result in country_results
+                        if result["error"] is not None
+                    )
+                    year_parameters.extend(
+                        _applied_rows_with_country(
+                            applied,
+                            settings,
+                            year,
+                            country_pm_object.get_wacc(),
+                        )
+                    )
+                    completed_countries.append(country)
+                    country_successful = True
+                    completed_profile_count = len(country_results)
+                else:
+                    completed_countries.append(country)
+                    completed_profile_count = len(profiles)
 
             except OptimizationNotOptimalError as exc:
                 year_errors.append(
@@ -3006,6 +3060,8 @@ def run(config: RunnerConfig) -> None:
                     applied_parameters=year_parameters,
                     profile_features=year_profile_features,
                     errors=year_errors,
+                    run_optimization=config.run_optimization,
+                    read_profile_statistics=config.read_profile_statistics,
                 )
                 print(f"\nABORT: {exc}")
                 print(f"Checkpoint written before abort: {output_path}")
@@ -3031,6 +3087,8 @@ def run(config: RunnerConfig) -> None:
                     applied_parameters=year_parameters,
                     profile_features=year_profile_features,
                     errors=year_errors,
+                    run_optimization=config.run_optimization,
+                    read_profile_statistics=config.read_profile_statistics,
                 )
                 print(f"\nABORT: {exc}")
                 print(f"Checkpoint written before abort: {output_path}")
@@ -3058,6 +3116,8 @@ def run(config: RunnerConfig) -> None:
                 applied_parameters=year_parameters,
                 profile_features=year_profile_features,
                 errors=year_errors,
+                run_optimization=config.run_optimization,
+                read_profile_statistics=config.read_profile_statistics,
             )
             print(f"Checkpoint written: {output_path}")
             if country_successful:
@@ -3089,6 +3149,8 @@ def main() -> None:
         f"Parameters: {config.parameters_xlsx}\n"
         f"WACC file: {config.wacc_file}\n"
         f"Years: {config.scenario_years}\n"
+        f"Run optimization: {config.run_optimization}\n"
+        f"Read profile statistics: {config.read_profile_statistics}\n"
         f"Workers per country: {config.cores}"
     )
     run(config)

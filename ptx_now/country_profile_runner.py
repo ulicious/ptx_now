@@ -267,6 +267,7 @@ ASIA_OCEANIA_COUNTRIES = {
     "South Korea",
     "Sri Lanka",
     "Tajikistan",
+    "Taiwan",
     "Thailand",
     "Turkmenistan",
     "Uzbekistan",

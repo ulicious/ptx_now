@@ -1193,6 +1193,12 @@ def _profile_dir(config: RunnerConfig, country_dir: Path, year: int) -> Path:
 def _is_retryable_server_access_error(exc: BaseException) -> bool:
     if isinstance(exc, (EOFError, zipfile.BadZipFile)):
         return True
+    if isinstance(exc, ValueError):
+        message = str(exc).lower()
+        return (
+            "excel file format cannot be determined" in message
+            or "file is not a zip file" in message
+        )
     if not isinstance(exc, OSError):
         return False
     return getattr(exc, "errno", None) in {
@@ -2180,11 +2186,9 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
     except ProfileOptimizationError:
         raise
     except Exception as exc:
-        retryable_file_error = isinstance(
-            exc,
-            (OSError, EOFError, zipfile.BadZipFile),
-        )
-        if retryable_file_error and not job.get("_local_file_retry"):
+        if _is_retryable_server_access_error(exc) and not job.get(
+            "_local_file_retry"
+        ):
             safe_country = "".join(
                 character if character.isalnum() else "_"
                 for character in country

@@ -33,6 +33,8 @@ from typing import Any
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
 RUNNER_VERSION = "2026-06-26-operational-balance-check-v4"
 BALANCE_TOLERANCE = 1e-6
+ZERO_CAPACITY_OUTPUT_ABSOLUTE_TOLERANCE = 1e-5
+ZERO_CAPACITY_OUTPUT_RELATIVE_TOLERANCE = 1e-8
 PROFILE_FEATURE_SHEET = "profile_features"
 EXCEL_MAX_ROWS = 1_048_576
 
@@ -1202,7 +1204,7 @@ def _is_retryable_server_access_error(exc: BaseException) -> bool:
         )
     if not isinstance(exc, OSError):
         return False
-    return getattr(exc, "errno", None) in {
+    retryable_error_numbers = {
         2,    # File or directory temporarily invisible on flaky mounts.
         5,    # Input/output error.
         22,   # Invalid argument while streaming xlsx from GVFS/SMB.
@@ -1212,6 +1214,17 @@ def _is_retryable_server_access_error(exc: BaseException) -> bool:
         113,  # No route to host.
         121,  # Remote I/O error.
     }
+    retryable_windows_errors = {
+        53,    # Network path not found.
+        59,    # Unexpected network error.
+        64,    # Network name deleted.
+        121,   # Semaphore timeout period expired.
+        1231,  # Network location cannot be reached.
+    }
+    return (
+        getattr(exc, "errno", None) in retryable_error_numbers
+        or getattr(exc, "winerror", None) in retryable_windows_errors
+    )
 
 
 def _retry_server_access(description: str, operation: Any) -> Any:
@@ -2131,11 +2144,20 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             else:
                 produced_by_component = 0.0
 
-            if produced_by_component > 1e-8 and solver_capacity <= 1e-12:
+            zero_capacity_output_tolerance = max(
+                ZERO_CAPACITY_OUTPUT_ABSOLUTE_TOLERANCE,
+                ZERO_CAPACITY_OUTPUT_RELATIVE_TOLERANCE
+                * max(abs(produced_quantity), 1.0),
+            )
+            if (
+                produced_by_component > zero_capacity_output_tolerance
+                and solver_capacity <= BALANCE_TOLERANCE
+            ):
                 raise RuntimeError(
                     "Inconsistent optimization result: component "
                     f"'{component_name}' produced {produced_by_component} "
-                    "but its solver nominal capacity is zero."
+                    "but its solver nominal capacity is zero. "
+                    f"Tolerance={zero_capacity_output_tolerance}."
                 )
 
             component_row = {

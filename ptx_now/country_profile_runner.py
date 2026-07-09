@@ -2554,6 +2554,8 @@ def write_year_results(
     profile_features: list[dict[str, Any]] | None = None,
     run_optimization: bool = RUN_OPTIMIZATION,
     read_profile_statistics: bool = READ_PROFILE_STATISTICS,
+    csv_write_mode: str = "rewrite",
+    append_country: str | None = None,
 ) -> None:
     import pandas as pd
 
@@ -2751,10 +2753,47 @@ def write_year_results(
         ignore_index=True,
     )
 
+    if csv_write_mode not in {"rewrite", "append_country"}:
+        raise ValueError(
+            "csv_write_mode must be 'rewrite' or 'append_country'."
+        )
+    if csv_write_mode == "append_country" and not append_country:
+        raise ValueError(
+            "append_country is required when csv_write_mode='append_country'."
+        )
+
     temporary_csv_paths = {}
     for sheet_name, frame in detail_frames.items():
         csv_path = csv_paths[sheet_name]
         csv_path.parent.mkdir(parents=True, exist_ok=True)
+        if csv_write_mode == "append_country":
+            if "country" in frame.columns:
+                chunk = frame[frame["country"] == append_country]
+            else:
+                chunk = frame.iloc[0:0]
+            csv_exists = csv_path.is_file()
+            csv_has_expected_columns = False
+            if csv_exists:
+                existing_columns = pd.read_csv(csv_path, nrows=0).columns.tolist()
+                csv_has_expected_columns = existing_columns == list(frame.columns)
+            if (
+                (csv_exists and csv_has_expected_columns)
+                or (not csv_exists and len(chunk) == len(frame))
+            ):
+                if chunk.empty:
+                    continue
+                write_header = (
+                    not csv_exists
+                    or csv_path.stat().st_size == 0
+                )
+                chunk.to_csv(
+                    csv_path,
+                    mode="a",
+                    index=False,
+                    header=write_header,
+                )
+                continue
+
         temporary_csv_path = csv_path.with_suffix(".tmp.csv")
         frame.to_csv(temporary_csv_path, index=False)
         temporary_csv_paths[sheet_name] = temporary_csv_path
@@ -2977,6 +3016,18 @@ def run(config: RunnerConfig) -> None:
             print(f"{year}: {country}")
             country_successful = False
             completed_profile_count = 0
+            country_had_existing_rows = any(
+                row.get("country") == country
+                for rows in [
+                    year_results,
+                    year_components,
+                    year_commodity_flows,
+                    year_parameters,
+                    year_profile_features,
+                    year_errors,
+                ]
+                for row in rows
+            )
 
             # Remove stale rows only for the output branches that are being
             # recalculated. A statistics-only run must preserve optimization
@@ -3216,6 +3267,12 @@ def run(config: RunnerConfig) -> None:
                 errors=year_errors,
                 run_optimization=config.run_optimization,
                 read_profile_statistics=config.read_profile_statistics,
+                csv_write_mode=(
+                    "rewrite"
+                    if country_had_existing_rows
+                    else "append_country"
+                ),
+                append_country=country,
             )
             print(f"Checkpoint written: {output_path}")
             if country_successful:

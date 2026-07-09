@@ -70,6 +70,7 @@ CORES: int | str = "max"
 RECURSIVE_PROFILES = False
 RUN_OPTIMIZATION = True
 READ_PROFILE_STATISTICS = True
+PROFILE_STATISTICS_CORES: int | str = 8
 SERVER_ACCESS_RETRIES: int | None = None
 SERVER_ACCESS_RETRY_DELAY_SECONDS = 30.0
 
@@ -305,6 +306,7 @@ class RunnerConfig:
     recursive_profiles: bool
     run_optimization: bool
     read_profile_statistics: bool
+    profile_statistics_cores: int
     countries: list[str] | None
 
 
@@ -411,6 +413,7 @@ def build_config() -> RunnerConfig:
         recursive_profiles=RECURSIVE_PROFILES,
         run_optimization=RUN_OPTIMIZATION,
         read_profile_statistics=READ_PROFILE_STATISTICS,
+        profile_statistics_cores=_parse_cores(PROFILE_STATISTICS_CORES),
         countries=COUNTRIES,
     )
 
@@ -1504,27 +1507,59 @@ def _profile_feature_records(
     year: int,
     country: str,
     region: str,
+    workers: int,
 ) -> list[dict[str, Any]]:
     records = []
     label = f"{year} {country} profile statistics"
     total = len(profiles)
     _print_progress(label, 0, total)
-    for completed, profile in enumerate(profiles, start=1):
-        records.append(
-            _retry_server_access(
-                f"profile feature read {profile_dir / profile}",
-                lambda profile=profile: calculate_profile_features(
-                    profile_dir / profile,
-                    year=year,
-                    country=country,
-                    region=region,
-                    profile=profile,
-                ),
-            )
-        )
-        _print_progress(label, completed, total)
+
+    jobs = [
+        {
+            "profile_dir": profile_dir,
+            "profile": profile,
+            "year": year,
+            "country": country,
+            "region": region,
+        }
+        for profile in profiles
+    ]
+    worker_count = min(max(1, workers), total)
+    if worker_count == 1:
+        for completed, job in enumerate(jobs, start=1):
+            records.append(_calculate_profile_features_job(job))
+            _print_progress(label, completed, total)
+        _finish_progress(label, len(records), total)
+        return records
+
+    with multiprocessing.Pool(
+        processes=worker_count,
+        maxtasksperchild=20,
+    ) as pool:
+        for completed, record in enumerate(
+            pool.imap_unordered(_calculate_profile_features_job, jobs),
+            start=1,
+        ):
+            records.append(record)
+            _print_progress(label, completed, total)
+
     _finish_progress(label, len(records), total)
     return records
+
+
+def _calculate_profile_features_job(job: dict[str, Any]) -> dict[str, Any]:
+    profile_dir = Path(job["profile_dir"])
+    profile = job["profile"]
+    return _retry_server_access(
+        f"profile feature read {profile_dir / profile}",
+        lambda: calculate_profile_features(
+            profile_dir / profile,
+            year=job["year"],
+            country=job["country"],
+            region=job["region"],
+            profile=profile,
+        ),
+    )
 
 
 def _validate_staged_profile(path: Path) -> None:
@@ -2995,6 +3030,7 @@ def run(config: RunnerConfig) -> None:
                             year=year,
                             country=country,
                             region=region,
+                            workers=config.profile_statistics_cores,
                         )
                     )
                     write_year_results(
@@ -3082,6 +3118,7 @@ def run(config: RunnerConfig) -> None:
                         year=year,
                         country=country,
                         region=settings.region,
+                        workers=config.profile_statistics_cores,
                     )
                     year_profile_features.extend(country_profile_features)
 
@@ -3306,6 +3343,7 @@ def main() -> None:
         f"Years: {config.scenario_years}\n"
         f"Run optimization: {config.run_optimization}\n"
         f"Read profile statistics: {config.read_profile_statistics}\n"
+        f"Profile statistics workers: {config.profile_statistics_cores}\n"
         f"Workers per country: {config.cores}"
     )
     run(config)

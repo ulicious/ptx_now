@@ -1199,8 +1199,14 @@ def _profile_dir(config: RunnerConfig, country_dir: Path, year: int) -> Path:
 def _is_retryable_server_access_error(exc: BaseException) -> bool:
     if isinstance(exc, (EOFError, zipfile.BadZipFile)):
         return True
+    message = str(exc).lower()
+    if (
+        "io.excel.zip.reader" in message
+        or "no such keys" in message
+        or "no such key" in message
+    ):
+        return True
     if isinstance(exc, ValueError):
-        message = str(exc).lower()
         return (
             "excel file format cannot be determined" in message
             or "file is not a zip file" in message
@@ -1550,16 +1556,44 @@ def _profile_feature_records(
 def _calculate_profile_features_job(job: dict[str, Any]) -> dict[str, Any]:
     profile_dir = Path(job["profile_dir"])
     profile = job["profile"]
-    return _retry_server_access(
-        f"profile feature read {profile_dir / profile}",
-        lambda: calculate_profile_features(
-            profile_dir / profile,
+    profile_path = profile_dir / profile
+
+    try:
+        return calculate_profile_features(
+            profile_path,
             year=job["year"],
             country=job["country"],
             region=job["region"],
             profile=profile,
-        ),
+        )
+    except Exception as exc:  # noqa: BLE001 - flaky profile reads use local retry.
+        if not _is_retryable_server_access_error(exc):
+            raise
+
+    safe_country = "".join(
+        character if character.isalnum() else "_"
+        for character in str(job["country"])
     )
+    local_profile_dir = Path(
+        tempfile.mkdtemp(
+            prefix=f"ptx_now_stats_{job['year']}_{safe_country}_",
+        )
+    )
+    local_profile = local_profile_dir / profile
+    try:
+        _copy_profile_with_retries(
+            source=profile_path,
+            destination=local_profile,
+        )
+        return calculate_profile_features(
+            local_profile,
+            year=job["year"],
+            country=job["country"],
+            region=job["region"],
+            profile=profile,
+        )
+    finally:
+        shutil.rmtree(local_profile_dir, ignore_errors=True)
 
 
 def _validate_staged_profile(path: Path) -> None:

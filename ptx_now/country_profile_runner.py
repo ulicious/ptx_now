@@ -1556,43 +1556,55 @@ def _calculate_profile_features_job(job: dict[str, Any]) -> dict[str, Any]:
     profile_dir = Path(job["profile_dir"])
     profile = job["profile"]
     profile_path = profile_dir / profile
-
-    try:
-        return calculate_profile_features(
-            profile_path,
-            year=job["year"],
-            country=job["country"],
-            region=job["region"],
-            profile=profile,
-        )
-    except Exception as exc:  # noqa: BLE001 - flaky profile reads use local retry.
-        if not _is_retryable_server_access_error(exc):
-            raise
-
     safe_country = "".join(
         character if character.isalnum() else "_"
         for character in str(job["country"])
     )
-    local_profile_dir = Path(
-        tempfile.mkdtemp(
-            prefix=f"ptx_now_stats_{job['year']}_{safe_country}_",
+
+    attempt = 0
+    while True:
+        try:
+            return calculate_profile_features(
+                profile_path,
+                year=job["year"],
+                country=job["country"],
+                region=job["region"],
+                profile=profile,
+            )
+        except Exception as exc:  # noqa: BLE001 - flaky profile reads use local retry.
+            if not _is_retryable_server_access_error(exc):
+                raise
+
+        local_profile_dir = Path(
+            tempfile.mkdtemp(
+                prefix=f"ptx_now_stats_{job['year']}_{safe_country}_",
+            )
         )
-    )
-    local_profile = local_profile_dir / profile
-    try:
-        _copy_profile_with_retries(
-            source=profile_path,
-            destination=local_profile,
-        )
-        return calculate_profile_features(
-            local_profile,
-            year=job["year"],
-            country=job["country"],
-            region=job["region"],
-            profile=profile,
-        )
-    finally:
-        shutil.rmtree(local_profile_dir, ignore_errors=True)
+        local_profile = local_profile_dir / profile
+        try:
+            _copy_profile_with_retries(
+                source=profile_path,
+                destination=local_profile,
+            )
+            return calculate_profile_features(
+                local_profile,
+                year=job["year"],
+                country=job["country"],
+                region=job["region"],
+                profile=profile,
+            )
+        except Exception as exc:  # noqa: BLE001 - retry flaky local copy reads.
+            if not _is_retryable_server_access_error(exc):
+                raise
+            attempt += 1
+            if (
+                SERVER_ACCESS_RETRIES is not None
+                and attempt > SERVER_ACCESS_RETRIES
+            ):
+                raise
+            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+        finally:
+            shutil.rmtree(local_profile_dir, ignore_errors=True)
 
 
 def _validate_staged_profile(path: Path) -> None:
@@ -1659,19 +1671,20 @@ def _copy_profile_with_retries(
             last_error = exc
             temporary_destination.unlink(missing_ok=True)
             destination.unlink(missing_ok=True)
-            if not _is_retryable_server_access_error(exc):
-                break
             if (
                 SERVER_ACCESS_RETRIES is not None
                 and attempt >= SERVER_ACCESS_RETRIES
             ):
                 break
 
+            # The source profiles live on a flaky SMB/GVFS mount. Even errors
+            # that are not neatly classified by Python often disappear on the
+            # next read, so copying keeps retrying until the configured limit.
             time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
 
     raise OSError(
         f"Could not create a valid local copy after "
-        f"{attempt} attempts: {source}"
+        f"{attempt} attempts: {source}; last_error={last_error!r}"
     ) from last_error
 
 

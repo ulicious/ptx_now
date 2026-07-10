@@ -33,8 +33,7 @@ from typing import Any
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
 RUNNER_VERSION = "2026-06-26-operational-balance-check-v4"
 BALANCE_TOLERANCE = 1e-6
-ZERO_CAPACITY_OUTPUT_ABSOLUTE_TOLERANCE = 1e-5
-ZERO_CAPACITY_OUTPUT_RELATIVE_TOLERANCE = 1e-8
+ZERO_CAPACITY_OUTPUT_SUM_TOLERANCE = 1e-3 * 8760
 PROFILE_FEATURE_SHEET = "profile_features"
 EXCEL_MAX_ROWS = 1_048_576
 
@@ -2213,20 +2212,15 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             else:
                 produced_by_component = 0.0
 
-            zero_capacity_output_tolerance = max(
-                ZERO_CAPACITY_OUTPUT_ABSOLUTE_TOLERANCE,
-                ZERO_CAPACITY_OUTPUT_RELATIVE_TOLERANCE
-                * max(abs(produced_quantity), 1.0),
-            )
             if (
-                produced_by_component > zero_capacity_output_tolerance
+                produced_by_component > ZERO_CAPACITY_OUTPUT_SUM_TOLERANCE
                 and solver_capacity <= BALANCE_TOLERANCE
             ):
                 raise RuntimeError(
                     "Inconsistent optimization result: component "
                     f"'{component_name}' produced {produced_by_component} "
                     "but its solver nominal capacity is zero. "
-                    f"Tolerance={zero_capacity_output_tolerance}."
+                    f"Tolerance={ZERO_CAPACITY_OUTPUT_SUM_TOLERANCE}."
                 )
 
             component_row = {

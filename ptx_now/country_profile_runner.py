@@ -2573,6 +2573,26 @@ def _remove_country_records(
     ]
 
 
+def _profile_feature_record_is_complete(record: dict[str, Any]) -> bool:
+    status = record.get("profile_feature_status")
+    if status is None:
+        return record.get("profile_rows") is not None
+    return str(status).strip().lower() == "ok"
+
+
+def _remove_country_profile_records(
+    records: list[dict[str, Any]],
+    country: str,
+    profiles: set[str],
+) -> list[dict[str, Any]]:
+    return [
+        record
+        for record in records
+        if record.get("country") != country
+        or str(record.get("profile")) not in profiles
+    ]
+
+
 def _format_output_workbook(path: Path) -> None:
     from openpyxl import load_workbook
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -3056,10 +3076,27 @@ def run(config: RunnerConfig) -> None:
                     for row in year_profile_features
                     if row.get("country") == country
                 ]
+                completed_feature_profiles = {
+                    str(row.get("profile"))
+                    for row in country_feature_rows
+                    if _profile_feature_record_is_complete(row)
+                }
+                failed_feature_profiles = {
+                    str(row.get("profile"))
+                    for row in country_feature_rows
+                    if not _profile_feature_record_is_complete(row)
+                }
+                has_failed_feature_rows = any(
+                    not _profile_feature_record_is_complete(row)
+                    for row in country_feature_rows
+                )
                 if (
                     config.read_profile_statistics
                     and expected_profiles
-                    and len(country_feature_rows) != expected_profiles
+                    and (
+                        len(completed_feature_profiles) != expected_profiles
+                        or has_failed_feature_rows
+                    )
                 ):
                     print(
                         f"{year}: Backfill profile features for completed "
@@ -3080,20 +3117,34 @@ def run(config: RunnerConfig) -> None:
                         profile_dir,
                         config.recursive_profiles,
                     )
-                    year_profile_features = _remove_country_records(
+                    profiles_to_retry = [
+                        profile
+                        for profile in profiles
+                        if profile not in completed_feature_profiles
+                        or profile in failed_feature_profiles
+                    ]
+                    profiles_to_retry_set = set(profiles_to_retry)
+                    if profiles_to_retry:
+                        print(
+                            f"{year}: Retry {len(profiles_to_retry)} profile "
+                            f"feature row(s) for completed country {country}"
+                        )
+                    year_profile_features = _remove_country_profile_records(
                         year_profile_features,
                         country,
+                        profiles_to_retry_set,
                     )
-                    year_profile_features.extend(
-                        _profile_feature_records(
-                            profile_dir,
-                            profiles,
-                            year=year,
-                            country=country,
-                            region=region,
-                            workers=config.profile_statistics_cores,
+                    if profiles_to_retry:
+                        year_profile_features.extend(
+                            _profile_feature_records(
+                                profile_dir,
+                                profiles_to_retry,
+                                year=year,
+                                country=country,
+                                region=region,
+                                workers=config.profile_statistics_cores,
+                            )
                         )
-                    )
                     write_year_results(
                         output_path=output_path,
                         year=year,

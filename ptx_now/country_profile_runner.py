@@ -70,6 +70,7 @@ RECURSIVE_PROFILES = False
 RUN_OPTIMIZATION = True
 READ_PROFILE_STATISTICS = True
 PROFILE_STATISTICS_CORES: int | str = 8
+PROFILE_STATISTICS_RETRIES = 5
 SERVER_ACCESS_RETRIES: int | None = None
 SERVER_ACCESS_RETRY_DELAY_SECONDS = 30.0
 
@@ -1561,19 +1562,21 @@ def _calculate_profile_features_job(job: dict[str, Any]) -> dict[str, Any]:
         for character in str(job["country"])
     )
 
-    attempt = 0
-    while True:
+    last_error: BaseException | None = None
+    for attempt in range(1, PROFILE_STATISTICS_RETRIES + 1):
         try:
-            return calculate_profile_features(
+            record = calculate_profile_features(
                 profile_path,
                 year=job["year"],
                 country=job["country"],
                 region=job["region"],
                 profile=profile,
             )
+            record["profile_feature_status"] = "ok"
+            record["profile_feature_error"] = None
+            return record
         except Exception as exc:  # noqa: BLE001 - flaky profile reads use local retry.
-            if not _is_retryable_server_access_error(exc):
-                raise
+            last_error = exc
 
         local_profile_dir = Path(
             tempfile.mkdtemp(
@@ -1585,26 +1588,37 @@ def _calculate_profile_features_job(job: dict[str, Any]) -> dict[str, Any]:
             _copy_profile_with_retries(
                 source=profile_path,
                 destination=local_profile,
+                max_attempts=1,
             )
-            return calculate_profile_features(
+            record = calculate_profile_features(
                 local_profile,
                 year=job["year"],
                 country=job["country"],
                 region=job["region"],
                 profile=profile,
             )
+            record["profile_feature_status"] = "ok"
+            record["profile_feature_error"] = None
+            return record
         except Exception as exc:  # noqa: BLE001 - retry flaky local copy reads.
-            if not _is_retryable_server_access_error(exc):
-                raise
-            attempt += 1
-            if (
-                SERVER_ACCESS_RETRIES is not None
-                and attempt > SERVER_ACCESS_RETRIES
-            ):
-                raise
-            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+            last_error = exc
         finally:
             shutil.rmtree(local_profile_dir, ignore_errors=True)
+
+        if attempt < PROFILE_STATISTICS_RETRIES:
+            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+
+    return {
+        "scenario_year": job["year"],
+        "country": job["country"],
+        "region": job["region"],
+        "profile": profile,
+        "profile_rows": None,
+        "total_weighted_hours": None,
+        "weighting_column_present": None,
+        "profile_feature_status": "failed",
+        "profile_feature_error": repr(last_error),
+    }
 
 
 def _validate_staged_profile(path: Path) -> None:
@@ -1625,6 +1639,7 @@ def _validate_staged_profile(path: Path) -> None:
 def _copy_profile_with_retries(
     source: Path,
     destination: Path,
+    max_attempts: int | None = None,
 ) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_destination = destination.with_suffix(
@@ -1672,6 +1687,9 @@ def _copy_profile_with_retries(
             temporary_destination.unlink(missing_ok=True)
             destination.unlink(missing_ok=True)
             if (
+                max_attempts is not None
+                and attempt >= max_attempts
+            ) or (
                 SERVER_ACCESS_RETRIES is not None
                 and attempt >= SERVER_ACCESS_RETRIES
             ):
@@ -2736,6 +2754,8 @@ def write_year_results(
         "country",
         "region",
         "profile",
+        "profile_feature_status",
+        "profile_feature_error",
         "profile_rows",
         "total_weighted_hours",
         "weighting_column_present",
@@ -3385,6 +3405,7 @@ def main() -> None:
         f"Run optimization: {config.run_optimization}\n"
         f"Read profile statistics: {config.read_profile_statistics}\n"
         f"Profile statistics workers: {config.profile_statistics_cores}\n"
+        f"Profile statistics retries: {PROFILE_STATISTICS_RETRIES}\n"
         f"Workers per country: {config.cores}"
     )
     run(config)

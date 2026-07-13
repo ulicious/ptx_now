@@ -1267,6 +1267,11 @@ def _is_retryable_server_access_error(exc: BaseException) -> bool:
         or "file is not a zip file" in message
         or "badzipfile" in message
         or "non-finite profile weighting" in message
+        or (
+            "non-finite scalar before optimization" in message
+            and "source=profile" in message
+            and "parameter=weighting" in message
+        )
     ):
         return True
     if isinstance(exc, ValueError):
@@ -1306,6 +1311,11 @@ def _optimization_profile_retryable(exc: BaseException) -> bool:
         or "badzipfile" in message
         or "excel file format cannot be determined" in message
         or "could not create a valid local copy" in message
+        or (
+            "non-finite scalar before optimization" in message
+            and "source=profile" in message
+            and "parameter=weighting" in message
+        )
     )
 
 

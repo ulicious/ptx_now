@@ -16,6 +16,7 @@ Run:
 from __future__ import annotations
 
 import json
+import math
 import multiprocessing
 import os
 import shutil
@@ -1124,6 +1125,54 @@ def _apply_parameters(pm_object: Any, parameter_rows: Any) -> list[dict[str, Any
     return applied
 
 
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _validate_scalar_for_optimization(
+    *,
+    source: str,
+    name: str,
+    parameter: str,
+    value: Any,
+) -> None:
+    if _finite_float_or_none(value) is None:
+        raise ValueError(
+            "Non-finite scalar before optimization: "
+            f"source={source}, name={name}, parameter={parameter}, "
+            f"value={value!r}"
+        )
+
+
+def _validate_parameters_for_optimization(pm_object: Any) -> None:
+    for cluster, weighting in pm_object.get_weightings_time_series().items():
+        _validate_scalar_for_optimization(
+            source="profile",
+            name=f"cluster_{cluster}",
+            parameter="Weighting",
+            value=weighting,
+        )
+
+    for component in pm_object.get_final_components_objects():
+        component_name = component.get_name()
+        for parameter, value in {
+            "capex": component.get_capex(),
+            "lifetime": component.get_lifetime(),
+            "fixed_OM": component.get_fixed_OM(),
+            "variable_OM": component.get_variable_OM(),
+        }.items():
+            _validate_scalar_for_optimization(
+                source="component",
+                name=component_name,
+                parameter=parameter,
+                value=value,
+            )
+
+
 def _format_assumption_value(value: Any) -> str:
     try:
         number = float(value)
@@ -1207,6 +1256,7 @@ def _is_retryable_server_access_error(exc: BaseException) -> bool:
         or "no such key" in message
         or "file is not a zip file" in message
         or "badzipfile" in message
+        or "non-finite profile weighting" in message
     ):
         return True
     if isinstance(exc, ValueError):
@@ -1328,6 +1378,28 @@ def _read_profile_frame(path: Path) -> Any:
     if path.suffix.lower() in {".xlsx", ".xls"}:
         return pd.read_excel(path, index_col=0)
     return pd.read_csv(path, index_col=0)
+
+
+def _validate_profile_weighting_frame(frame: Any, profile_path: Path) -> None:
+    import numpy as np
+
+    weighting_column = _profile_column(frame, "Weighting")
+    if weighting_column is None:
+        return
+    weights = frame[weighting_column].to_numpy(dtype=float)
+    invalid_mask = ~np.isfinite(weights)
+    if invalid_mask.any():
+        invalid_positions = np.where(invalid_mask)[0][:5].tolist()
+        raise ValueError(
+            "Non-finite profile Weighting values: "
+            f"profile={profile_path}, invalid_positions={invalid_positions}"
+        )
+
+
+def _read_validated_profile_frame(path: Path) -> Any:
+    frame = _read_profile_frame(path)
+    _validate_profile_weighting_frame(frame, path)
+    return frame
 
 
 def _profile_column(frame: Any, column_name: str) -> str | None:
@@ -1462,7 +1534,7 @@ def calculate_profile_features(
 ) -> dict[str, Any]:
     import numpy as np
 
-    frame = _read_profile_frame(profile_path)
+    frame = _read_validated_profile_frame(profile_path)
     weighting_column = _profile_column(frame, "Weighting")
     if weighting_column is None:
         weights = np.ones(len(frame), dtype=float)
@@ -1647,6 +1719,8 @@ def _validate_staged_profile(path: Path) -> None:
                 raise zipfile.BadZipFile(
                     f"Corrupt member '{corrupt_member}' in {path}"
                 )
+
+    _read_validated_profile_frame(path)
 
 
 def _copy_profile_with_retries(
@@ -2130,6 +2204,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         pm_object.set_path_data(_normalise_folder(job["profile_dir"]))
         pm_object.set_profile_data(profile)
         pm_object.set_solver(job["solver"])
+        _validate_parameters_for_optimization(pm_object)
 
         optimization_model = _model_class_for_solver(job["solver"])
         optimization_problem = optimization_model(pm_object, job["solver"])

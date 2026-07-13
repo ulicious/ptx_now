@@ -422,7 +422,11 @@ def build_config() -> RunnerConfig:
 
 def validate_config(config: RunnerConfig) -> None:
     missing = []
-    if not config.countries_root.is_dir():
+    countries_root_available = _retry_server_access(
+        f"countries root {config.countries_root}",
+        config.countries_root.is_dir,
+    )
+    if not countries_root_available:
         missing.append(f"COUNTRIES_ROOT does not exist: {config.countries_root}")
     if not config.settings_yaml.is_file():
         missing.append(f"SETTINGS_YAML does not exist: {config.settings_yaml}")
@@ -932,9 +936,15 @@ def _internal_parameter_name(parameter: str) -> str:
 
 
 def _discover_countries(config: RunnerConfig) -> list[Path]:
-    country_dirs = [
-        path for path in config.countries_root.iterdir() if path.is_dir()
-    ]
+    def list_country_dirs() -> list[Path]:
+        return [
+            path for path in config.countries_root.iterdir() if path.is_dir()
+        ]
+
+    country_dirs = _retry_server_access(
+        f"country folder listing {config.countries_root}",
+        list_country_dirs,
+    )
     if config.countries:
         selected = set(config.countries)
         country_dirs = [path for path in country_dirs if path.name in selected]

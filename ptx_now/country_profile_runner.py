@@ -71,6 +71,7 @@ RUN_OPTIMIZATION = True
 READ_PROFILE_STATISTICS = True
 PROFILE_STATISTICS_CORES: int | str = 8
 PROFILE_STATISTICS_RETRIES = 5
+OPTIMIZATION_PROFILE_RETRIES = 5
 SERVER_ACCESS_RETRIES: int | None = None
 SERVER_ACCESS_RETRY_DELAY_SECONDS = 30.0
 
@@ -1204,12 +1205,13 @@ def _is_retryable_server_access_error(exc: BaseException) -> bool:
         "io.excel.zip.reader" in message
         or "no such keys" in message
         or "no such key" in message
+        or "file is not a zip file" in message
+        or "badzipfile" in message
     ):
         return True
     if isinstance(exc, ValueError):
         return (
             "excel file format cannot be determined" in message
-            or "file is not a zip file" in message
         )
     if not isinstance(exc, OSError):
         return False
@@ -2310,28 +2312,64 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                 character if character.isalnum() else "_"
                 for character in country
             )
-            local_profile_dir = Path(
-                tempfile.mkdtemp(
-                    prefix=f"ptx_now_retry_{year}_{safe_country}_",
-                )
-            )
             source_profile = Path(job["profile_dir"]) / profile
-            local_profile = local_profile_dir / profile
+            last_retry_error: BaseException = exc
 
-            try:
-                _copy_profile_with_retries(
-                    source=source_profile,
-                    destination=local_profile,
+            for attempt in range(1, OPTIMIZATION_PROFILE_RETRIES + 1):
+                local_profile_dir = Path(
+                    tempfile.mkdtemp(
+                        prefix=f"ptx_now_retry_{year}_{safe_country}_",
+                    )
                 )
-                retry_job = dict(job)
-                retry_job["profile_dir"] = local_profile_dir
-                retry_job["_local_file_retry"] = True
-                result = _run_single_profile(retry_job)
-            except Exception:
-                raise
-            else:
-                shutil.rmtree(local_profile_dir)
-                return result
+                local_profile = local_profile_dir / profile
+                try:
+                    _copy_profile_with_retries(
+                        source=source_profile,
+                        destination=local_profile,
+                        max_attempts=1,
+                    )
+                    retry_job = dict(job)
+                    retry_job["profile_dir"] = local_profile_dir
+                    retry_job["_local_file_retry"] = True
+                    return _run_single_profile(retry_job)
+                except Exception as retry_exc:  # noqa: BLE001 - flaky profile reads.
+                    last_retry_error = retry_exc
+                    message = str(retry_exc).lower()
+                    retryable = (
+                        _is_retryable_server_access_error(retry_exc)
+                        or "file is not a zip file" in message
+                        or "badzipfile" in message
+                        or "excel file format cannot be determined" in message
+                    )
+                    if not retryable or attempt >= OPTIMIZATION_PROFILE_RETRIES:
+                        raise ProfileOptimizationError(
+                            year=year,
+                            country=country,
+                            region=region,
+                            profile=profile,
+                            profile_path=str(local_profile),
+                            exception_type=type(retry_exc).__name__,
+                            detail=(
+                                f"Retry attempt {attempt}/"
+                                f"{OPTIMIZATION_PROFILE_RETRIES} failed: "
+                                f"{retry_exc!r}"
+                            ),
+                            traceback_text=traceback.format_exc(),
+                        ) from retry_exc
+                    time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+                finally:
+                    shutil.rmtree(local_profile_dir, ignore_errors=True)
+
+            raise ProfileOptimizationError(
+                year=year,
+                country=country,
+                region=region,
+                profile=profile,
+                profile_path=str(source_profile),
+                exception_type=type(last_retry_error).__name__,
+                detail=repr(last_retry_error),
+                traceback_text=traceback.format_exc(),
+            ) from last_retry_error
 
         raise ProfileOptimizationError(
             year=year,
@@ -3457,6 +3495,7 @@ def main() -> None:
         f"Read profile statistics: {config.read_profile_statistics}\n"
         f"Profile statistics workers: {config.profile_statistics_cores}\n"
         f"Profile statistics retries: {PROFILE_STATISTICS_RETRIES}\n"
+        f"Optimization profile retries: {OPTIMIZATION_PROFILE_RETRIES}\n"
         f"Workers per country: {config.cores}"
     )
     run(config)

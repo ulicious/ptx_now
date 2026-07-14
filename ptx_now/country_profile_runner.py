@@ -338,7 +338,7 @@ class OptimizationNotOptimalError(RuntimeError):
 
     def __str__(self) -> str:
         return (
-            "Optimization aborted because no optimal solution was found: "
+            "Profile skipped because no optimal solution was found: "
             f"year={self.year}, country={self.country}, "
             f"profile={self.profile}, reason={self.reason}, "
             f"solver_status={self.raw_status}"
@@ -378,12 +378,82 @@ class ProfileOptimizationError(RuntimeError):
 
     def __str__(self) -> str:
         return (
-            "Optimization aborted because the profile run failed: "
+            "Profile skipped because the profile run failed: "
             f"year={self.year}, country={self.country}, "
             f"profile={self.profile}, profile_path={self.profile_path}, "
             f"exception={self.exception_type}, detail={self.detail}\n"
             f"Traceback:\n{self.traceback_text}"
         )
+
+
+def _failed_profile_output(
+    job: dict[str, Any],
+    exception_type: str,
+    detail: str,
+    traceback_text: str,
+    profile_path: str | None = None,
+) -> dict[str, Any]:
+    profile = job["profile"]
+    resolved_profile_path = profile_path or str(Path(job["profile_dir"]) / profile)
+    error_message = (
+        "Profile skipped after retries: "
+        f"year={job['year']}, country={job['country']}, "
+        f"profile={profile}, profile_path={resolved_profile_path}, "
+        f"exception={exception_type}, detail={detail}"
+    )
+    return {
+        "result": {
+            "scenario_year": job["year"],
+            "country": job["country"],
+            "region": job["region"],
+            "profile": profile,
+            "wacc": job.get("wacc"),
+            "status": "failed",
+            "solver_status": exception_type,
+        },
+        "components": [],
+        "commodity_flows": [],
+        "error": {
+            "scenario_year": job["year"],
+            "country": job["country"],
+            "region": job["region"],
+            "profile": profile,
+            "profile_path": resolved_profile_path,
+            "exception_type": exception_type,
+            "detail": detail,
+            "traceback": traceback_text,
+            "error": error_message,
+        },
+    }
+
+
+def _profile_error_output_from_exception(
+    job: dict[str, Any],
+    exc: BaseException,
+) -> dict[str, Any]:
+    if isinstance(exc, OptimizationNotOptimalError):
+        return _failed_profile_output(
+            job=job,
+            exception_type="not_optimal",
+            detail=(
+                f"reason={exc.reason}, solver_status={exc.raw_status}"
+            ),
+            traceback_text=traceback.format_exc(),
+        )
+    if isinstance(exc, ProfileOptimizationError):
+        return _failed_profile_output(
+            job=job,
+            exception_type=exc.exception_type,
+            detail=exc.detail,
+            traceback_text=exc.traceback_text,
+            profile_path=exc.profile_path,
+        )
+    return _failed_profile_output(
+        job=job,
+        exception_type=type(exc).__name__,
+        detail=repr(exc),
+        traceback_text=traceback.format_exc(),
+    )
 
 
 def _normalise_folder(path: Path) -> str:
@@ -2432,7 +2502,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                     _copy_profile_with_retries(
                         source=source_profile,
                         destination=local_profile,
-                        max_attempts=1,
+                        max_attempts=OPTIMIZATION_PROFILE_RETRIES,
                     )
                     retry_job = dict(job)
                     retry_job["profile_dir"] = local_profile_dir
@@ -2485,6 +2555,17 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         ) from exc
 
 
+def _run_single_profile_no_abort(job: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return _run_single_profile(job)
+    except (
+        OptimizationNotOptimalError,
+        ProfileOptimizationError,
+        Exception,
+    ) as exc:  # noqa: BLE001 - profile failures are recorded and skipped.
+        return _profile_error_output_from_exception(job, exc)
+
+
 def _run_country_jobs(jobs: list[dict[str, Any]], cores: int) -> list[dict[str, Any]]:
     total = len(jobs)
     if total == 0:
@@ -2495,7 +2576,7 @@ def _run_country_jobs(jobs: list[dict[str, Any]], cores: int) -> list[dict[str, 
     if cores == 1:
         results = []
         for completed, job in enumerate(jobs, start=1):
-            results.append(_run_single_profile(job))
+            results.append(_run_single_profile_no_abort(job))
             _print_progress(label, completed, total)
         _finish_progress(label, len(results), total)
         return results
@@ -2506,7 +2587,7 @@ def _run_country_jobs(jobs: list[dict[str, Any]], cores: int) -> list[dict[str, 
     ) as pool:
         results = []
         for completed, result in enumerate(
-            pool.imap_unordered(_run_single_profile, jobs),
+            pool.imap_unordered(_run_single_profile_no_abort, jobs),
             start=1,
         ):
             results.append(result)
@@ -3415,52 +3496,33 @@ def run(config: RunnerConfig) -> None:
                     ]
                     country_results = _run_country_jobs(jobs, config.cores)
 
-                    unsuccessful = [
+                    successful_results = [
+                        result
+                        for result in country_results
+                        if result.get("result", {}).get("status") == "optimal"
+                    ]
+                    failed_results = [
                         result
                         for result in country_results
                         if result.get("result", {}).get("status") != "optimal"
                     ]
-                    if unsuccessful:
-                        failed_result = unsuccessful[0]
-                        result_row = failed_result.get("result", {})
-                        error_row = failed_result.get("error") or {}
-                        raise ProfileOptimizationError(
-                            year=year,
-                            country=country,
-                            region=settings.region,
-                            profile=str(result_row.get("profile", "unknown")),
-                            profile_path=str(
-                                profile_dir
-                                / str(result_row.get("profile", "unknown"))
-                            ),
-                            exception_type=str(
-                                result_row.get("solver_status", "unknown")
-                            ),
-                            detail=str(
-                                error_row.get(
-                                    "error",
-                                    f"Non-optimal result row: {result_row}",
-                                )
-                            ),
-                            traceback_text="No worker traceback was returned.",
-                        )
 
                     year_results.extend(
-                        result["result"] for result in country_results
+                        result["result"] for result in successful_results
                     )
                     year_components.extend(
                         row
-                        for result in country_results
+                        for result in successful_results
                         for row in result["components"]
                     )
                     year_commodity_flows.extend(
                         row
-                        for result in country_results
+                        for result in successful_results
                         for row in result["commodity_flows"]
                     )
                     year_errors.extend(
                         result["error"]
-                        for result in country_results
+                        for result in failed_results
                         if result["error"] is not None
                     )
                     year_parameters.extend(
@@ -3471,9 +3533,15 @@ def run(config: RunnerConfig) -> None:
                             country_pm_object.get_wacc(),
                         )
                     )
-                    completed_countries.append(country)
-                    country_successful = True
-                    completed_profile_count = len(country_results)
+                    if failed_results:
+                        print(
+                            f"{year}: Skip {len(failed_results)} failed "
+                            f"profile(s) for {country}; see errors sheet."
+                        )
+                    else:
+                        completed_countries.append(country)
+                        country_successful = True
+                        completed_profile_count = len(successful_results)
                 else:
                     completed_countries.append(country)
                     completed_profile_count = len(profiles)
@@ -3488,22 +3556,7 @@ def run(config: RunnerConfig) -> None:
                         "error": str(exc),
                     }
                 )
-                write_year_results(
-                    output_path=output_path,
-                    year=year,
-                    completed_countries=completed_countries,
-                    results=year_results,
-                    components=year_components,
-                    commodity_flows=year_commodity_flows,
-                    applied_parameters=year_parameters,
-                    profile_features=year_profile_features,
-                    errors=year_errors,
-                    run_optimization=config.run_optimization,
-                    read_profile_statistics=config.read_profile_statistics,
-                )
-                print(f"\nABORT: {exc}")
-                print(f"Checkpoint written before abort: {output_path}")
-                raise SystemExit(str(exc)) from exc
+                print(f"Skip profile: {exc}")
 
             except ProfileOptimizationError as exc:
                 year_errors.append(
@@ -3515,22 +3568,7 @@ def run(config: RunnerConfig) -> None:
                         "error": str(exc),
                     }
                 )
-                write_year_results(
-                    output_path=output_path,
-                    year=year,
-                    completed_countries=completed_countries,
-                    results=year_results,
-                    components=year_components,
-                    commodity_flows=year_commodity_flows,
-                    applied_parameters=year_parameters,
-                    profile_features=year_profile_features,
-                    errors=year_errors,
-                    run_optimization=config.run_optimization,
-                    read_profile_statistics=config.read_profile_statistics,
-                )
-                print(f"\nABORT: {exc}")
-                print(f"Checkpoint written before abort: {output_path}")
-                raise SystemExit(str(exc)) from exc
+                print(f"Skip profile: {exc}")
 
             except Exception as exc:  # noqa: BLE001 - checkpoint and continue.
                 year_errors.append(

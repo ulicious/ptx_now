@@ -32,7 +32,7 @@ from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
-RUNNER_VERSION = "2026-06-26-operational-balance-check-v4"
+RUNNER_VERSION = "2026-07-21-profile-level-resume-v1"
 BALANCE_TOLERANCE = 1e-6
 ZERO_CAPACITY_OUTPUT_SUM_TOLERANCE = 1e-3 * 8760
 PROFILE_FEATURE_SHEET = "profile_features"
@@ -2814,6 +2814,19 @@ def _remove_country_profile_records(
     ]
 
 
+def _optimal_country_profiles(
+    records: list[dict[str, Any]],
+    country: str,
+) -> set[str]:
+    return {
+        str(record.get("profile"))
+        for record in records
+        if record.get("country") == country
+        and str(record.get("status", "")).strip().lower() == "optimal"
+        and record.get("profile") is not None
+    }
+
+
 def _format_output_workbook(path: Path) -> None:
     from openpyxl import load_workbook
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -3013,15 +3026,24 @@ def write_year_results(
         profile_features,
         columns=profile_feature_base_columns + profile_feature_extra_columns,
     )
+    error_base_columns = [
+        "scenario_year",
+        "country",
+        "region",
+        "profile",
+        "error",
+    ]
+    error_extra_columns = sorted(
+        {
+            key
+            for row in errors
+            for key in row
+            if key not in error_base_columns
+        }
+    )
     errors_df = pd.DataFrame(
         errors,
-        columns=[
-            "scenario_year",
-            "country",
-            "region",
-            "profile",
-            "error",
-        ],
+        columns=error_base_columns + error_extra_columns,
     )
 
     summary = pd.DataFrame(
@@ -3398,30 +3420,6 @@ def run(config: RunnerConfig) -> None:
                 for row in rows
             )
 
-            # Remove stale rows only for the output branches that are being
-            # recalculated. A statistics-only run must preserve optimization
-            # results that may already exist in the workbook.
-            if config.run_optimization:
-                year_results = _remove_country_records(year_results, country)
-                year_components = _remove_country_records(
-                    year_components,
-                    country,
-                )
-                year_commodity_flows = _remove_country_records(
-                    year_commodity_flows,
-                    country,
-                )
-                year_parameters = _remove_country_records(
-                    year_parameters,
-                    country,
-                )
-                year_errors = _remove_country_records(year_errors, country)
-            if config.read_profile_statistics:
-                year_profile_features = _remove_country_records(
-                    year_profile_features,
-                    country,
-                )
-
             try:
                 settings = _country_settings(
                     countries_df,
@@ -3445,6 +3443,10 @@ def run(config: RunnerConfig) -> None:
                     )
 
                 if config.read_profile_statistics:
+                    year_profile_features = _remove_country_records(
+                        year_profile_features,
+                        country,
+                    )
                     country_profile_features = _profile_feature_records(
                         profile_dir,
                         profiles,
@@ -3481,6 +3483,53 @@ def run(config: RunnerConfig) -> None:
                         country_pm_object,
                     )
 
+                    already_optimal_profiles = _optimal_country_profiles(
+                        year_results,
+                        country,
+                    )
+                    if already_optimal_profiles:
+                        year_errors = _remove_country_profile_records(
+                            year_errors,
+                            country,
+                            already_optimal_profiles,
+                        )
+                    profiles_to_optimize = [
+                        profile
+                        for profile in profiles
+                        if profile not in already_optimal_profiles
+                    ]
+                    profiles_to_optimize_set = set(profiles_to_optimize)
+                    if profiles_to_optimize_set:
+                        year_results = _remove_country_profile_records(
+                            year_results,
+                            country,
+                            profiles_to_optimize_set,
+                        )
+                        year_components = _remove_country_profile_records(
+                            year_components,
+                            country,
+                            profiles_to_optimize_set,
+                        )
+                        year_commodity_flows = _remove_country_profile_records(
+                            year_commodity_flows,
+                            country,
+                            profiles_to_optimize_set,
+                        )
+                        year_errors = _remove_country_profile_records(
+                            year_errors,
+                            country,
+                            profiles_to_optimize_set,
+                        )
+                        year_parameters = _remove_country_records(
+                            year_parameters,
+                            country,
+                        )
+                    else:
+                        print(
+                            f"{year}: All {len(profiles)} profile(s) for "
+                            f"{country} already have optimal results."
+                        )
+
                     jobs = [
                         {
                             "pm_object": deepcopy(country_pm_object),
@@ -3492,7 +3541,7 @@ def run(config: RunnerConfig) -> None:
                             "wacc": country_pm_object.get_wacc(),
                             "solver": config.solver,
                         }
-                        for profile in profiles
+                        for profile in profiles_to_optimize
                     ]
                     country_results = _run_country_jobs(jobs, config.cores)
 
@@ -3525,23 +3574,28 @@ def run(config: RunnerConfig) -> None:
                         for result in failed_results
                         if result["error"] is not None
                     )
-                    year_parameters.extend(
-                        _applied_rows_with_country(
-                            applied,
-                            settings,
-                            year,
-                            country_pm_object.get_wacc(),
+                    if profiles_to_optimize_set:
+                        year_parameters.extend(
+                            _applied_rows_with_country(
+                                applied,
+                                settings,
+                                year,
+                                country_pm_object.get_wacc(),
+                            )
                         )
+                    optimal_profiles_after_run = _optimal_country_profiles(
+                        year_results,
+                        country,
                     )
                     if failed_results:
                         print(
                             f"{year}: Skip {len(failed_results)} failed "
                             f"profile(s) for {country}; see errors sheet."
                         )
-                    else:
+                    if len(optimal_profiles_after_run) == len(set(profiles)):
                         completed_countries.append(country)
                         country_successful = True
-                        completed_profile_count = len(successful_results)
+                        completed_profile_count = len(optimal_profiles_after_run)
                 else:
                     completed_countries.append(country)
                     completed_profile_count = len(profiles)

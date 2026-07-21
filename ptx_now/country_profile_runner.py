@@ -32,7 +32,7 @@ from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
-RUNNER_VERSION = "2026-07-21-profile-level-resume-v1"
+RUNNER_VERSION = "2026-07-21-profile-level-resume-v2"
 BALANCE_TOLERANCE = 1e-6
 ZERO_CAPACITY_OUTPUT_SUM_TOLERANCE = 1e-3 * 8760
 PROFILE_FEATURE_SHEET = "profile_features"
@@ -3443,19 +3443,57 @@ def run(config: RunnerConfig) -> None:
                     )
 
                 if config.read_profile_statistics:
-                    year_profile_features = _remove_country_records(
+                    country_feature_rows = [
+                        row
+                        for row in year_profile_features
+                        if row.get("country") == country
+                    ]
+                    completed_feature_profiles = {
+                        str(row.get("profile"))
+                        for row in country_feature_rows
+                        if _profile_feature_record_is_complete(row)
+                    }
+                    failed_feature_profiles = {
+                        str(row.get("profile"))
+                        for row in country_feature_rows
+                        if not _profile_feature_record_is_complete(row)
+                    }
+                    profiles_to_read_statistics = [
+                        profile
+                        for profile in profiles
+                        if profile not in completed_feature_profiles
+                        or profile in failed_feature_profiles
+                    ]
+                    profiles_to_read_statistics_set = set(
+                        profiles_to_read_statistics
+                    )
+                    year_profile_features = _remove_country_profile_records(
                         year_profile_features,
                         country,
+                        profiles_to_read_statistics_set,
                     )
-                    country_profile_features = _profile_feature_records(
-                        profile_dir,
-                        profiles,
-                        year=year,
-                        country=country,
-                        region=settings.region,
-                        workers=config.profile_statistics_cores,
-                    )
-                    year_profile_features.extend(country_profile_features)
+                    if profiles_to_read_statistics:
+                        if completed_feature_profiles:
+                            print(
+                                f"{year}: Reuse "
+                                f"{len(completed_feature_profiles)} profile "
+                                f"statistic row(s) for {country}; retry "
+                                f"{len(profiles_to_read_statistics)}."
+                            )
+                        country_profile_features = _profile_feature_records(
+                            profile_dir,
+                            profiles_to_read_statistics,
+                            year=year,
+                            country=country,
+                            region=settings.region,
+                            workers=config.profile_statistics_cores,
+                        )
+                        year_profile_features.extend(country_profile_features)
+                    else:
+                        print(
+                            f"{year}: All {len(profiles)} profile statistic "
+                            f"row(s) for {country} already complete."
+                        )
 
                 if config.run_optimization:
                     parameter_rows = _parameter_rows_for_country(

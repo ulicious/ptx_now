@@ -20,6 +20,7 @@ import math
 import multiprocessing
 import os
 import shutil
+import sqlite3
 import tempfile
 import time
 import traceback
@@ -32,7 +33,8 @@ from typing import Any
 
 
 PROFILE_SUFFIXES = {".csv", ".xlsx", ".xls"}
-RUNNER_VERSION = "2026-07-21-profile-level-resume-v2"
+SQLITE_PROFILE_SUFFIXES = {".sqlite", ".sqlite3", ".db"}
+RUNNER_VERSION = "2026-07-31-robust-sqlite-profile-source-v1"
 BALANCE_TOLERANCE = 1e-6
 ZERO_CAPACITY_OUTPUT_SUM_TOLERANCE = 1e-3 * 8760
 PROFILE_FEATURE_SHEET = "profile_features"
@@ -71,8 +73,8 @@ RECURSIVE_PROFILES = False
 RUN_OPTIMIZATION = True
 READ_PROFILE_STATISTICS = True
 PROFILE_STATISTICS_CORES: int | str = 8
-PROFILE_STATISTICS_RETRIES = 5
-OPTIMIZATION_PROFILE_RETRIES = 5
+PROFILE_STATISTICS_RETRIES: int | None = 5
+OPTIMIZATION_PROFILE_RETRIES: int | None = 5
 SERVER_ACCESS_RETRIES: int | None = None
 SERVER_ACCESS_RETRY_DELAY_SECONDS = 30.0
 
@@ -394,9 +396,14 @@ def _failed_profile_output(
     profile_path: str | None = None,
 ) -> dict[str, Any]:
     profile = job["profile"]
-    resolved_profile_path = profile_path or str(Path(job["profile_dir"]) / profile)
+    if profile_path is not None:
+        resolved_profile_path = profile_path
+    elif job.get("sqlite_path") is not None:
+        resolved_profile_path = f"{job['sqlite_path']}::{profile}"
+    else:
+        resolved_profile_path = str(Path(job["profile_dir"]) / profile)
     error_message = (
-        "Profile skipped after retries: "
+        "Profile incomplete after retries: "
         f"year={job['year']}, country={job['country']}, "
         f"profile={profile}, profile_path={resolved_profile_path}, "
         f"exception={exception_type}, detail={detail}"
@@ -408,7 +415,7 @@ def _failed_profile_output(
             "region": job["region"],
             "profile": profile,
             "wacc": job.get("wacc"),
-            "status": "failed",
+            "status": "incomplete",
             "solver_status": exception_type,
         },
         "components": [],
@@ -1427,6 +1434,14 @@ def _finish_progress(label: str, completed: int, total: int) -> None:
     print()
 
 
+def _retry_limit_reached(attempt: int, max_attempts: int | None) -> bool:
+    return max_attempts is not None and attempt >= max_attempts
+
+
+def _retry_limit_label(max_attempts: int | None) -> str:
+    return "unlimited" if max_attempts is None else str(max_attempts)
+
+
 def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
     def list_profiles() -> list[str]:
         if recursive:
@@ -1449,17 +1464,376 @@ def _profile_files(profile_dir: Path, recursive: bool) -> list[str]:
     )
 
 
-def _wait_for_profile_dir(profile_dir: Path) -> None:
-    def check_profile_dir() -> None:
-        if not profile_dir.is_dir():
-            raise FileNotFoundError(
-                f"Profile directory not available: {profile_dir}"
-            )
+def _wait_for_directory(path: Path, description: str) -> None:
+    def check_directory() -> None:
+        if not path.is_dir():
+            raise FileNotFoundError(f"{description} not available: {path}")
 
-    _retry_server_access(
+    _retry_server_access(description, check_directory)
+
+
+def _wait_for_profile_dir(profile_dir: Path) -> None:
+    _wait_for_directory(
+        profile_dir,
         f"profile directory {profile_dir}",
-        check_profile_dir,
     )
+
+
+def _quote_sql_identifier(identifier: str) -> str:
+    return '"' + str(identifier).replace('"', '""') + '"'
+
+
+def _sqlite_profile_candidates(profile_name: str) -> list[str]:
+    path = Path(str(profile_name))
+    candidates = [
+        str(profile_name),
+        path.name,
+        path.stem,
+        path.name.replace(".", "_"),
+        path.stem.replace(".", "_"),
+        path.name.replace("-", "_"),
+        path.stem.replace("-", "_"),
+    ]
+    unique_candidates = []
+    for candidate in candidates:
+        if candidate not in unique_candidates:
+            unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def _sqlite_table_names(sqlite_path: Path) -> list[str]:
+    import pandas as pd
+
+    with sqlite3.connect(sqlite_path) as connection:
+        return pd.read_sql_query(
+            "SELECT name FROM sqlite_master WHERE type='table'",
+            connection,
+        )["name"].astype(str).tolist()
+
+
+def _sqlite_table_columns(connection: Any, table_name: str) -> list[str]:
+    import pandas as pd
+
+    return pd.read_sql_query(
+        f"PRAGMA table_info({_quote_sql_identifier(table_name)})",
+        connection,
+    )["name"].astype(str).tolist()
+
+
+def _sqlite_profile_column(columns: list[str]) -> str | None:
+    profile_column_names = {
+        "profile",
+        "profile_name",
+        "profile_file",
+        "file",
+        "filename",
+        "name",
+    }
+    for column in columns:
+        if str(column).strip().lower() in profile_column_names:
+            return column
+    return None
+
+
+def _sqlite_has_profile_data_columns(columns: list[str]) -> bool:
+    normalized = {str(column).strip().lower() for column in columns}
+    return bool(
+        normalized
+        & {
+            "solar",
+            "wind",
+            "weighting",
+        }
+    )
+
+
+def _normalise_sqlite_profile_frame(frame: Any) -> Any:
+    if frame.empty:
+        return frame
+    first_column = str(frame.columns[0]).strip().lower()
+    if first_column in {
+        "index",
+        "unnamed: 0",
+        "time",
+        "timestamp",
+        "hour",
+    }:
+        frame = frame.set_index(frame.columns[0])
+    return frame
+
+
+def _sqlite_profile_names(sqlite_path: Path) -> list[str]:
+    import pandas as pd
+
+    profile_names = []
+    with sqlite3.connect(sqlite_path) as connection:
+        for table_name in _sqlite_table_names(sqlite_path):
+            columns = _sqlite_table_columns(connection, table_name)
+            profile_column = _sqlite_profile_column(columns)
+            if profile_column is not None and _sqlite_has_profile_data_columns(
+                columns
+            ):
+                values = pd.read_sql_query(
+                    (
+                        "SELECT DISTINCT "
+                        f"{_quote_sql_identifier(profile_column)} AS profile "
+                        f"FROM {_quote_sql_identifier(table_name)}"
+                    ),
+                    connection,
+                )["profile"].dropna()
+                profile_names.extend(str(value) for value in values)
+            elif _sqlite_has_profile_data_columns(columns):
+                profile_names.append(table_name)
+
+    return sorted(dict.fromkeys(profile_names))
+
+
+def _read_sqlite_profile_frame(sqlite_path: Path, profile: str) -> Any:
+    import pandas as pd
+
+    with sqlite3.connect(sqlite_path) as connection:
+        tables = _sqlite_table_names(sqlite_path)
+        table_by_lower = {table.lower(): table for table in tables}
+
+        for candidate in _sqlite_profile_candidates(profile):
+            table_name = table_by_lower.get(candidate.lower())
+            if table_name is None:
+                continue
+            frame = pd.read_sql_query(
+                f"SELECT * FROM {_quote_sql_identifier(table_name)}",
+                connection,
+            )
+            return _normalise_sqlite_profile_frame(frame)
+
+        for table_name in tables:
+            columns = _sqlite_table_columns(connection, table_name)
+            profile_column = _sqlite_profile_column(columns)
+            if profile_column is None:
+                continue
+            for candidate in _sqlite_profile_candidates(profile):
+                frame = pd.read_sql_query(
+                    (
+                        f"SELECT * FROM {_quote_sql_identifier(table_name)} "
+                        f"WHERE {_quote_sql_identifier(profile_column)} = ?"
+                    ),
+                    connection,
+                    params=[candidate],
+                )
+                if not frame.empty:
+                    frame = frame.drop(columns=[profile_column])
+                    return _normalise_sqlite_profile_frame(frame)
+
+    raise KeyError(f"Profile '{profile}' not found in SQLite file {sqlite_path}")
+
+
+def _read_validated_sqlite_profile_frame(sqlite_path: Path, profile: str) -> Any:
+    frame = _read_sqlite_profile_frame(sqlite_path, profile)
+    _validate_profile_weighting_frame(
+        frame,
+        Path(f"{sqlite_path}::{profile}"),
+    )
+    return frame
+
+
+def _safe_local_profile_filename(profile: str) -> str:
+    stem = Path(str(profile)).stem or "profile"
+    safe_stem = "".join(
+        character
+        if character.isalnum() or character in {"-", "_"}
+        else "_"
+        for character in stem
+    )
+    return f"{safe_stem}.csv"
+
+
+def _materialize_sqlite_profile(
+    sqlite_path: Path,
+    profile: str,
+    destination_dir: Path,
+) -> str:
+    frame = _read_validated_sqlite_profile_frame(sqlite_path, profile)
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    profile_file = _safe_local_profile_filename(profile)
+    destination = destination_dir / profile_file
+    frame.to_csv(destination)
+    return profile_file
+
+
+def _validate_sqlite_profile_database(path: Path) -> None:
+    if not path.is_file():
+        raise FileNotFoundError(f"SQLite profile database does not exist: {path}")
+    if path.stat().st_size == 0:
+        raise OSError(f"SQLite profile database is empty: {path}")
+    with sqlite3.connect(path) as connection:
+        result = connection.execute("PRAGMA quick_check").fetchone()
+    if not result or str(result[0]).lower() != "ok":
+        raise OSError(f"SQLite quick_check failed for {path}: {result}")
+    if not _sqlite_profile_names(path):
+        raise OSError(f"No profile tables found in SQLite database: {path}")
+
+
+def _copy_sqlite_database_with_retries(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary_destination = destination.with_suffix(
+        destination.suffix + ".part"
+    )
+    attempt = 0
+    last_error: BaseException | None = None
+    while True:
+        attempt += 1
+        try:
+            temporary_destination.unlink(missing_ok=True)
+            destination.unlink(missing_ok=True)
+            shutil.copy2(source, temporary_destination)
+            _validate_sqlite_profile_database(temporary_destination)
+            os.replace(temporary_destination, destination)
+            return
+        except Exception as exc:  # noqa: BLE001 - server reads are retried.
+            last_error = exc
+            temporary_destination.unlink(missing_ok=True)
+            destination.unlink(missing_ok=True)
+            if _retry_limit_reached(attempt, SERVER_ACCESS_RETRIES):
+                raise OSError(
+                    "Could not create a valid local SQLite profile copy "
+                    f"after {attempt} attempts: {source}; "
+                    f"last_error={last_error!r}"
+                ) from last_error
+            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+
+
+def _sqlite_profile_database_path(
+    country_dir: Path,
+    profile_dir: Path,
+    year: int,
+) -> Path | None:
+    sqlite_dirs = [profile_dir, profile_dir.parent]
+    country = country_dir.name
+    period_length = profile_dir.name
+
+    def list_sqlite_candidates() -> list[Path]:
+        candidates = []
+        for sqlite_dir in sqlite_dirs:
+            if not sqlite_dir.is_dir():
+                continue
+            candidates.extend(
+                path
+                for path in sqlite_dir.iterdir()
+                if path.is_file()
+                and path.suffix.lower() in SQLITE_PROFILE_SUFFIXES
+            )
+        return sorted(candidates)
+
+    def find_sqlite() -> Path | None:
+        candidates = list_sqlite_candidates()
+        candidates_by_lower = {
+            candidate.name.lower(): candidate
+            for candidate in candidates
+        }
+        for sqlite_dir in sqlite_dirs:
+            for suffix in SQLITE_PROFILE_SUFFIXES:
+                exact_name = (
+                    f"{country}_t{year}_l{period_length}{suffix}"
+                ).lower()
+                exact = candidates_by_lower.get(exact_name)
+                if exact is not None and exact.parent == sqlite_dir:
+                    return exact
+        matches = [
+            candidate
+            for candidate in candidates
+            if f"t{year}" in candidate.name.lower()
+            and f"l{period_length}" in candidate.name.lower()
+        ]
+        if matches:
+            return matches[0]
+        country_year_matches = [
+            candidate
+            for candidate in candidates
+            if country.lower() in candidate.name.lower()
+            and str(year) in candidate.name
+        ]
+        if country_year_matches:
+            return country_year_matches[0]
+        year_matches = [
+            candidate
+            for candidate in candidates
+            if str(year) in candidate.name
+        ]
+        if year_matches:
+            return year_matches[0]
+        if len(candidates) == 1:
+            return candidates[0]
+        return None
+
+    return _retry_server_access(
+        f"SQLite profile database search {sqlite_dirs}",
+        find_sqlite,
+    )
+
+
+def _country_profile_source(
+    config: RunnerConfig,
+    country_dir: Path,
+    year: int,
+) -> tuple[Path, list[str], Path | None, Path | None]:
+    profile_dir = _profile_dir(config, country_dir, year)
+    sqlite_parent = profile_dir.parent
+    _wait_for_directory(
+        sqlite_parent,
+        f"profile year directory {sqlite_parent}",
+    )
+    sqlite_error = None
+    sqlite_source = _sqlite_profile_database_path(
+        country_dir,
+        profile_dir,
+        year,
+    )
+    if sqlite_source is not None:
+        local_sqlite_dir = Path(
+            tempfile.mkdtemp(
+                prefix=f"ptx_now_profiles_{year}_{country_dir.name}_",
+            )
+        )
+        local_sqlite = local_sqlite_dir / sqlite_source.name
+        _copy_sqlite_database_with_retries(sqlite_source, local_sqlite)
+        profiles = _sqlite_profile_names(local_sqlite)
+        print(
+            f"{year}: Use SQLite profile database for {country_dir.name}: "
+            f"{sqlite_source.name} ({len(profiles)} profiles)"
+        )
+        return profile_dir, profiles, local_sqlite, local_sqlite_dir
+    sqlite_candidates = []
+    for sqlite_dir in [profile_dir, sqlite_parent]:
+        try:
+            sqlite_candidates.extend(
+                str(path)
+                for path in sqlite_dir.iterdir()
+                if path.is_file()
+                and path.suffix.lower() in SQLITE_PROFILE_SUFFIXES
+            )
+        except OSError:
+            continue
+    sqlite_error = (
+        "No SQLite profile database found. Searched: "
+        f"{profile_dir} and {sqlite_parent}; expected patterns include "
+        f"{country_dir.name}_t{year}_l{profile_dir.name}"
+        f"{sorted(SQLITE_PROFILE_SUFFIXES)} and "
+        f"*t{year}_l{profile_dir.name}<sqlite suffix>. "
+        f"SQLite candidates seen: {sqlite_candidates or 'none'}."
+    )
+
+    try:
+        _wait_for_profile_dir(profile_dir)
+        profiles = _profile_files(profile_dir, config.recursive_profiles)
+    except Exception as exc:
+        raise FileNotFoundError(
+            f"{sqlite_error} Single-profile fallback failed: {exc!r}"
+        ) from exc
+    if not profiles:
+        raise FileNotFoundError(
+            f"{sqlite_error} Single-profile fallback found no "
+            f"{sorted(PROFILE_SUFFIXES)} files in {profile_dir}."
+        )
+    return profile_dir, profiles, None, None
 
 
 def _read_profile_frame(path: Path) -> Any:
@@ -1622,9 +1996,26 @@ def calculate_profile_features(
     region: str,
     profile: str,
 ) -> dict[str, Any]:
+    frame = _read_validated_profile_frame(profile_path)
+    return _calculate_profile_features_from_frame(
+        frame,
+        year=year,
+        country=country,
+        region=region,
+        profile=profile,
+    )
+
+
+def _calculate_profile_features_from_frame(
+    frame: Any,
+    *,
+    year: int,
+    country: str,
+    region: str,
+    profile: str,
+) -> dict[str, Any]:
     import numpy as np
 
-    frame = _read_validated_profile_frame(profile_path)
     weighting_column = _profile_column(frame, "Weighting")
     if weighting_column is None:
         weights = np.ones(len(frame), dtype=float)
@@ -1689,6 +2080,7 @@ def _profile_feature_records(
     country: str,
     region: str,
     workers: int,
+    sqlite_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     records = []
     label = f"{year} {country} profile statistics"
@@ -1702,6 +2094,7 @@ def _profile_feature_records(
             "year": year,
             "country": country,
             "region": region,
+            "sqlite_path": sqlite_path,
         }
         for profile in profiles
     ]
@@ -1732,26 +2125,65 @@ def _calculate_profile_features_job(job: dict[str, Any]) -> dict[str, Any]:
     profile_dir = Path(job["profile_dir"])
     profile = job["profile"]
     profile_path = profile_dir / profile
+    sqlite_path = (
+        Path(job["sqlite_path"])
+        if job.get("sqlite_path") is not None
+        else None
+    )
     safe_country = "".join(
         character if character.isalnum() else "_"
         for character in str(job["country"])
     )
 
     last_error: BaseException | None = None
-    for attempt in range(1, PROFILE_STATISTICS_RETRIES + 1):
+    attempt = 0
+    while True:
+        attempt += 1
         try:
-            record = calculate_profile_features(
-                profile_path,
-                year=job["year"],
-                country=job["country"],
-                region=job["region"],
-                profile=profile,
-            )
+            if sqlite_path is not None:
+                record = _calculate_profile_features_from_frame(
+                    _read_validated_sqlite_profile_frame(
+                        sqlite_path,
+                        profile,
+                    ),
+                    year=job["year"],
+                    country=job["country"],
+                    region=job["region"],
+                    profile=profile,
+                )
+            else:
+                record = calculate_profile_features(
+                    profile_path,
+                    year=job["year"],
+                    country=job["country"],
+                    region=job["region"],
+                    profile=profile,
+                )
             record["profile_feature_status"] = "ok"
             record["profile_feature_error"] = None
             return record
         except Exception as exc:  # noqa: BLE001 - flaky profile reads use local retry.
             last_error = exc
+
+        if sqlite_path is not None:
+            if _retry_limit_reached(attempt, PROFILE_STATISTICS_RETRIES):
+                return {
+                    "scenario_year": job["year"],
+                    "country": job["country"],
+                    "region": job["region"],
+                    "profile": profile,
+                    "profile_rows": None,
+                    "total_weighted_hours": None,
+                    "weighting_column_present": None,
+                    "profile_feature_status": "incomplete",
+                    "profile_feature_error": (
+                        f"Retry attempt {attempt}/"
+                        f"{_retry_limit_label(PROFILE_STATISTICS_RETRIES)} "
+                        f"failed: {last_error!r}"
+                    ),
+                }
+            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+            continue
 
         local_profile_dir = Path(
             tempfile.mkdtemp(
@@ -1780,20 +2212,24 @@ def _calculate_profile_features_job(job: dict[str, Any]) -> dict[str, Any]:
         finally:
             shutil.rmtree(local_profile_dir, ignore_errors=True)
 
-        if attempt < PROFILE_STATISTICS_RETRIES:
-            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
+        if _retry_limit_reached(attempt, PROFILE_STATISTICS_RETRIES):
+            return {
+                "scenario_year": job["year"],
+                "country": job["country"],
+                "region": job["region"],
+                "profile": profile,
+                "profile_rows": None,
+                "total_weighted_hours": None,
+                "weighting_column_present": None,
+                "profile_feature_status": "incomplete",
+                "profile_feature_error": (
+                    f"Retry attempt {attempt}/"
+                    f"{_retry_limit_label(PROFILE_STATISTICS_RETRIES)} "
+                    f"failed: {last_error!r}"
+                ),
+            }
 
-    return {
-        "scenario_year": job["year"],
-        "country": job["country"],
-        "region": job["region"],
-        "profile": profile,
-        "profile_rows": None,
-        "total_weighted_hours": None,
-        "weighting_column_present": None,
-        "profile_feature_status": "failed",
-        "profile_feature_error": repr(last_error),
-    }
+        time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
 
 
 def _validate_staged_profile(path: Path) -> None:
@@ -2283,6 +2719,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
     region = job["region"]
     year = job["year"]
     profile = job["profile"]
+    local_sqlite_profile_dir: Path | None = None
 
     try:
         from _helper_optimization import clone_components_which_use_parallelization
@@ -2290,9 +2727,24 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             _transfer_results_to_parameter_object,
         )
 
+        profile_dir_for_run = Path(job["profile_dir"])
+        profile_data_for_run = profile
+        if job.get("sqlite_path") is not None:
+            local_sqlite_profile_dir = Path(
+                tempfile.mkdtemp(
+                    prefix=f"ptx_now_sqlite_profile_{year}_{country}_",
+                )
+            )
+            profile_data_for_run = _materialize_sqlite_profile(
+                Path(job["sqlite_path"]),
+                profile,
+                local_sqlite_profile_dir,
+            )
+            profile_dir_for_run = local_sqlite_profile_dir
+
         pm_object = clone_components_which_use_parallelization(job["pm_object"])
-        pm_object.set_path_data(_normalise_folder(job["profile_dir"]))
-        pm_object.set_profile_data(profile)
+        pm_object.set_path_data(_normalise_folder(profile_dir_for_run))
+        pm_object.set_profile_data(profile_data_for_run)
         pm_object.set_solver(job["solver"])
         _validate_parameters_for_optimization(pm_object)
 
@@ -2477,13 +2929,17 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         }
 
     except OptimizationNotOptimalError:
+        if local_sqlite_profile_dir is not None:
+            shutil.rmtree(local_sqlite_profile_dir, ignore_errors=True)
         raise
     except ProfileOptimizationError:
+        if local_sqlite_profile_dir is not None:
+            shutil.rmtree(local_sqlite_profile_dir, ignore_errors=True)
         raise
     except Exception as exc:
         if _optimization_profile_retryable(exc) and not job.get(
             "_local_file_retry"
-        ):
+        ) and not job.get("sqlite_path"):
             safe_country = "".join(
                 character if character.isalnum() else "_"
                 for character in country
@@ -2491,7 +2947,9 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             source_profile = Path(job["profile_dir"]) / profile
             last_retry_error: BaseException = exc
 
-            for attempt in range(1, OPTIMIZATION_PROFILE_RETRIES + 1):
+            attempt = 0
+            while True:
+                attempt += 1
                 local_profile_dir = Path(
                     tempfile.mkdtemp(
                         prefix=f"ptx_now_retry_{year}_{safe_country}_",
@@ -2502,7 +2960,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                     _copy_profile_with_retries(
                         source=source_profile,
                         destination=local_profile,
-                        max_attempts=OPTIMIZATION_PROFILE_RETRIES,
+                        max_attempts=1,
                     )
                     retry_job = dict(job)
                     retry_job["profile_dir"] = local_profile_dir
@@ -2512,7 +2970,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                     last_retry_error = retry_exc
                     if (
                         not _optimization_profile_retryable(retry_exc)
-                        or attempt >= OPTIMIZATION_PROFILE_RETRIES
+                        or _retry_limit_reached(attempt, 1)
                     ):
                         raise ProfileOptimizationError(
                             year=year,
@@ -2523,7 +2981,8 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
                             exception_type=type(retry_exc).__name__,
                             detail=(
                                 f"Retry attempt {attempt}/"
-                                f"{OPTIMIZATION_PROFILE_RETRIES} failed: "
+                                "1 "
+                                "failed: "
                                 f"{retry_exc!r}"
                             ),
                             traceback_text=traceback.format_exc(),
@@ -2553,17 +3012,34 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             detail=repr(exc),
             traceback_text=traceback.format_exc(),
         ) from exc
+    finally:
+        if local_sqlite_profile_dir is not None:
+            shutil.rmtree(local_sqlite_profile_dir, ignore_errors=True)
 
 
 def _run_single_profile_no_abort(job: dict[str, Any]) -> dict[str, Any]:
-    try:
-        return _run_single_profile(job)
-    except (
-        OptimizationNotOptimalError,
-        ProfileOptimizationError,
-        Exception,
-    ) as exc:  # noqa: BLE001 - profile failures are recorded and skipped.
-        return _profile_error_output_from_exception(job, exc)
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return _run_single_profile(job)
+        except (
+            OptimizationNotOptimalError,
+            ProfileOptimizationError,
+            Exception,
+        ) as exc:  # noqa: BLE001 - profile failures are recorded or retried.
+            if _retry_limit_reached(attempt, OPTIMIZATION_PROFILE_RETRIES):
+                return _failed_profile_output(
+                    job=job,
+                    exception_type=type(exc).__name__,
+                    detail=(
+                        f"Retry attempt {attempt}/"
+                        f"{_retry_limit_label(OPTIMIZATION_PROFILE_RETRIES)} "
+                        f"failed: {exc!r}"
+                    ),
+                    traceback_text=traceback.format_exc(),
+                )
+            time.sleep(SERVER_ACCESS_RETRY_DELAY_SECONDS)
 
 
 def _run_country_jobs(jobs: list[dict[str, Any]], cores: int) -> list[dict[str, Any]]:
@@ -3065,8 +3541,8 @@ def write_year_results(
                 else 0,
             },
             {
-                "metric": "failed_runs",
-                "value": int((results_df.get("status") == "failed").sum())
+                "metric": "incomplete_runs",
+                "value": int((results_df.get("status") == "incomplete").sum())
                 if not results_df.empty
                 else 0,
             },
@@ -3354,11 +3830,16 @@ def run(config: RunnerConfig) -> None:
                             year,
                             wacc_overrides,
                         ).region
-                    profile_dir = _profile_dir(config, country_dir, year)
-                    _wait_for_profile_dir(profile_dir)
-                    profiles = _profile_files(
+                    sqlite_cleanup_dir = None
+                    (
                         profile_dir,
-                        config.recursive_profiles,
+                        profiles,
+                        sqlite_path,
+                        sqlite_cleanup_dir,
+                    ) = _country_profile_source(
+                        config,
+                        country_dir,
+                        year,
                     )
                     profiles_to_retry = [
                         profile
@@ -3386,8 +3867,11 @@ def run(config: RunnerConfig) -> None:
                                 country=country,
                                 region=region,
                                 workers=config.profile_statistics_cores,
+                                sqlite_path=sqlite_path,
                             )
                         )
+                    if sqlite_cleanup_dir is not None:
+                        shutil.rmtree(sqlite_cleanup_dir, ignore_errors=True)
                     write_year_results(
                         output_path=output_path,
                         year=year,
@@ -3407,6 +3891,7 @@ def run(config: RunnerConfig) -> None:
             print(f"{year}: {country}")
             country_successful = False
             completed_profile_count = 0
+            sqlite_cleanup_dir: Path | None = None
             country_had_existing_rows = any(
                 row.get("country") == country
                 for rows in [
@@ -3427,15 +3912,15 @@ def run(config: RunnerConfig) -> None:
                     year,
                     wacc_overrides,
                 )
-                profile_dir = _profile_dir(
+                (
+                    profile_dir,
+                    profiles,
+                    sqlite_path,
+                    sqlite_cleanup_dir,
+                ) = _country_profile_source(
                     config,
                     country_dir,
                     year,
-                )
-                _wait_for_profile_dir(profile_dir)
-                profiles = _profile_files(
-                    profile_dir,
-                    config.recursive_profiles,
                 )
                 if not profiles:
                     raise FileNotFoundError(
@@ -3487,6 +3972,7 @@ def run(config: RunnerConfig) -> None:
                             country=country,
                             region=settings.region,
                             workers=config.profile_statistics_cores,
+                            sqlite_path=sqlite_path,
                         )
                         year_profile_features.extend(country_profile_features)
                     else:
@@ -3578,6 +4064,7 @@ def run(config: RunnerConfig) -> None:
                             "year": year,
                             "wacc": country_pm_object.get_wacc(),
                             "solver": config.solver,
+                            "sqlite_path": sqlite_path,
                         }
                         for profile in profiles_to_optimize
                     ]
@@ -3588,7 +4075,7 @@ def run(config: RunnerConfig) -> None:
                         for result in country_results
                         if result.get("result", {}).get("status") == "optimal"
                     ]
-                    failed_results = [
+                    incomplete_results = [
                         result
                         for result in country_results
                         if result.get("result", {}).get("status") != "optimal"
@@ -3609,7 +4096,7 @@ def run(config: RunnerConfig) -> None:
                     )
                     year_errors.extend(
                         result["error"]
-                        for result in failed_results
+                        for result in incomplete_results
                         if result["error"] is not None
                     )
                     if profiles_to_optimize_set:
@@ -3625,10 +4112,11 @@ def run(config: RunnerConfig) -> None:
                         year_results,
                         country,
                     )
-                    if failed_results:
+                    if incomplete_results:
                         print(
-                            f"{year}: Skip {len(failed_results)} failed "
-                            f"profile(s) for {country}; see errors sheet."
+                            f"{year}: Mark {len(incomplete_results)} "
+                            f"incomplete profile(s) for {country}; see "
+                            "errors sheet."
                         )
                     if len(optimal_profiles_after_run) == len(set(profiles)):
                         completed_countries.append(country)
@@ -3693,6 +4181,8 @@ def run(config: RunnerConfig) -> None:
                 ),
                 append_country=country,
             )
+            if sqlite_cleanup_dir is not None:
+                shutil.rmtree(sqlite_cleanup_dir, ignore_errors=True)
             print(f"Checkpoint written: {output_path}")
             if country_successful:
                 _mark_country_completed(

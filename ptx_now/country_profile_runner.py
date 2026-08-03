@@ -1525,9 +1525,20 @@ def _sqlite_profile_column(columns: list[str]) -> str | None:
         "profile",
         "profile_name",
         "profile_file",
+        "profile_filename",
+        "profile_path",
+        "profile_id",
         "file",
         "filename",
         "name",
+        "location",
+        "location_name",
+        "location_id",
+        "site",
+        "site_name",
+        "point",
+        "grid_cell",
+        "cell",
     }
     for column in columns:
         if str(column).strip().lower() in profile_column_names:
@@ -1537,17 +1548,99 @@ def _sqlite_profile_column(columns: list[str]) -> str | None:
 
 def _sqlite_has_profile_data_columns(columns: list[str]) -> bool:
     normalized = {str(column).strip().lower() for column in columns}
-    return bool(
-        normalized
-        & {
-            "solar",
-            "wind",
-            "weighting",
-        }
+    has_wide_profile_columns = bool(
+        normalized & {"solar", "wind", "weighting"}
+    )
+    has_long_profile_columns = (
+        bool(normalized & {"technology", "component", "variable", "series"})
+        and bool(normalized & {"value", "profile_value", "capacity_factor"})
+    )
+    return has_wide_profile_columns or has_long_profile_columns
+
+
+def _sqlite_named_column(columns: list[str], candidates: set[str]) -> str | None:
+    for column in columns:
+        if str(column).strip().lower() in candidates:
+            return column
+    return None
+
+
+def _sqlite_time_column(columns: list[str]) -> str | None:
+    return _sqlite_named_column(
+        columns,
+        {
+            "index",
+            "time",
+            "timestamp",
+            "hour",
+            "timestep",
+            "time_step",
+            "step",
+        },
     )
 
 
+def _normalise_sqlite_series_name(value: Any) -> str:
+    text = str(value).strip()
+    normalized = text.lower().replace(" ", "_").replace("-", "_")
+    if normalized in {"solar", "pv", "solar_pv", "photovoltaics"}:
+        return "Solar"
+    if normalized in {"wind", "wind_onshore", "onshore_wind"}:
+        return "Wind"
+    if normalized in {"weighting", "weight", "weights"}:
+        return "Weighting"
+    return text
+
+
+def _sqlite_pivot_long_profile_frame(frame: Any) -> Any:
+    columns = [str(column) for column in frame.columns]
+    series_column = _sqlite_named_column(
+        columns,
+        {"technology", "component", "variable", "series"},
+    )
+    value_column = _sqlite_named_column(
+        columns,
+        {"value", "profile_value", "capacity_factor"},
+    )
+    if series_column is None or value_column is None:
+        return frame
+
+    time_column = _sqlite_time_column(columns)
+    if time_column is None:
+        frame = frame.copy()
+        time_column = "__row_order__"
+        frame[time_column] = frame.groupby(series_column).cumcount()
+
+    pivoted = frame.pivot_table(
+        index=time_column,
+        columns=series_column,
+        values=value_column,
+        aggfunc="first",
+    )
+    pivoted.columns = [
+        _normalise_sqlite_series_name(column)
+        for column in pivoted.columns
+    ]
+
+    weighting_column = _sqlite_named_column(
+        columns,
+        {"weighting", "weight", "weights"},
+    )
+    if weighting_column is not None and weighting_column != value_column:
+        weights = frame.dropna(subset=[weighting_column]).drop_duplicates(
+            subset=[time_column],
+            keep="first",
+        )
+        if not weights.empty:
+            pivoted["Weighting"] = weights.set_index(time_column)[weighting_column]
+
+    return pivoted
+
+
 def _normalise_sqlite_profile_frame(frame: Any) -> Any:
+    if frame.empty:
+        return frame
+    frame = _sqlite_pivot_long_profile_frame(frame)
     if frame.empty:
         return frame
     first_column = str(frame.columns[0]).strip().lower()
@@ -1586,6 +1679,20 @@ def _sqlite_profile_names(sqlite_path: Path) -> list[str]:
                 profile_names.append(table_name)
 
     return sorted(dict.fromkeys(profile_names))
+
+
+def _sqlite_schema_summary(sqlite_path: Path, max_tables: int = 8) -> str:
+    with sqlite3.connect(sqlite_path) as connection:
+        table_names = _sqlite_table_names(sqlite_path)
+        parts = []
+        for table_name in table_names[:max_tables]:
+            columns = _sqlite_table_columns(connection, table_name)
+            parts.append(
+                f"{table_name}({', '.join(columns[:12])}"
+                f"{', ...' if len(columns) > 12 else ''})"
+            )
+    suffix = "" if len(table_names) <= max_tables else ", ..."
+    return "; ".join(parts) + suffix
 
 
 def _read_sqlite_profile_frame(sqlite_path: Path, profile: str) -> Any:
@@ -1800,6 +1907,21 @@ def _country_profile_source(
             f"{year}: Use SQLite profile database for {country_dir.name}: "
             f"{sqlite_source.name} ({len(profiles)} profiles)"
         )
+        if len(profiles) == 1:
+            try:
+                preview = _read_validated_sqlite_profile_frame(
+                    local_sqlite,
+                    profiles[0],
+                )
+                preview_shape = preview.shape
+            except Exception as exc:  # noqa: BLE001 - diagnostic only.
+                preview_shape = f"unreadable: {exc!r}"
+            print(
+                f"{year}: Warning: SQLite database for {country_dir.name} "
+                "yielded only one profile. "
+                f"profile={profiles[0]!r}, frame_shape={preview_shape}, "
+                f"schema={_sqlite_schema_summary(local_sqlite)}"
+            )
         return profile_dir, profiles, local_sqlite, local_sqlite_dir
     sqlite_candidates = []
     for sqlite_dir in [profile_dir, sqlite_parent]:
@@ -2730,6 +2852,10 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         profile_dir_for_run = Path(job["profile_dir"])
         profile_data_for_run = profile
         if job.get("sqlite_path") is not None:
+            print(
+                f"{year} {country}: materialize SQLite profile {profile}",
+                flush=True,
+            )
             local_sqlite_profile_dir = Path(
                 tempfile.mkdtemp(
                     prefix=f"ptx_now_sqlite_profile_{year}_{country}_",
@@ -2746,6 +2872,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         pm_object.set_path_data(_normalise_folder(profile_dir_for_run))
         pm_object.set_profile_data(profile_data_for_run)
         pm_object.set_solver(job["solver"])
+        print(f"{year} {country}: prepare optimization {profile}", flush=True)
         _validate_parameters_for_optimization(pm_object)
 
         optimization_model = _model_class_for_solver(job["solver"])
@@ -2755,6 +2882,7 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             optimization_type=pm_object.get_optimization_type()
         )
         try:
+            print(f"{year} {country}: optimize {profile}", flush=True)
             optimization_problem.optimize()
         except Exception as exc:
             is_optimal, reason, raw_status = _optimization_status(

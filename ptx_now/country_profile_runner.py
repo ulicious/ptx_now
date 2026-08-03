@@ -3424,16 +3424,36 @@ def _profile_feature_record_is_complete(record: dict[str, Any]) -> bool:
     return str(status).strip().lower() == "ok"
 
 
+def _profile_resume_key(profile: Any, country: str | None = None) -> str:
+    profile_name = Path(str(profile)).stem
+    if country:
+        country_prefix = f"{country}_"
+        if profile_name.lower().startswith(country_prefix.lower()):
+            profile_name = profile_name[len(country_prefix):]
+
+    for marker in ["_t20", "_t19"]:
+        marker_position = profile_name.lower().find(marker)
+        if marker_position > 0:
+            profile_name = profile_name[:marker_position]
+            break
+
+    return profile_name.strip().lower()
+
+
 def _remove_country_profile_records(
     records: list[dict[str, Any]],
     country: str,
     profiles: set[str],
 ) -> list[dict[str, Any]]:
+    profile_keys = {
+        _profile_resume_key(profile, country)
+        for profile in profiles
+    }
     return [
         record
         for record in records
         if record.get("country") != country
-        or str(record.get("profile")) not in profiles
+        or _profile_resume_key(record.get("profile"), country) not in profile_keys
     ]
 
 
@@ -3442,7 +3462,7 @@ def _optimal_country_profiles(
     country: str,
 ) -> set[str]:
     return {
-        str(record.get("profile"))
+        _profile_resume_key(record.get("profile"), country)
         for record in records
         if record.get("country") == country
         and str(record.get("status", "")).strip().lower() == "optimal"
@@ -3943,12 +3963,12 @@ def run(config: RunnerConfig) -> None:
                     if row.get("country") == country
                 ]
                 completed_feature_profiles = {
-                    str(row.get("profile"))
+                    _profile_resume_key(row.get("profile"), country)
                     for row in country_feature_rows
                     if _profile_feature_record_is_complete(row)
                 }
                 failed_feature_profiles = {
-                    str(row.get("profile"))
+                    _profile_resume_key(row.get("profile"), country)
                     for row in country_feature_rows
                     if not _profile_feature_record_is_complete(row)
                 }
@@ -3991,8 +4011,10 @@ def run(config: RunnerConfig) -> None:
                     profiles_to_retry = [
                         profile
                         for profile in profiles
-                        if profile not in completed_feature_profiles
-                        or profile in failed_feature_profiles
+                        if _profile_resume_key(profile, country)
+                        not in completed_feature_profiles
+                        or _profile_resume_key(profile, country)
+                        in failed_feature_profiles
                     ]
                     profiles_to_retry_set = set(profiles_to_retry)
                     if profiles_to_retry:
@@ -4081,20 +4103,22 @@ def run(config: RunnerConfig) -> None:
                         if row.get("country") == country
                     ]
                     completed_feature_profiles = {
-                        str(row.get("profile"))
+                        _profile_resume_key(row.get("profile"), country)
                         for row in country_feature_rows
                         if _profile_feature_record_is_complete(row)
                     }
                     failed_feature_profiles = {
-                        str(row.get("profile"))
+                        _profile_resume_key(row.get("profile"), country)
                         for row in country_feature_rows
                         if not _profile_feature_record_is_complete(row)
                     }
                     profiles_to_read_statistics = [
                         profile
                         for profile in profiles
-                        if profile not in completed_feature_profiles
-                        or profile in failed_feature_profiles
+                        if _profile_resume_key(profile, country)
+                        not in completed_feature_profiles
+                        or _profile_resume_key(profile, country)
+                        in failed_feature_profiles
                     ]
                     profiles_to_read_statistics_set = set(
                         profiles_to_read_statistics
@@ -4167,8 +4191,18 @@ def run(config: RunnerConfig) -> None:
                     profiles_to_optimize = [
                         profile
                         for profile in profiles
-                        if profile not in already_optimal_profiles
+                        if _profile_resume_key(profile, country)
+                        not in already_optimal_profiles
                     ]
+                    skipped_optimized_profiles = (
+                        len(profiles) - len(profiles_to_optimize)
+                    )
+                    if skipped_optimized_profiles:
+                        print(
+                            f"{year}: Reuse {skipped_optimized_profiles} "
+                            f"optimal profile result(s) for {country}; "
+                            f"optimize {len(profiles_to_optimize)}."
+                        )
                     profiles_to_optimize_set = set(profiles_to_optimize)
                     if profiles_to_optimize_set:
                         year_results = _remove_country_profile_records(

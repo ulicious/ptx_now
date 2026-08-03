@@ -1534,6 +1534,8 @@ def _sqlite_profile_column(columns: list[str]) -> str | None:
         "location",
         "location_name",
         "location_id",
+        "coordinate",
+        "coordinates",
         "site",
         "site_name",
         "point",
@@ -1643,6 +1645,23 @@ def _normalise_sqlite_profile_frame(frame: Any) -> Any:
     frame = _sqlite_pivot_long_profile_frame(frame)
     if frame.empty:
         return frame
+    metadata_columns = [
+        column
+        for column in frame.columns
+        if str(column).strip().lower()
+        in {
+            "scenario_year",
+            "cluster_length",
+        }
+    ]
+    if metadata_columns:
+        frame = frame.drop(columns=metadata_columns)
+    row_column = _sqlite_named_column(
+        [str(column) for column in frame.columns],
+        {"row_in_profile", "row", "hour_in_profile"},
+    )
+    if row_column is not None:
+        frame = frame.set_index(row_column)
     first_column = str(frame.columns[0]).strip().lower()
     if first_column in {
         "index",

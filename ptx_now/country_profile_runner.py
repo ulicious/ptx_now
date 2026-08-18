@@ -2933,10 +2933,6 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         profile_dir_for_run = Path(job["profile_dir"])
         profile_data_for_run = profile
         if job.get("sqlite_path") is not None:
-            print(
-                f"{year} {country}: materialize SQLite profile {profile}",
-                flush=True,
-            )
             local_sqlite_profile_dir = Path(
                 tempfile.mkdtemp(
                     prefix=f"ptx_now_sqlite_profile_{year}_{country}_",
@@ -2953,7 +2949,6 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
         pm_object.set_path_data(_normalise_folder(profile_dir_for_run))
         pm_object.set_profile_data(profile_data_for_run)
         pm_object.set_solver(job["solver"])
-        print(f"{year} {country}: prepare optimization {profile}", flush=True)
         _validate_parameters_for_optimization(pm_object)
 
         optimization_model = _model_class_for_solver(job["solver"])
@@ -2963,7 +2958,6 @@ def _run_single_profile(job: dict[str, Any]) -> dict[str, Any]:
             optimization_type=pm_object.get_optimization_type()
         )
         try:
-            print(f"{year} {country}: optimize {profile}", flush=True)
             optimization_problem.optimize()
         except Exception as exc:
             is_optimal, reason, raw_status = _optimization_status(

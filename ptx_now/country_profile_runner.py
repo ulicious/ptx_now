@@ -1236,6 +1236,15 @@ def _apply_parameter(pm_object: Any, component_name: str, parameter: str, value:
         )
 
 
+def _parameter_rows_for_existing_components(pm_object: Any, parameter_rows: Any) -> Any:
+    component_names = set(pm_object.get_all_component_names())
+    keep_rows = (
+        (parameter_rows["component"] == "__project__")
+        | parameter_rows["component"].isin(component_names)
+    )
+    return parameter_rows[keep_rows].copy()
+
+
 def _apply_parameters(pm_object: Any, parameter_rows: Any) -> list[dict[str, Any]]:
     applied = []
     for _, row in parameter_rows.iterrows():
@@ -4218,6 +4227,10 @@ def run(config: RunnerConfig) -> None:
                         )
 
                     country_pm_object = deepcopy(base_pm_object)
+                    parameter_rows = _parameter_rows_for_existing_components(
+                        country_pm_object,
+                        parameter_rows,
+                    )
                     applied = _apply_parameters(
                         country_pm_object,
                         parameter_rows,

@@ -48,20 +48,16 @@ COUNTRIES_ROOT = Path(
     r"/run/user/1000/gvfs/smb-share:server=iipsrv-ss1.iip.kit.edu,"
     r"share=daten$/weatherOut/weatherOut_Uwe"
 )
-SETTINGS_YAML = Path(
-    r"/home/localadmin/Dokumente/ptx_now_data/"
-    r"global_hydrogen_case_calculation/hydrogen.yaml"
+
+WORKING_FOLDER = Path(
+    r"/home/localadmin/Dokumente/ptx_now_data/global_electricity_case_calculation/"
 )
-PARAMETERS_XLSX = Path(
-    r"/home/localadmin/Dokumente/ptx_now_data/"
-    r"global_hydrogen_case_calculation/runner_parameters.xlsx"
-)
-WACC_FILE = Path(r"S:\Group_TE\GM_Uwe\transport_model\location_data_wacc.csv")
+
+SETTINGS_YAML = WORKING_FOLDER / "electricity.yaml"
+PARAMETERS_XLSX = WORKING_FOLDER / "runner_parameters.xlsx"
+WACC_FILE = WORKING_FOLDER / "location_data_wacc.csv"
 WACC_CSV = WACC_FILE  # Backwards-compatible alias for WACC_FILE.
-OUTPUT_DIR = Path(
-    r"/home/localadmin/Dokumente/ptx_now_data/"
-    r"global_hydrogen_case_calculation/results"
-)
+OUTPUT_DIR = WORKING_FOLDER / "results"
 
 SCENARIO_YEARS = (2030, 2040, 2050)
 PROFILE_SUBDIR_TEMPLATE = "Clustered_Profiles/{year}/168"
@@ -706,6 +702,63 @@ def _find_column(columns: list[str], candidates: set[str]) -> str | None:
     return None
 
 
+def _read_wacc_csv(path: Path) -> Any:
+    import pandas as pd
+
+    errors = []
+    for encoding in ["utf-8-sig", "utf-8", "cp1252", "latin1"]:
+        for separator in [",", ";", "\t", "|"]:
+            try:
+                frame = pd.read_csv(
+                    path,
+                    sep=separator,
+                    encoding=encoding,
+                    skip_blank_lines=True,
+                )
+            except Exception as exc:  # noqa: BLE001 - try next dialect.
+                errors.append(f"{encoding}/{separator!r}: {exc}")
+                continue
+
+            frame.columns = [str(column).strip() for column in frame.columns]
+            country_column = _find_column(
+                list(frame.columns),
+                {
+                    "country",
+                    "country_territory",
+                    "country_name",
+                    "country_or_region",
+                    "name",
+                },
+            )
+            wacc_column = _find_column(
+                list(frame.columns),
+                {
+                    "wacc",
+                    "weighted_average_cost_of_capital",
+                    "discount_rate",
+                    "value",
+                },
+            )
+            year_columns = [
+                column
+                for column in frame.columns
+                if str(column).strip() in {str(year) for year in SCENARIO_YEARS}
+            ]
+            if country_column is not None and (wacc_column is not None or year_columns):
+                return frame
+            if len(frame.columns) > 1:
+                return frame
+
+    try:
+        preview = path.read_text(encoding="utf-8", errors="replace")[:500]
+    except OSError:
+        preview = "<could not read preview>"
+    raise ValueError(
+        f"Could not read WACC CSV '{path}' with separators ',', ';', tab, or '|'. "
+        f"File preview: {preview!r}. Parser attempts: {errors[:8]}"
+    )
+
+
 def _read_wacc_file(path: Path | None) -> dict[tuple[str, int | None], float]:
     if path is None:
         return {}
@@ -714,7 +767,7 @@ def _read_wacc_file(path: Path | None) -> dict[tuple[str, int | None], float]:
 
     suffix = path.suffix.lower()
     if suffix == ".csv":
-        raw = pd.read_csv(path, sep=None, engine="python")
+        raw = _read_wacc_csv(path)
     elif suffix in {".xlsx", ".xls"}:
         raw = pd.read_excel(path)
     else:
